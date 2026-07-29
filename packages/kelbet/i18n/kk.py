@@ -1,0 +1,26 @@
+from kelbet.i18n.keys import Msg
+
+TEXTS: dict[str, str] = {
+    Msg.START_CHOOSE_LANG: "Тілді таңдаңыз / Выберите язык:",
+    Msg.START_WELCOME: ("KELBET AI-ға қош келдіңіз!\nСізге {credits} сәлемдесу кредиті берілді."),
+    Msg.START_WELCOME_BACK: "KELBET AI-ға қайта қош келдіңіз!",
+    Msg.LANG_RU: "Русский",
+    Msg.LANG_KK: "Қазақша",
+    Msg.LANG_SET: "Тіл сақталды: қазақша",
+    Msg.MENU_CREATE: "Жасау",
+    Msg.MENU_AI_CHAT: "AI-чат",
+    Msg.MENU_MY_WORKS: "Менің жұмыстарым",
+    Msg.MENU_TARIFFS: "Тарифтер",
+    Msg.MENU_PARTNERSHIP: "Серіктестік",
+    Msg.MENU_PROFILE: "Профиль",
+    Msg.MENU_TITLE: "Басты мәзір",
+    Msg.COMING_SOON: "Жақында қолжетімді болады.",
+    Msg.PROFILE_TITLE: "Сіздің профиліңіз",
+    Msg.PROFILE_TELEGRAM_ID: "Telegram ID: {telegram_id}",
+    Msg.PROFILE_USERNAME: "Username: {username}",
+    Msg.PROFILE_LANGUAGE: "Тіл: {language}",
+    Msg.PROFILE_BALANCE: "Баланс: {balance}",
+    Msg.PROFILE_PLAN: "Тариф: {plan}",
+    Msg.PROFILE_NO_USERNAME: "көрсетілмеген",
+    Msg.PLAN_FREE: "Free",
+}
