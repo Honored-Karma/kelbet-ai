@@ -32,6 +32,7 @@ import {
   type PresignedUpload,
   type Quote,
 } from "./types";
+import { validateApiBaseUrl } from "./config";
 import { mockApi } from "./mock";
 import { z } from "zod";
 
@@ -58,7 +59,13 @@ export function setToken(token: string | null): void {
 }
 
 function baseUrl(): string {
-  return (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+  const validation = validateApiBaseUrl(import.meta.env.VITE_API_BASE_URL, {
+    production: import.meta.env.PROD,
+  });
+  if (!validation.ok) {
+    throw new ApiError("api_configuration_error", validation.reason, 0);
+  }
+  return validation.url;
 }
 
 async function liveRequest<T>(
@@ -77,11 +84,16 @@ async function liveRequest<T>(
     headers.set("Content-Type", "application/json");
     body = JSON.stringify(init.json);
   }
-  const response = await fetch(`${baseUrl()}${path}`, {
-    ...init,
-    headers,
-    body,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}${path}`, {
+      ...init,
+      headers,
+      body,
+    });
+  } catch {
+    throw new ApiError("network_error", "KELBET API is unreachable", 0);
+  }
   const payload: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = z

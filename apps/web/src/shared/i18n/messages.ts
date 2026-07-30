@@ -321,7 +321,11 @@ type MessageKey =
   | "common.error"
   | "common.loading"
   | "auth.booting"
-  | "auth.failed";
+  | "auth.failed"
+  | "auth.configurationError"
+  | "auth.networkError"
+  | "auth.openInTelegram"
+  | "auth.unknownError";
 
 const ru: Record<MessageKey, string> = {
   "nav.home": "Главная",
@@ -645,6 +649,12 @@ const ru: Record<MessageKey, string> = {
   "common.loading": "Загрузка…",
   "auth.booting": "Открываем KELBET…",
   "auth.failed": "Не удалось войти через Telegram",
+  "auth.configurationError":
+    "Mini App собран с неверным адресом API. Укажите реальный Railway URL в Vercel и выполните Redeploy.",
+  "auth.networkError":
+    "Нет связи с сервером KELBET. Проверьте, что Railway API запущен и его HTTPS-адрес указан в Vercel.",
+  "auth.openInTelegram": "Откройте KELBET кнопкой внутри Telegram.",
+  "auth.unknownError": "Неизвестная ошибка авторизации. Повторите попытку.",
 };
 
 const kk: Record<MessageKey, string> = {
@@ -969,6 +979,12 @@ const kk: Record<MessageKey, string> = {
   "common.loading": "Жүктелуде…",
   "auth.booting": "KELBET ашылуда…",
   "auth.failed": "Telegram арқылы кіру сәтсіз",
+  "auth.configurationError":
+    "Mini App API мекенжайы қате жиналған. Vercel ішінде Railway-дің нақты URL мекенжайын көрсетіп, Redeploy жасаңыз.",
+  "auth.networkError":
+    "KELBET серверімен байланыс жоқ. Railway API іске қосылғанын және оның HTTPS мекенжайы Vercel ішінде көрсетілгенін тексеріңіз.",
+  "auth.openInTelegram": "KELBET қолданбасын Telegram ішіндегі батырмамен ашыңыз.",
+  "auth.unknownError": "Авторизация кезінде белгісіз қате шықты. Қайталап көріңіз.",
 };
 
 const catalogs: Record<Language, Record<MessageKey, string>> = { ru, kk };

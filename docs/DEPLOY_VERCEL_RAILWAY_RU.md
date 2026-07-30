@@ -317,8 +317,14 @@ apps/web
 
 ```text
 VITE_API_MODE=live
-VITE_API_BASE_URL=https://ВАШ_API.up.railway.app
+VITE_API_BASE_URL=https://kelbet-ai-production.up.railway.app
 ```
+
+Это подтверждённый Public Domain сервиса `kelbet-api` из Railway → Settings →
+Networking. Не заменяйте его шаблонным `ВАШ_API`.
+
+Production build намеренно завершится ошибкой, если URL пустой, содержит
+`ВАШ_API`/`your-api`/`REPLACE`, указывает на localhost или использует HTTP.
 
 В `VITE_*` нельзя помещать секреты: эти значения попадают в браузерный bundle.
 
@@ -717,6 +723,19 @@ https://kelbet-ai.vercel.app
 
 Без пути и без завершающего `/`.
 
+### На экране написано `Failed to fetch`
+
+Проверьте Vercel → Project → Settings → Environment Variables. Значение не
+должно быть буквальным placeholder:
+
+```text
+https://ВАШ_API.up.railway.app
+```
+
+Нужно указать реальный Railway Public Domain API, затем выполнить Vercel
+Redeploy. Отдельно откройте `https://ваш-api.up.railway.app/health`: ожидается
+`{"status":"ok"}`.
+
 ### `Invalid Telegram init data`
 
 - запускайте Mini App из Telegram;
@@ -749,7 +768,31 @@ https://kelbet-ai.vercel.app
 
 Сделайте Redeploy: Vite variables встраиваются на этапе build.
 
-## 18. Финальный production checklist
+## 18. Начисление тестовых кредитов владельцу
+
+Не меняйте `wallets.balance` вручную. Используйте операторскую CLI-команду:
+она атомарно обновляет кошелёк и добавляет запись `admin_adjust` в ledger.
+
+После деплоя актуального кода выполните команду внутри контейнера `kelbet-api`.
+Точный SSH-префикс можно скопировать через Railway: правый клик по сервису →
+`Copy SSH Command`. Добавьте к нему:
+
+```text
+python -m kelbet.ops.grant_credits --telegram-id 8201681157 --amount 1000 --reference owner-test-20260731-a --confirm
+```
+
+Правила:
+
+- `--reference` должна быть уникальной для каждого нового начисления;
+- повтор той же команды безопасен и не удвоит баланс;
+- одна операция ограничена `1 000 000` кредитов;
+- пользователь должен хотя бы один раз выполнить `/start`;
+- команда не доступна через публичный API или Telegram.
+
+Успешный результат содержит `"applied": true` и новый `balance_after`.
+Повтор уже применённой операции содержит `"applied": false`.
+
+## 19. Финальный production checklist
 
 - [ ] GitHub repository не содержит секретов.
 - [ ] PostgreSQL и Redis доступны только через Railway references.

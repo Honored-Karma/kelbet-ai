@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import contactSheet from "../assets/kelbet-contact-sheet.webp";
 import { api, getApiMode, getToken, setToken } from "../shared/api/client";
+import { ApiError } from "../shared/api/types";
 import { useI18n } from "../shared/i18n/runtime";
 import { bootTelegram, getInitData } from "../shared/telegram/webapp";
 import { ErrorState } from "../shared/ui/ErrorState";
@@ -29,7 +30,18 @@ export function BootPage() {
       }
       void navigate("/", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "auth_failed");
+      if (err instanceof ApiError && err.code === "api_configuration_error") {
+        setError(tx("auth.configurationError"));
+      } else if (
+        (err instanceof ApiError && err.code === "network_error") ||
+        (err instanceof TypeError && err.message === "Failed to fetch")
+      ) {
+        setError(tx("auth.networkError"));
+      } else if (err instanceof Error && err.message === "missing_init_data") {
+        setError(tx("auth.openInTelegram"));
+      } else {
+        setError(err instanceof Error ? err.message : tx("auth.unknownError"));
+      }
       setBusy(false);
     }
   }
