@@ -14,7 +14,7 @@
     "startCommand": "python -m apps.bot",
     "restartPolicyType": "ALWAYS",
     "restartPolicyMaxRetries": 10,
-    "overlapSeconds": "0",
-    "drainingSeconds": "25"
+    "overlapSeconds": 0,
+    "drainingSeconds": 25
   }
 }
