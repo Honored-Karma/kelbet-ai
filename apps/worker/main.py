@@ -103,10 +103,6 @@ def _redis_settings() -> RedisSettings:
     return RedisSettings.from_dsn(get_settings().redis_url)
 
 
-def _job_timeout() -> int:
-    return get_settings().worker_job_timeout_seconds
-
-
 class ImageWorkerSettings:
     """Run with: arq apps.worker.main.ImageWorkerSettings"""
 
@@ -116,7 +112,7 @@ class ImageWorkerSettings:
     queue_name = "kelbet:image"
     max_jobs = 4
     job_timeout = get_settings().worker_job_timeout_seconds
-    redis_settings = _redis_settings
+    redis_settings = _redis_settings()
 
 
 class TextWorkerSettings:
@@ -128,7 +124,7 @@ class TextWorkerSettings:
     queue_name = "kelbet:text"
     max_jobs = 8
     job_timeout = get_settings().worker_job_timeout_seconds
-    redis_settings = _redis_settings
+    redis_settings = _redis_settings()
 
 
 class VideoWorkerSettings:
@@ -140,7 +136,7 @@ class VideoWorkerSettings:
     queue_name = "kelbet:video"
     max_jobs = 2
     job_timeout = get_settings().worker_job_timeout_seconds
-    redis_settings = _redis_settings
+    redis_settings = _redis_settings()
 
 
 class MaintainWorkerSettings:
@@ -164,7 +160,7 @@ class MaintainWorkerSettings:
     queue_name = "kelbet:maintain"
     max_jobs = 1
     job_timeout = get_settings().worker_job_timeout_seconds
-    redis_settings = _redis_settings
+    redis_settings = _redis_settings()
 
 
 # Back-compat alias

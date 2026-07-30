@@ -9,7 +9,13 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from apps.api.main import create_app
-from apps.worker.main import VideoWorkerSettings
+from apps.worker.main import (
+    ImageWorkerSettings,
+    MaintainWorkerSettings,
+    TextWorkerSettings,
+    VideoWorkerSettings,
+)
+from arq.connections import RedisSettings
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -146,6 +152,20 @@ async def _quote(client: AsyncClient, token: str, *, model_slug: str) -> str:
 def test_video_worker_concurrency_limit() -> None:
     assert VideoWorkerSettings.queue_name == "kelbet:video"
     assert VideoWorkerSettings.max_jobs == 2
+
+
+def test_arq_worker_settings_use_resolved_values() -> None:
+    worker_settings = (
+        ImageWorkerSettings,
+        TextWorkerSettings,
+        VideoWorkerSettings,
+        MaintainWorkerSettings,
+    )
+
+    for settings in worker_settings:
+        assert isinstance(settings.job_timeout, int)
+        assert settings.job_timeout > 0
+        assert isinstance(settings.redis_settings, RedisSettings)
 
 
 @pytest.mark.asyncio
