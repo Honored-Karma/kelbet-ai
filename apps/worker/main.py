@@ -115,7 +115,7 @@ class ImageWorkerSettings:
     on_shutdown = shutdown
     queue_name = "kelbet:image"
     max_jobs = 4
-    job_timeout = _job_timeout
+    job_timeout = get_settings().worker_job_timeout_seconds
     redis_settings = _redis_settings
 
 
@@ -127,7 +127,7 @@ class TextWorkerSettings:
     on_shutdown = shutdown
     queue_name = "kelbet:text"
     max_jobs = 8
-    job_timeout = _job_timeout
+    job_timeout = get_settings().worker_job_timeout_seconds
     redis_settings = _redis_settings
 
 
@@ -139,7 +139,7 @@ class VideoWorkerSettings:
     on_shutdown = shutdown
     queue_name = "kelbet:video"
     max_jobs = 2
-    job_timeout = _job_timeout
+    job_timeout = get_settings().worker_job_timeout_seconds
     redis_settings = _redis_settings
 
 
@@ -163,7 +163,7 @@ class MaintainWorkerSettings:
     on_shutdown = shutdown
     queue_name = "kelbet:maintain"
     max_jobs = 1
-    job_timeout = _job_timeout
+    job_timeout = get_settings().worker_job_timeout_seconds
     redis_settings = _redis_settings
 
 
