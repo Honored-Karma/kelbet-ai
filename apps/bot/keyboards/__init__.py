@@ -3,6 +3,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    WebAppInfo,
 )
 
 from kelbet.domain.enums import Language
@@ -26,20 +27,107 @@ def language_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def main_menu_keyboard(lang: Language) -> ReplyKeyboardMarkup:
+def _mini_app_page_url(base_url: str, path: str) -> str:
+    return f"{base_url.strip().rstrip('/')}/{path.strip().lstrip('/')}"
+
+
+def _mini_app_button(
+    *,
+    text: str,
+    base_url: str,
+    path: str,
+) -> KeyboardButton:
+    if not base_url.strip():
+        return KeyboardButton(text=text)
+    return KeyboardButton(
+        text=text,
+        web_app=WebAppInfo(url=_mini_app_page_url(base_url, path)),
+    )
+
+
+def main_menu_keyboard(lang: Language, mini_app_url: str = "") -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text=t(Msg.MENU_CREATE, lang)),
+                _mini_app_button(
+                    text=t(Msg.MENU_CREATE, lang),
+                    base_url=mini_app_url,
+                    path="create",
+                ),
+                _mini_app_button(
+                    text=t(Msg.MENU_VIDEO, lang),
+                    base_url=mini_app_url,
+                    path="video",
+                ),
+            ],
+            [
                 KeyboardButton(text=t(Msg.MENU_AI_CHAT, lang)),
+                _mini_app_button(
+                    text=t(Msg.MENU_MY_WORKS, lang),
+                    base_url=mini_app_url,
+                    path="history",
+                ),
             ],
             [
-                KeyboardButton(text=t(Msg.MENU_MY_WORKS, lang)),
-                KeyboardButton(text=t(Msg.MENU_TARIFFS, lang)),
-            ],
-            [
-                KeyboardButton(text=t(Msg.MENU_PARTNERSHIP, lang)),
+                KeyboardButton(text=t(Msg.MENU_BALANCE, lang)),
                 KeyboardButton(text=t(Msg.MENU_PROFILE, lang)),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def mini_app_launch_keyboard(
+    lang: Language,
+    *,
+    mini_app_url: str,
+    path: str,
+    label_key: str,
+) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(label_key, lang),
+                    web_app=WebAppInfo(url=_mini_app_page_url(mini_app_url, path)),
+                )
+            ]
+        ]
+    )
+
+
+def support_keyboard(lang: Language, support_username: str) -> InlineKeyboardMarkup:
+    username = support_username.strip().lstrip("@")
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(Msg.SUPPORT_OPEN, lang),
+                    url=f"https://t.me/{username}",
+                )
+            ]
+        ]
+    )
+
+
+def chat_waiting_keyboard(lang: Language) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=t(Msg.CHAT_CANCEL, lang)),
+                KeyboardButton(text=t(Msg.CHAT_MAIN_MENU, lang)),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def chat_after_answer_keyboard(lang: Language) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=t(Msg.CHAT_ASK_AGAIN, lang)),
+                KeyboardButton(text=t(Msg.CHAT_MAIN_MENU, lang)),
             ],
         ],
         resize_keyboard=True,

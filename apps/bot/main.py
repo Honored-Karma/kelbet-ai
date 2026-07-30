@@ -5,8 +5,10 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
 
+from apps.bot.commands import configure_bot_commands
 from apps.bot.handlers import build_root_router
 from apps.bot.middlewares import DbSessionMiddleware
+from kelbet.chat.factory import build_chat_provider
 from kelbet.config import get_settings
 from kelbet.db.session import build_session_factory
 
@@ -25,10 +27,15 @@ async def run_bot() -> None:
     dp = Dispatcher(storage=storage)
 
     session_factory = build_session_factory(settings)
+    chat_provider = build_chat_provider(settings)
+
+    dp["settings"] = settings
+    dp["chat_provider"] = chat_provider
     dp.update.middleware(DbSessionMiddleware(session_factory))
     dp.include_router(build_root_router())
 
     try:
+        await configure_bot_commands(bot)
         await dp.start_polling(bot)
     finally:
         await bot.session.close()

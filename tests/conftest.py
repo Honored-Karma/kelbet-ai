@@ -5,7 +5,26 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from kelbet.db.base import Base
-from kelbet.db.models import CreditTransaction, User, Wallet  # noqa: F401
+from kelbet.db.models import (  # noqa: F401
+    AuthSession,
+    CatalogModel,
+    CreditReservation,
+    CreditTransaction,
+    FeatureFlag,
+    GenerationAsset,
+    GenerationAttempt,
+    GenerationJob,
+    NotificationOutbox,
+    PaymentOrder,
+    PaymentProduct,
+    PaymentReceipt,
+    PriceQuote,
+    PromptAssistantRequest,
+    ProviderUsage,
+    User,
+    Wallet,
+    WebhookReceipt,
+)
 
 
 def _test_database_url() -> str:

@@ -44,6 +44,29 @@ python -m apps.api
 python -m apps.bot
 ```
 
+Set `MINI_APP_URL` to the public HTTPS URL of the Mini App. When configured,
+the bot opens `/create` and `/history` directly from its reply keyboard.
+Set `SUPPORT_USERNAME` without `@` to enable `/support` and `/paysupport`.
+
+Bot commands:
+
+- `/create` — open the creation studio
+- `/history` — open previous generations
+- `/balance` — show total, reserved, and available credits
+- `/profile` — show the Telegram profile
+- `/settings` — change interface language
+- `/support` and `/paysupport` — contact support
+
+### Run Mini App
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Default `VITE_API_MODE=mock` exercises UI without the backend. For live API set `VITE_API_MODE=live` and `VITE_API_BASE_URL=http://localhost:8000`.
+
 ### Full stack
 
 ```bash
@@ -57,10 +80,42 @@ Health: `GET http://localhost:8000/health`
 ## Architecture
 
 - `apps/bot` — Telegram handlers (thin), keyboards, middlewares
-- `apps/api` — FastAPI (`/health` in iteration 1)
+- `apps/api` — FastAPI (`/health`; v0.3 expands `/api/v1`)
+- `apps/worker` — generation runner, recovery sweeper, and durable Telegram notification dispatcher
+- `apps/web` — Telegram Mini App (Vite + React)
 - `packages/kelbet` — models, repositories, services, i18n
 - Wallet balance is a cache; `credit_transactions` is the immutable ledger
+- Soft-hold: `wallets.reserved`; `available = balance - reserved`
 - Welcome bonus: 5 credits once via idempotency key `welcome:{user_id}`
+- AI chat: `ChatService` + `ChatProvider` (`mock` / `openrouter`); debit `chat:{request_id}` after successful reply
+- Prompt Lab: localized RU/KK image-prompt improvement with successful-result billing and idempotent replay
+- Visual history: secure batch preview URLs for the current user's generation archive
+- Ready notifications: transactional outbox with retry/backoff and a per-user Telegram preference
+- Studio operations: catalog-driven Create/Edit/Upscale, Smart/Fast/Quality presets, and up to 10 ordered references
+- Video Studio: text/photo-to-video, Fast/Quality, Runway primary routes, and a cost-bounded Google Veo fallback
+- Video completion: signed Google callbacks plus provider-safe Runway polling
+- Video production gate: machine-readable 100-job lifecycle and financial reconciliation
+- Telegram Stars: gated XTR invoices, validated checkout, durable receipts, and idempotent credit delivery
+
+See `docs/architecture/KELBET_V03_PLAN.md` for the approved v0.3 plan.
+See `docs/architecture/STUDIO_VIDEO_OPERATIONS.md` for the Video MVP provider,
+fallback, and financial contracts.
+See `docs/architecture/VIDEO_PRODUCTION_GATE.md` for signed callback setup and
+the required 100-job staging gate.
+See `docs/architecture/TELEGRAM_STARS_PAYMENTS.md` for the payment contract and
+remaining legal, refund, and reconciliation gates.
+
+## Deployment
+
+Production deployment files are included for:
+
+- Vercel: `apps/web/vercel.json`
+- Railway API: `deploy/railway/api.json`
+- Railway bot: `deploy/railway/bot.json`
+- Railway bundled workers: `deploy/railway/worker.json`
+
+Russian step-by-step guide:
+`docs/DEPLOY_VERCEL_RAILWAY_RU.md`.
 
 ## Quality
 

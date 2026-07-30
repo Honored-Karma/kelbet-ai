@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kelbet.config import Settings, get_settings
-from kelbet.db.models import User
+from kelbet.db.models import User, Wallet
 from kelbet.domain.enums import Language, Plan, TxReason
 from kelbet.repositories.user import UserRepository
 from kelbet.repositories.wallet import WalletRepository
@@ -62,22 +63,12 @@ class RegistrationService:
         username: str | None,
         language: Language,
     ) -> tuple[UserDTO, CreditResult]:
-        user = await self._users.get_by_telegram_id(telegram_id)
-        if user is None:
-            user = await self._users.create(
-                telegram_id=telegram_id,
-                username=username,
-                language=language,
-                plan=Plan.FREE,
-            )
-        else:
-            await self._users.update_language(user, language)
-            if username != user.username:
-                await self._users.update_username(user, username)
-
-        wallet = await self._wallets.get_by_user_id(user.id)
-        if wallet is None:
-            wallet = await self._wallets.create(user.id)
+        user = await self._get_or_create_user(
+            telegram_id=telegram_id,
+            username=username,
+            language=language,
+        )
+        wallet = await self._get_or_create_wallet(user.id)
 
         credit_result = await self._wallet_service.credit(
             wallet.id,
@@ -96,6 +87,51 @@ class RegistrationService:
             balance=credit_result.balance,
         )
         return dto, credit_result
+
+    async def _get_or_create_user(
+        self,
+        *,
+        telegram_id: int,
+        username: str | None,
+        language: Language,
+    ) -> User:
+        user = await self._users.get_by_telegram_id(telegram_id)
+        if user is not None:
+            await self._users.update_language(user, language)
+            if username != user.username:
+                await self._users.update_username(user, username)
+            return user
+
+        try:
+            async with self._session.begin_nested():
+                return await self._users.create(
+                    telegram_id=telegram_id,
+                    username=username,
+                    language=language,
+                    plan=Plan.FREE,
+                )
+        except IntegrityError:
+            user = await self._users.get_by_telegram_id(telegram_id)
+            if user is None:
+                raise
+            await self._users.update_language(user, language)
+            if username != user.username:
+                await self._users.update_username(user, username)
+            return user
+
+    async def _get_or_create_wallet(self, user_id: UUID) -> Wallet:
+        wallet = await self._wallets.get_by_user_id(user_id)
+        if wallet is not None:
+            return wallet
+
+        try:
+            async with self._session.begin_nested():
+                return await self._wallets.create(user_id)
+        except IntegrityError:
+            wallet = await self._wallets.get_by_user_id(user_id)
+            if wallet is None:
+                raise
+            return wallet
 
     async def _to_dto(self, user: User) -> UserDTO:
         wallet = await self._wallets.get_by_user_id(user.id)

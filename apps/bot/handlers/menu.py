@@ -10,7 +10,6 @@ router = Router(name="menu")
 
 _STUB_KEYS = (
     Msg.MENU_CREATE,
-    Msg.MENU_AI_CHAT,
     Msg.MENU_MY_WORKS,
     Msg.MENU_TARIFFS,
     Msg.MENU_PARTNERSHIP,

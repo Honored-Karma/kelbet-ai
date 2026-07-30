@@ -1,0 +1,45 @@
+# Paste these variables into API, Bot and Worker services.
+# Replace every REPLACE_* value. Never commit real secrets.
+
+APP_ENV=production
+LOG_LEVEL=INFO
+WELCOME_CREDITS=5
+
+# Railway reference variables. Rename Postgres/Redis if your services use other names.
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+REDIS_URL=${{Redis.REDIS_URL}}
+
+BOT_TOKEN=REPLACE_WITH_BOTFATHER_TOKEN
+MINI_APP_URL=https://REPLACE_WITH_VERCEL_DOMAIN
+SUPPORT_USERNAME=
+
+# Exact Mini App origin, without a trailing slash.
+CORS_ORIGINS=https://REPLACE_WITH_VERCEL_DOMAIN
+TELEGRAM_AUTH_MAX_AGE_SECONDS=86400
+SESSION_TTL_SECONDS=3600
+QUOTE_TTL_SECONDS=600
+
+# Production jobs use Redis/ARQ and the bundled worker service.
+GENERATION_QUEUE_BACKEND=arq
+WORKER_JOB_TIMEOUT_SECONDS=900
+WEBHOOK_SECRET=REPLACE_WITH_RANDOM_64_HEX_CHARACTERS
+
+# Keep free mock providers for the first deployment test.
+CHAT_PROVIDER=mock
+OPENROUTER_API_KEY=
+RUNWAY_API_KEY=
+GOOGLE_API_KEY=
+
+# For full upload/generation testing, configure Cloudflare R2 or another S3 service.
+STORAGE_BACKEND=s3
+S3_ENDPOINT_URL=https://REPLACE_ACCOUNT_ID.r2.cloudflarestorage.com
+S3_ACCESS_KEY_ID=REPLACE_R2_ACCESS_KEY
+S3_SECRET_ACCESS_KEY=REPLACE_R2_SECRET_KEY
+S3_BUCKET=kelbet-assets
+S3_REGION=auto
+S3_PRESIGN_TTL_SECONDS=600
+
+# Keep Stars disabled until a real public terms/refund page and support are ready.
+PAYMENTS_ENABLED=false
+PAYMENT_TERMS_URL=
+PAYMENT_TERMS_VERSION=2026-07-30

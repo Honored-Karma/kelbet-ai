@@ -1,0 +1,2478 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KELBET AI API",
+    "version": "0.3.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/telegram": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Telegram",
+        "operationId": "auth_telegram_api_v1_auth_telegram_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramAuthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramAuthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Logout",
+        "operationId": "auth_logout_api_v1_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Get Me",
+        "operationId": "get_me_api_v1_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Patch Me",
+        "operationId": "patch_me_api_v1_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchMeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ready": {
+      "get": {
+        "tags": [
+          "ready"
+        ],
+        "summary": "Ready",
+        "operationId": "ready_api_v1_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/models": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "List Models",
+        "operationId": "list_models_api_v1_catalog_models_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Language"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/models/{slug}": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Get Model",
+        "operationId": "get_model_api_v1_catalog_models__slug__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Language"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogModelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/wallet": {
+      "get": {
+        "tags": [
+          "wallet"
+        ],
+        "summary": "Get Wallet",
+        "operationId": "get_wallet_api_v1_wallet_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletBalanceResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/wallet/quote": {
+      "post": {
+        "tags": [
+          "wallet"
+        ],
+        "summary": "Create Quote",
+        "operationId": "create_quote_api_v1_wallet_quote_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/products": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "List Payment Products",
+        "operationId": "list_payment_products_api_v1_payments_products_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentProductsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/orders": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Create Payment Order",
+        "operationId": "create_payment_order_api_v1_payments_orders_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentOrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/history": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Payment History",
+        "operationId": "payment_history_api_v1_payments_history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/presign": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Presign Upload",
+        "operationId": "presign_upload_api_v1_uploads_presign_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/uploads/{asset_id}/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Complete Upload",
+        "operationId": "complete_upload_api_v1_uploads__asset_id__complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/downloads": {
+      "post": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Get Assets",
+        "operationId": "get_assets_api_v1_assets_downloads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetDownloadsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetDownloadsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assets/{asset_id}": {
+      "get": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Get Asset",
+        "operationId": "get_asset_api_v1_assets__asset_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetDownloadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generations": {
+      "post": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Create Generation",
+        "operationId": "create_generation_api_v1_generations_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generations/{generation_id}/draft": {
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Get Generation Draft",
+        "operationId": "get_generation_draft_api_v1_generations__generation_id__draft_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "generation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Generation Id"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "repeat",
+                "remix",
+                "upscale"
+              ],
+              "type": "string",
+              "default": "repeat",
+              "title": "Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationDraftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generations/{generation_id}": {
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Get Generation",
+        "operationId": "get_generation_api_v1_generations__generation_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "generation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Generation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generations/{generation_id}/cancel": {
+      "post": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Cancel Generation",
+        "operationId": "cancel_generation_api_v1_generations__generation_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "generation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Generation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "History",
+        "operationId": "history_api_v1_history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-assistant/config": {
+      "get": {
+        "tags": [
+          "prompt-assistant"
+        ],
+        "summary": "Prompt Assistant Config",
+        "operationId": "prompt_assistant_config_api_v1_prompt_assistant_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptAssistantConfigResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/prompt-assistant/improve": {
+      "post": {
+        "tags": [
+          "prompt-assistant"
+        ],
+        "summary": "Improve Prompt",
+        "operationId": "improve_prompt_api_v1_prompt_assistant_improve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImprovePromptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImprovePromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{provider}": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Provider Webhook",
+        "operationId": "provider_webhook_api_v1_webhooks__provider__post",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AssetDownloadResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "content_type",
+          "byte_size",
+          "width",
+          "height",
+          "download_url",
+          "expires_in"
+        ],
+        "title": "AssetDownloadResponse"
+      },
+      "AssetDownloadsRequest": {
+        "properties": {
+          "asset_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Asset Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_ids"
+        ],
+        "title": "AssetDownloadsRequest"
+      },
+      "AssetDownloadsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssetDownloadResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AssetDownloadsResponse"
+      },
+      "AssetRole": {
+        "type": "string",
+        "enum": [
+          "input",
+          "mask",
+          "output",
+          "thumb"
+        ],
+        "title": "AssetRole"
+      },
+      "AuthUserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "telegram_id": {
+            "type": "integer",
+            "title": "Telegram Id"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "telegram_id",
+          "language",
+          "plan"
+        ],
+        "title": "AuthUserResponse"
+      },
+      "CatalogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModelResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CatalogListResponse"
+      },
+      "CatalogModelResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "modality": {
+            "$ref": "#/components/schemas/Modality"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "provider_model_id": {
+            "type": "string",
+            "title": "Provider Model Id"
+          },
+          "display_order": {
+            "type": "integer",
+            "title": "Display Order"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "deprecated": {
+            "type": "boolean",
+            "title": "Deprecated"
+          },
+          "replacement_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement Slug"
+          },
+          "user_credit_price": {
+            "type": "integer",
+            "title": "User Credit Price"
+          },
+          "capabilities": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Capabilities"
+          },
+          "input_requirements": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Input Requirements"
+          },
+          "localization": {
+            "$ref": "#/components/schemas/LocalizedTextResponse"
+          },
+          "pricing_rules": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Rules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "modality",
+          "provider",
+          "provider_model_id",
+          "display_order",
+          "enabled",
+          "deprecated",
+          "replacement_slug",
+          "user_credit_price",
+          "capabilities",
+          "input_requirements",
+          "localization",
+          "pricing_rules"
+        ],
+        "title": "CatalogModelResponse"
+      },
+      "CompleteResponse": {
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "title": "Asset Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size"
+          },
+          "magic_ok": {
+            "type": "boolean",
+            "title": "Magic Ok"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_id",
+          "status",
+          "content_type",
+          "byte_size",
+          "magic_ok",
+          "width",
+          "height"
+        ],
+        "title": "CompleteResponse"
+      },
+      "CreateGenerationRequest": {
+        "properties": {
+          "quote_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Quote Id"
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 8000,
+            "title": "Prompt",
+            "default": ""
+          },
+          "input_asset_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Input Asset Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quote_id"
+        ],
+        "title": "CreateGenerationRequest"
+      },
+      "CreatePaymentOrderRequest": {
+        "properties": {
+          "product_slug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Product Slug"
+          },
+          "terms_accepted": {
+            "type": "boolean",
+            "title": "Terms Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "product_slug",
+          "terms_accepted"
+        ],
+        "title": "CreatePaymentOrderRequest"
+      },
+      "GenerationDraftResponse": {
+        "properties": {
+          "source_generation_id": {
+            "type": "string",
+            "title": "Source Generation Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "repeat",
+              "remix",
+              "upscale"
+            ],
+            "title": "Mode"
+          },
+          "model_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Slug"
+          },
+          "modality": {
+            "type": "string",
+            "title": "Modality"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "input_asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Input Asset Ids"
+          },
+          "unavailable_asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unavailable Asset Ids"
+          },
+          "missing_input_assets": {
+            "type": "integer",
+            "title": "Missing Input Assets"
+          },
+          "model_available": {
+            "type": "boolean",
+            "title": "Model Available"
+          },
+          "replacement_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_generation_id",
+          "mode",
+          "model_slug",
+          "modality",
+          "prompt",
+          "params",
+          "input_asset_ids",
+          "unavailable_asset_ids",
+          "missing_input_assets",
+          "model_available",
+          "replacement_slug"
+        ],
+        "title": "GenerationDraftResponse"
+      },
+      "GenerationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GenerationStatus"
+          },
+          "modality": {
+            "type": "string",
+            "title": "Modality"
+          },
+          "model_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Slug"
+          },
+          "user_credit_price": {
+            "type": "integer",
+            "title": "User Credit Price"
+          },
+          "progress_pct": {
+            "type": "integer",
+            "title": "Progress Pct"
+          },
+          "progress_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Stage"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "cancelable": {
+            "type": "boolean",
+            "title": "Cancelable"
+          },
+          "reservation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Id"
+          },
+          "output_asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Output Asset Ids"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "estimated_remaining_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Remaining Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "modality",
+          "model_slug",
+          "user_credit_price",
+          "progress_pct",
+          "progress_stage",
+          "error_code",
+          "cancelable",
+          "reservation_id",
+          "output_asset_ids",
+          "created_at",
+          "eta_seconds",
+          "estimated_remaining_seconds"
+        ],
+        "title": "GenerationResponse"
+      },
+      "GenerationStatus": {
+        "type": "string",
+        "enum": [
+          "created",
+          "queued",
+          "submitting",
+          "running",
+          "finalizing",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "timed_out",
+          "dead_letter"
+        ],
+        "title": "GenerationStatus"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HistoryItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GenerationStatus"
+          },
+          "modality": {
+            "type": "string",
+            "title": "Modality"
+          },
+          "model_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Slug"
+          },
+          "user_credit_price": {
+            "type": "integer",
+            "title": "User Credit Price"
+          },
+          "progress_pct": {
+            "type": "integer",
+            "title": "Progress Pct"
+          },
+          "output_asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Output Asset Ids"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "preview_asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Asset Id"
+          },
+          "preview_content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Content Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "modality",
+          "model_slug",
+          "user_credit_price",
+          "progress_pct",
+          "output_asset_ids",
+          "created_at",
+          "preview_asset_id",
+          "preview_content_type"
+        ],
+        "title": "HistoryItem"
+      },
+      "HistoryResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "HistoryResponse"
+      },
+      "ImprovePromptRequest": {
+        "properties": {
+          "brief": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Brief"
+          },
+          "target_language": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Language"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "general",
+              "product",
+              "social",
+              "portrait",
+              "interior",
+              "food",
+              "fashion"
+            ],
+            "title": "Intent",
+            "default": "general"
+          }
+        },
+        "type": "object",
+        "required": [
+          "brief"
+        ],
+        "title": "ImprovePromptRequest"
+      },
+      "ImprovePromptResponse": {
+        "properties": {
+          "improved_prompt": {
+            "type": "string",
+            "title": "Improved Prompt"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "credit_cost": {
+            "type": "integer",
+            "title": "Credit Cost"
+          },
+          "charged": {
+            "type": "boolean",
+            "title": "Charged"
+          },
+          "balance": {
+            "type": "integer",
+            "title": "Balance"
+          },
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Limits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "improved_prompt",
+          "language",
+          "credit_cost",
+          "charged",
+          "balance",
+          "limits"
+        ],
+        "title": "ImprovePromptResponse"
+      },
+      "Language": {
+        "type": "string",
+        "enum": [
+          "ru",
+          "kk"
+        ],
+        "title": "Language"
+      },
+      "LocalizedTextResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "LocalizedTextResponse"
+      },
+      "LogoutResponse": {
+        "properties": {
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "revoked"
+        ],
+        "title": "LogoutResponse"
+      },
+      "MeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "telegram_id": {
+            "type": "integer",
+            "title": "Telegram Id"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "balance": {
+            "type": "integer",
+            "title": "Balance"
+          },
+          "reserved": {
+            "type": "integer",
+            "title": "Reserved"
+          },
+          "available": {
+            "type": "integer",
+            "title": "Available"
+          },
+          "notify_generation_ready": {
+            "type": "boolean",
+            "title": "Notify Generation Ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "telegram_id",
+          "username",
+          "language",
+          "plan",
+          "balance",
+          "reserved",
+          "available",
+          "notify_generation_ready"
+        ],
+        "title": "MeResponse"
+      },
+      "Modality": {
+        "type": "string",
+        "enum": [
+          "text",
+          "image",
+          "image_edit",
+          "video",
+          "upscale"
+        ],
+        "title": "Modality"
+      },
+      "PatchMeRequest": {
+        "properties": {
+          "language": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Language"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify_generation_ready": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Generation Ready"
+          }
+        },
+        "type": "object",
+        "title": "PatchMeRequest"
+      },
+      "PaymentHistoryResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentOrderResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PaymentHistoryResponse"
+      },
+      "PaymentOrderResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "product_slug": {
+            "type": "string",
+            "title": "Product Slug"
+          },
+          "product_name": {
+            "type": "string",
+            "title": "Product Name"
+          },
+          "credits": {
+            "type": "integer",
+            "title": "Credits"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "total_amount": {
+            "type": "integer",
+            "title": "Total Amount"
+          },
+          "invoice_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "product_slug",
+          "product_name",
+          "credits",
+          "currency",
+          "total_amount",
+          "expires_at",
+          "created_at",
+          "paid_at"
+        ],
+        "title": "PaymentOrderResponse"
+      },
+      "PaymentProductResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "credits": {
+            "type": "integer",
+            "title": "Credits"
+          },
+          "stars": {
+            "type": "integer",
+            "title": "Stars"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "description",
+          "credits",
+          "stars"
+        ],
+        "title": "PaymentProductResponse"
+      },
+      "PaymentProductsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentProductResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "payments_enabled": {
+            "type": "boolean",
+            "title": "Payments Enabled"
+          },
+          "terms_url": {
+            "type": "string",
+            "title": "Terms Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "payments_enabled",
+          "terms_url"
+        ],
+        "title": "PaymentProductsResponse"
+      },
+      "PresignRequest": {
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 3,
+            "title": "Content Type"
+          },
+          "byte_size": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Byte Size"
+          },
+          "role": {
+            "$ref": "#/components/schemas/AssetRole",
+            "default": "input"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content_type",
+          "byte_size"
+        ],
+        "title": "PresignRequest"
+      },
+      "PresignResponse": {
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "title": "Asset Id"
+          },
+          "upload_url": {
+            "type": "string",
+            "title": "Upload Url"
+          },
+          "object_key": {
+            "type": "string",
+            "title": "Object Key"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Headers"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "max_bytes": {
+            "type": "integer",
+            "title": "Max Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_id",
+          "upload_url",
+          "object_key",
+          "headers",
+          "expires_in",
+          "max_bytes"
+        ],
+        "title": "PresignResponse"
+      },
+      "PromptAssistantConfigResponse": {
+        "properties": {
+          "credit_cost": {
+            "type": "integer",
+            "title": "Credit Cost"
+          },
+          "max_input_chars": {
+            "type": "integer",
+            "title": "Max Input Chars"
+          },
+          "max_output_chars": {
+            "type": "integer",
+            "title": "Max Output Chars"
+          },
+          "charge_policy": {
+            "type": "string",
+            "const": "on_success",
+            "title": "Charge Policy",
+            "default": "on_success"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credit_cost",
+          "max_input_chars",
+          "max_output_chars"
+        ],
+        "title": "PromptAssistantConfigResponse"
+      },
+      "QuoteRequest": {
+        "properties": {
+          "model_slug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Model Slug"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_slug"
+        ],
+        "title": "QuoteRequest"
+      },
+      "QuoteResponse": {
+        "properties": {
+          "quote_id": {
+            "type": "string",
+            "title": "Quote Id"
+          },
+          "model_slug": {
+            "type": "string",
+            "title": "Model Slug"
+          },
+          "user_credit_price": {
+            "type": "integer",
+            "title": "User Credit Price"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "available": {
+            "type": "integer",
+            "title": "Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quote_id",
+          "model_slug",
+          "user_credit_price",
+          "currency",
+          "params",
+          "expires_at",
+          "available"
+        ],
+        "title": "QuoteResponse"
+      },
+      "TelegramAuthRequest": {
+        "properties": {
+          "init_data": {
+            "type": "string",
+            "maxLength": 8192,
+            "minLength": 1,
+            "title": "Init Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "init_data"
+        ],
+        "title": "TelegramAuthRequest"
+      },
+      "TelegramAuthResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUserResponse"
+          },
+          "welcome_applied": {
+            "type": "boolean",
+            "title": "Welcome Applied"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "user",
+          "welcome_applied"
+        ],
+        "title": "TelegramAuthResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WalletBalanceResponse": {
+        "properties": {
+          "balance": {
+            "type": "integer",
+            "title": "Balance"
+          },
+          "reserved": {
+            "type": "integer",
+            "title": "Reserved"
+          },
+          "available": {
+            "type": "integer",
+            "title": "Available"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "credits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "balance",
+          "reserved",
+          "available"
+        ],
+        "title": "WalletBalanceResponse"
+      },
+      "WebhookResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "title": "Duplicate",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "WebhookResponse"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

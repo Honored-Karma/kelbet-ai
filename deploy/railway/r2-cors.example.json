@@ -1,0 +1,20 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://REPLACE_WITH_VERCEL_DOMAIN"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "Content-Type"
+    ],
+    "ExposeHeaders": [
+      "ETag",
+      "Content-Length"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]

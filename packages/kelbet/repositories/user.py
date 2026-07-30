@@ -46,3 +46,12 @@ class UserRepository:
         user.username = username
         await self._session.flush()
         return user
+
+    async def update_generation_notifications(
+        self,
+        user: User,
+        enabled: bool,
+    ) -> User:
+        user.notify_generation_ready = enabled
+        await self._session.flush()
+        return user

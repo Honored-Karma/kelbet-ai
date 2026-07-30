@@ -10,13 +10,18 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from kelbet.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from kelbet.db.models.credit_reservation import CreditReservation
     from kelbet.db.models.credit_transaction import CreditTransaction
     from kelbet.db.models.user import User
 
 
 class Wallet(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "wallets"
-    __table_args__ = (CheckConstraint("balance >= 0", name="balance_non_negative"),)
+    __table_args__ = (
+        CheckConstraint("balance >= 0", name="balance_non_negative"),
+        CheckConstraint("reserved >= 0", name="reserved_non_negative"),
+        CheckConstraint("balance >= reserved", name="balance_gte_reserved"),
+    )
 
     user_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -25,6 +30,7 @@ class Wallet(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
     balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reserved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     user: Mapped[User] = relationship("User", back_populates="wallet")
@@ -33,3 +39,12 @@ class Wallet(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="wallet",
         lazy="selectin",
     )
+    reservations: Mapped[list[CreditReservation]] = relationship(
+        "CreditReservation",
+        back_populates="wallet",
+        lazy="selectin",
+    )
+
+    @property
+    def available(self) -> int:
+        return self.balance - self.reserved

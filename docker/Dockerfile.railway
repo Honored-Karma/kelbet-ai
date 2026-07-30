@@ -1,0 +1,33 @@
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app:/app/packages
+
+WORKDIR /app
+
+RUN useradd --create-home --uid 10001 kelbet
+
+COPY pyproject.toml README.md ./
+COPY packages ./packages
+COPY apps ./apps
+COPY migrations ./migrations
+COPY alembic.ini ./
+
+RUN pip install --upgrade pip \
+    && pip install .
+
+FROM base AS test
+
+COPY tests ./tests
+COPY deploy ./deploy
+COPY scripts ./scripts
+
+RUN pip install ".[dev]"
+
+FROM base AS runtime
+
+USER kelbet
+
+CMD ["python", "-m", "apps.api"]

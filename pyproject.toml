@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kelbet-ai"
-version = "0.1.0"
+version = "0.3.0"
 description = "KELBET AI — bilingual Telegram AI service for Kazakhstan"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,6 +18,8 @@ dependencies = [
     "pydantic-settings>=2.6,<3",
     "redis>=5.2,<6",
     "httpx>=0.28,<1",
+    "boto3>=1.35,<2",
+    "arq>=0.26,<1",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +52,9 @@ src = ["packages", "apps", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 
+[tool.ruff.lint.per-file-ignores]
+"apps/api/**/*.py" = ["B008"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -59,5 +64,5 @@ warn_unused_configs = true
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["aiogram.*", "asyncpg.*"]
+module = ["aiogram.*", "asyncpg.*", "boto3.*", "botocore.*", "arq.*"]
 ignore_missing_imports = true

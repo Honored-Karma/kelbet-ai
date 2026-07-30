@@ -1,0 +1,176 @@
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from apps.bot.commands import bot_commands, configure_bot_commands
+from apps.bot.handlers.navigation import on_balance, on_create, on_video
+from apps.bot.keyboards import main_menu_keyboard
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from kelbet.config import Settings
+from kelbet.domain.enums import Language
+from kelbet.i18n import Msg, t
+from kelbet.services.registration import RegistrationService
+
+
+async def _register(
+    session: AsyncSession,
+    *,
+    telegram_id: int,
+    language: Language,
+) -> None:
+    await RegistrationService(session, Settings(welcome_credits=5)).register_with_language(
+        telegram_id=telegram_id,
+        username="navigation_user",
+        language=language,
+    )
+
+
+def _message(*, telegram_id: int, text: str) -> MagicMock:
+    message = MagicMock()
+    message.from_user = MagicMock(id=telegram_id, username="navigation_user")
+    message.text = text
+    message.answer = AsyncMock()
+    return message
+
+
+def test_main_menu_uses_mini_app_links_when_configured() -> None:
+    keyboard = main_menu_keyboard(Language.RU, "https://app.kelbet.ai/")
+
+    create = keyboard.keyboard[0][0]
+    video = keyboard.keyboard[0][1]
+    history = keyboard.keyboard[1][1]
+    balance = keyboard.keyboard[2][0]
+
+    assert create.web_app is not None
+    assert create.web_app.url == "https://app.kelbet.ai/create"
+    assert video.web_app is not None
+    assert video.web_app.url == "https://app.kelbet.ai/video"
+    assert history.web_app is not None
+    assert history.web_app.url == "https://app.kelbet.ai/history"
+    assert balance.text == t(Msg.MENU_BALANCE, Language.RU)
+    assert balance.web_app is None
+
+
+def test_main_menu_falls_back_to_regular_buttons_without_url() -> None:
+    keyboard = main_menu_keyboard(Language.KK)
+
+    assert keyboard.keyboard[0][0].web_app is None
+    assert keyboard.keyboard[0][1].web_app is None
+    assert keyboard.keyboard[1][1].web_app is None
+    assert keyboard.keyboard[2][0].text == t(Msg.MENU_BALANCE, Language.KK)
+
+
+def test_bot_commands_are_localized() -> None:
+    russian = bot_commands(Language.RU)
+    kazakh = bot_commands(Language.KK)
+
+    assert [command.command for command in russian] == [
+        "start",
+        "menu",
+        "create",
+        "video",
+        "chat",
+        "history",
+        "balance",
+        "buy",
+        "profile",
+        "settings",
+        "support",
+    ]
+    assert russian[2].description == t(Msg.CMD_CREATE, Language.RU)
+    assert kazakh[2].description == t(Msg.CMD_CREATE, Language.KK)
+    assert "paysupport" not in [command.command for command in russian]
+    assert "terms" not in [command.command for command in russian]
+
+
+@pytest.mark.asyncio
+async def test_configure_bot_commands_sets_default_and_languages() -> None:
+    bot = MagicMock()
+    bot.set_my_commands = AsyncMock()
+
+    await configure_bot_commands(bot)
+
+    assert bot.set_my_commands.await_count == 3
+    assert bot.set_my_commands.await_args_list[0].kwargs == {}
+    assert bot.set_my_commands.await_args_list[1].kwargs == {"language_code": "ru"}
+    assert bot.set_my_commands.await_args_list[2].kwargs == {"language_code": "kk"}
+
+
+@pytest.mark.asyncio
+async def test_create_command_returns_mini_app_link(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = Settings(mini_app_url="https://app.kelbet.ai")
+
+    async with session_factory() as session, session.begin():
+        await _register(session, telegram_id=6101, language=Language.RU)
+        message = _message(telegram_id=6101, text="/create")
+        state = AsyncMock()
+
+        await on_create(message, session, state, settings)
+
+        state.clear.assert_awaited_once()
+        message.answer.assert_awaited_once()
+        args, kwargs = message.answer.await_args
+        assert args[0] == t(Msg.MINI_APP_OPEN, Language.RU)
+        button = kwargs["reply_markup"].inline_keyboard[0][0]
+        assert button.web_app.url == "https://app.kelbet.ai/create"
+
+
+@pytest.mark.asyncio
+async def test_create_command_prompts_registration(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = Settings(mini_app_url="https://app.kelbet.ai")
+
+    async with session_factory() as session, session.begin():
+        message = _message(telegram_id=6102, text="/create")
+        state = AsyncMock()
+
+        await on_create(message, session, state, settings)
+
+        state.clear.assert_not_awaited()
+        args, _kwargs = message.answer.await_args
+        assert args[0] == t(Msg.NEED_REGISTER, Language.KK)
+
+
+@pytest.mark.asyncio
+async def test_video_command_returns_video_studio_link(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = Settings(mini_app_url="https://app.kelbet.ai")
+
+    async with session_factory() as session, session.begin():
+        await _register(session, telegram_id=6104, language=Language.KK)
+        message = _message(telegram_id=6104, text="/video")
+        state = AsyncMock()
+
+        await on_video(message, session, state, settings)
+
+        state.clear.assert_awaited_once()
+        args, kwargs = message.answer.await_args
+        assert args[0] == t(Msg.MINI_APP_OPEN, Language.KK)
+        button = kwargs["reply_markup"].inline_keyboard[0][0]
+        assert button.web_app.url == "https://app.kelbet.ai/video"
+
+
+@pytest.mark.asyncio
+async def test_balance_command_shows_reserved_and_available(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = Settings(mini_app_url="")
+
+    async with session_factory() as session, session.begin():
+        await _register(session, telegram_id=6103, language=Language.KK)
+        message = _message(telegram_id=6103, text="/balance")
+        state = AsyncMock()
+
+        await on_balance(message, session, state, settings)
+
+        state.clear.assert_awaited_once()
+        args, kwargs = message.answer.await_args
+        assert t(Msg.BALANCE_TITLE, Language.KK) in args[0]
+        assert t(Msg.BALANCE_TOTAL, Language.KK, balance=5) in args[0]
+        assert t(Msg.BALANCE_RESERVED, Language.KK, reserved=0) in args[0]
+        assert t(Msg.BALANCE_AVAILABLE, Language.KK, available=5) in args[0]
+        assert kwargs["reply_markup"] is None

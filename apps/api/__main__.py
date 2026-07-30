@@ -1,3 +1,5 @@
+import os
+
 import uvicorn
 
 from kelbet.config import get_settings
@@ -9,7 +11,7 @@ def main() -> None:
         "apps.api.main:create_app",
         factory=True,
         host=settings.api_host,
-        port=settings.api_port,
+        port=int(os.getenv("PORT", str(settings.api_port))),
     )
 
 

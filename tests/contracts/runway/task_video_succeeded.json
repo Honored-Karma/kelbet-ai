@@ -1,0 +1,5 @@
+{
+  "id": "task_video_001",
+  "status": "SUCCEEDED",
+  "output": ["https://cdn.runway.test/outputs/video_001.mp4"]
+}

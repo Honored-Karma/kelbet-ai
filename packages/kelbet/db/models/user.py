@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, String
+from sqlalchemy import BigInteger, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kelbet.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from kelbet.domain.enums import Language, Plan
 
 if TYPE_CHECKING:
+    from kelbet.db.models.auth_session import AuthSession
     from kelbet.db.models.wallet import Wallet
 
 
@@ -19,11 +20,22 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     language: Mapped[str] = mapped_column(String(5), nullable=False)
     plan: Mapped[str] = mapped_column(String(32), nullable=False, default=Plan.FREE.value)
+    notify_generation_ready: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
 
     wallet: Mapped[Wallet | None] = relationship(
         "Wallet",
         back_populates="user",
         uselist=False,
+        lazy="selectin",
+    )
+    auth_sessions: Mapped[list[AuthSession]] = relationship(
+        "AuthSession",
+        back_populates="user",
         lazy="selectin",
     )
 

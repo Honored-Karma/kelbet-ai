@@ -1,0 +1,5 @@
+{
+  "id": "task_image_001",
+  "status": "SUCCEEDED",
+  "output": ["https://cdn.runway.test/outputs/image_001.png"]
+}
