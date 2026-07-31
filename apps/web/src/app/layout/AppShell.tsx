@@ -6,6 +6,7 @@ import { useI18n } from "../../shared/i18n/runtime";
 import { Icon, type IconName } from "../../shared/ui/Icon";
 import { OfflineBanner } from "../../shared/ui/OfflineBanner";
 import { SkeletonBlock } from "../../shared/ui/Skeleton";
+import { currentAppPath } from "../navigation";
 
 type NavItem = {
   to: string;
@@ -51,7 +52,13 @@ export function AppShell() {
   }, [profileLanguage, setLanguage]);
 
   if (!getToken()) {
-    return <Navigate to="/boot" replace />;
+    return (
+      <Navigate
+        to="/boot"
+        replace
+        state={{ returnTo: currentAppPath(location) }}
+      />
+    );
   }
 
   return (

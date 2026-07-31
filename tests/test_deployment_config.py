@@ -3,7 +3,7 @@ from pathlib import Path
 
 from apps.worker.bundle import WORKER_TARGETS
 
-from kelbet.config import Settings, normalize_async_database_url
+from kelbet.config import Settings, cors_origin_list, normalize_async_database_url
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,6 +19,17 @@ def test_railway_postgres_url_is_normalized_for_async_sqlalchemy() -> None:
 def test_existing_async_database_url_is_unchanged() -> None:
     raw = "postgresql+asyncpg://user:pass@localhost:5433/kelbet"
     assert normalize_async_database_url(raw) == raw
+
+
+def test_cors_origins_are_normalized_for_browser_origin_headers() -> None:
+    settings = Settings(
+        cors_origins=" https://kelbet-ai.vercel.app/, https://web.telegram.org/ "
+    )
+
+    assert cors_origin_list(settings) == [
+        "https://kelbet-ai.vercel.app",
+        "https://web.telegram.org",
+    ]
 
 
 def test_deployment_json_files_are_valid_and_target_expected_commands() -> None:

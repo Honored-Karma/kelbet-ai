@@ -128,4 +128,8 @@ def get_settings() -> Settings:
 
 def cors_origin_list(settings: Settings | None = None) -> list[str]:
     cfg = settings or get_settings()
-    return [part.strip() for part in cfg.cors_origins.split(",") if part.strip()]
+    return [
+        part.strip().rstrip("/")
+        for part in cfg.cors_origins.split(",")
+        if part.strip().rstrip("/")
+    ]

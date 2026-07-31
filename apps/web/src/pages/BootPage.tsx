@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { resolveBootReturnTo } from "../app/navigation";
 import contactSheet from "../assets/kelbet-contact-sheet.webp";
 import { api, getApiMode, getToken, setToken } from "../shared/api/client";
 import { ApiError } from "../shared/api/types";
@@ -9,6 +10,7 @@ import { ErrorState } from "../shared/ui/ErrorState";
 
 export function BootPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tx, setLanguage } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
@@ -28,7 +30,7 @@ export function BootPage() {
         setToken(auth.access_token);
         setLanguage(auth.user.language);
       }
-      void navigate("/", { replace: true });
+      void navigate(resolveBootReturnTo(location.state), { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.code === "api_configuration_error") {
         setError(tx("auth.configurationError"));
