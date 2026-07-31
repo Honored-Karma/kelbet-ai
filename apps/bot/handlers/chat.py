@@ -232,7 +232,8 @@ async def on_chat_message(
         return
 
     await state.clear()
-    await message.answer(result.answer)
+    # AI-ответ — недоверенный текст: отключаем HTML-парсинг, чтобы "<" не ломал отправку.
+    await message.answer(result.answer, parse_mode=None)
     await message.answer(
         t(Msg.CHAT_BALANCE_LEFT, result.language, balance=result.balance),
         reply_markup=chat_after_answer_keyboard(result.language),

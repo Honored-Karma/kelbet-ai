@@ -1,77 +1,104 @@
 from kelbet.i18n.keys import Msg
 
+# Батырмалар (Reply/Inline) мен alert-попап мәтіндерінде HTML-тег болмауы тиіс:
+# Telegram бұл жерлерде разметканы өңдемейді. HTML тек хабарлама мәтінінде қолданылады.
 TEXTS: dict[str, str] = {
-    Msg.START_CHOOSE_LANG: "Тілді таңдаңыз / Выберите язык:",
+    Msg.START_CHOOSE_LANG: "🌐 Тілді таңдаңыз / Выберите язык:",
     Msg.START_WELCOME: (
-        "KELBET AI-ға қош келдіңіз!\n\n"
-        "Сізге {credits} сәлемдесу кредиті берілді.\n"
-        "«Жасау» батырмасын басып, идеяңызды сипаттап, алғашқы жұмысыңызды алыңыз."
+        "✨ <b>KELBET AI-ға қош келдіңіз!</b>\n\n"
+        "Telegram-дағы шығармашылық AI-студияңыз:\n\n"
+        "🎨 Сурет генерациясы\n"
+        "🎬 Видео жасау\n"
+        "💬 Ақылды AI-чат\n\n"
+        "🎁 Сізге <b>{credits} сәлемдесу кредиті</b> берілді ⚡\n\n"
+        "👇 «Сурет жасау» батырмасын басып, идеяңызды сипаттаңыз — "
+        "алғашқы жұмысыңызды алыңыз!"
     ),
-    Msg.START_WELCOME_BACK: "KELBET AI-ға қайта қош келдіңіз! Қажетті әрекетті таңдаңыз.",
-    Msg.LANG_RU: "Русский",
-    Msg.LANG_KK: "Қазақша",
-    Msg.LANG_SET: "Тіл сақталды: қазақша",
-    Msg.MENU_CREATE: "Сурет жасау",
-    Msg.MENU_VIDEO: "Видео жасау",
-    Msg.MENU_AI_CHAT: "AI-чат",
-    Msg.MENU_MY_WORKS: "Менің жұмыстарым",
-    Msg.MENU_TARIFFS: "Тарифтер",
-    Msg.MENU_PARTNERSHIP: "Серіктестік",
-    Msg.MENU_PROFILE: "Профиль",
-    Msg.MENU_TITLE: "Басты мәзір",
-    Msg.MENU_BALANCE: "Баланс",
-    Msg.MENU_INVITE: "Дос шақыру",
-    Msg.COMING_SOON: "Жақында қолжетімді болады.",
-    Msg.NEED_REGISTER: "Алдымен /start басып, тілді таңдаңыз.",
-    Msg.MINI_APP_OPEN: "KELBET AI студиясын ашыңыз:",
+    Msg.START_WELCOME_BACK: (
+        "👋 <b>KELBET AI-ға қайта қош келдіңіз!</b>\n\n"
+        "Бүгін не жасағыңыз келеді? 👇"
+    ),
+    Msg.LANG_RU: "🇷🇺 Русский",
+    Msg.LANG_KK: "🇰🇿 Қазақша",
+    Msg.LANG_SET: "✅ Тіл сақталды: қазақша",
+    Msg.MENU_CREATE: "🎨 Сурет жасау",
+    Msg.MENU_VIDEO: "🎬 Видео жасау",
+    Msg.MENU_AI_CHAT: "💬 AI-чат",
+    Msg.MENU_MY_WORKS: "📁 Менің жұмыстарым",
+    Msg.MENU_TARIFFS: "💎 Тарифтер",
+    Msg.MENU_PARTNERSHIP: "🤝 Серіктестік",
+    Msg.MENU_PROFILE: "👤 Профиль",
+    Msg.MENU_TITLE: "🏠 <b>Басты мәзір</b>\n\nБөлімді таңдаңыз 👇",
+    Msg.MENU_BALANCE: "💰 Баланс",
+    Msg.MENU_INVITE: "🎁 Дос шақыру",
+    Msg.COMING_SOON: "🚧 Жақында қолжетімді болады. Біз бұл бағытта жұмыс істеп жатырмыз!",
+    Msg.NEED_REGISTER: "👉 Алдымен /start басып, тілді таңдаңыз.",
+    Msg.MINI_APP_OPEN: "🚀 <b>KELBET AI студиясы</b>\n\nСтудияны бір басып ашыңыз 👇",
     Msg.MINI_APP_UNAVAILABLE: (
-        "Mini App әлі бапталмаған. Іске қосуға дайындалып жатырмыз — кейінірек қайталап көріңіз."
+        "⚙️ Mini App әлі бапталмаған.\n"
+        "Іске қосуға дайындалып жатырмыз — кейінірек қайталап көріңіз."
     ),
-    Msg.MINI_APP_CREATE: "Image Studio ашу",
-    Msg.MINI_APP_VIDEO: "Video Studio ашу",
-    Msg.MINI_APP_HISTORY: "Жұмыстарымды ашу",
-    Msg.MINI_APP_PLANS: "Балансты толтыру",
-    Msg.BALANCE_TITLE: "Сіздің балансыңыз",
-    Msg.BALANCE_TOTAL: "Барлығы: {balance} кредит",
-    Msg.BALANCE_RESERVED: "Жұмыста: {reserved}",
-    Msg.BALANCE_AVAILABLE: "Қолжетімді: {available}",
-    Msg.BALANCE_TOP_UP: "Толтыру",
-    Msg.SETTINGS_TITLE: "Баптаулар",
-    Msg.SETTINGS_LANGUAGE: "Интерфейс тілін таңдаңыз:",
+    Msg.MINI_APP_CREATE: "🎨 Image Studio ашу",
+    Msg.MINI_APP_VIDEO: "🎬 Video Studio ашу",
+    Msg.MINI_APP_HISTORY: "📁 Жұмыстарымды ашу",
+    Msg.MINI_APP_PLANS: "💳 Балансты толтыру",
+    Msg.BALANCE_TITLE: "💰 <b>Сіздің балансыңыз</b>",
+    Msg.BALANCE_TOTAL: "💎 Барлығы: <b>{balance}</b> кредит",
+    Msg.BALANCE_RESERVED: "⏳ Жұмыста: {reserved}",
+    Msg.BALANCE_AVAILABLE: "✅ Қолжетімді: <b>{available}</b>",
+    Msg.BALANCE_TOP_UP: "💳 Толтыру",
+    Msg.SETTINGS_TITLE: "⚙️ <b>Баптаулар</b>",
+    Msg.SETTINGS_LANGUAGE: "🌐 Интерфейс тілін таңдаңыз:",
     Msg.SUPPORT_TEXT: (
+        "🛟 <b>Қолдау қызметі</b>\n\n"
         "Сұрағыңызды бір хабарламамен жазыңыз. Мәселе генерацияға қатысты болса, "
         "оның ID нөмірін тіркеңіз."
     ),
     Msg.PAY_SUPPORT_TEXT: (
-        "Төлем сұрағы бойынша күнін, сомасын және Telegram ID көрсетіңіз. "
-        "Карта деректерін жібермеңіз."
+        "💳 <b>Төлем бойынша көмек</b>\n\n"
+        "Күнін, сомасын және Telegram ID көрсетіңіз.\n"
+        "⚠️ Карта деректерін жібермеңіз."
     ),
-    Msg.SUPPORT_OPEN: "Қолдауға жазу",
+    Msg.SUPPORT_OPEN: "✍️ Қолдауға жазу",
     Msg.SUPPORT_UNAVAILABLE: (
-        "Қолдау қызметі әлі бапталмаған. Кейінірек қайталаңыз — кредиттеріңіз сақталады."
+        "⚙️ Қолдау қызметі әлі бапталмаған. Кейінірек қайталаңыз — "
+        "кредиттеріңіз сақталады."
     ),
     Msg.INVITE_COMING_SOON: (
-        "Рефералдық бағдарлама жақында ашылады. Бонус тек нақты достар үшін беріледі."
+        "🎁 <b>Рефералдық бағдарлама жақында ашылады!</b>\n\n"
+        "Достарыңызды шақырып, бонус кредиттер алыңыз. "
+        "Бонус тек нақты достар үшін беріледі."
     ),
-    Msg.PROFILE_TITLE: "Сіздің профиліңіз",
-    Msg.PROFILE_TELEGRAM_ID: "Telegram ID: {telegram_id}",
-    Msg.PROFILE_USERNAME: "Username: {username}",
-    Msg.PROFILE_LANGUAGE: "Тіл: {language}",
-    Msg.PROFILE_BALANCE: "Баланс: {balance}",
-    Msg.PROFILE_PLAN: "Тариф: {plan}",
+    Msg.PROFILE_TITLE: "👤 <b>Сіздің профиліңіз</b>\n",
+    Msg.PROFILE_TELEGRAM_ID: "🆔 Telegram ID: <code>{telegram_id}</code>",
+    Msg.PROFILE_USERNAME: "📛 Username: {username}",
+    Msg.PROFILE_LANGUAGE: "🌐 Тіл: {language}",
+    Msg.PROFILE_BALANCE: "💎 Баланс: <b>{balance}</b>",
+    Msg.PROFILE_PLAN: "⭐ Тариф: {plan}",
     Msg.PROFILE_NO_USERNAME: "көрсетілмеген",
     Msg.PLAN_FREE: "Free",
-    Msg.CHAT_PROMPT: ("Сұрағыңызды жазыңыз. Мен орысша, қазақша және аралас хабарларды түсінемін."),
-    Msg.CHAT_CANCEL: "Болдырмау",
-    Msg.CHAT_ASK_AGAIN: "Тағы сұрау",
-    Msg.CHAT_MAIN_MENU: "Басты мәзір",
-    Msg.CHAT_CANCELLED: "Чат болдырылмады. Сіз басты мәзірдесіз.",
-    Msg.CHAT_INSUFFICIENT: "Кредит жеткіліксіз. Кемінде {cost} керек, сізде {balance}.",
-    Msg.CHAT_PROVIDER_ERROR: ("AI жауабын алу мүмкін болмады. Кредит шегерілмеді. Қайта көріңіз."),
-    Msg.CHAT_TOO_LONG: "Хабар тым ұзын. Ең көбі {max_chars} таңба.",
-    Msg.CHAT_EMPTY: "Сұрақ бар мәтіндік хабар жіберіңіз.",
-    Msg.CHAT_NEED_REGISTER: "Алдымен /start басып, тілді таңдаңыз.",
-    Msg.CHAT_BALANCE_LEFT: "Қалған кредит: {balance}",
+    Msg.CHAT_PROMPT: (
+        "💬 <b>AI-чат</b>\n\n"
+        "Сұрағыңызды жазыңыз — қазақша, орысша немесе аралас хабарларға "
+        "жауап беремін 👇"
+    ),
+    Msg.CHAT_CANCEL: "❌ Болдырмау",
+    Msg.CHAT_ASK_AGAIN: "🔄 Тағы сұрау",
+    Msg.CHAT_MAIN_MENU: "🏠 Басты мәзір",
+    Msg.CHAT_CANCELLED: "✅ Чат аяқталды. Сіз басты мәзірдесіз.",
+    Msg.CHAT_INSUFFICIENT: (
+        "😔 <b>Кредит жеткіліксіз</b>\n\n"
+        "Кемінде {cost} керек, сізде {balance}.\n"
+        "⚡ Балансты толтыру: /buy"
+    ),
+    Msg.CHAT_PROVIDER_ERROR: (
+        "⚠️ AI жауабын алу мүмкін болмады.\n"
+        "Кредит шегерілмеді. Қайта көріңіз."
+    ),
+    Msg.CHAT_TOO_LONG: "✂️ Хабар тым ұзын. Ең көбі {max_chars} таңба.",
+    Msg.CHAT_EMPTY: "💬 Сұрақ бар мәтіндік хабар жіберіңіз.",
+    Msg.CHAT_NEED_REGISTER: "👉 Алдымен /start басып, тілді таңдаңыз.",
+    Msg.CHAT_BALANCE_LEFT: "💎 Қалған кредит: <b>{balance}</b>",
     Msg.CMD_START: "KELBET AI іске қосу",
     Msg.CMD_MENU: "Басты мәзірді ашу",
     Msg.CMD_CREATE: "Сурет жасау",
@@ -86,23 +113,28 @@ TEXTS: dict[str, str] = {
     Msg.CMD_BUY: "Кредит сатып алу",
     Msg.CMD_TERMS: "Сатып алу шарттары",
     Msg.PAYMENT_UNAVAILABLE: (
-        "Төлем әзірге қолжетімсіз. Шарттар мен қолдау толық бапталғанша ақша қабылдамаймыз."
+        "⚙️ Төлем әзірге қолжетімсіз. Шарттар мен қолдау толық бапталғанша "
+        "ақша қабылдамаймыз."
     ),
     Msg.PAYMENT_CHOOSE: (
-        "Пакетті таңдаңыз. Пакет батырмасын басу арқылы сатып алу шарттарына келісесіз."
+        "💳 <b>Балансты толтыру</b>\n\n"
+        "Кредит пакетін таңдаңыз 👇\n\n"
+        "<i>Пакет батырмасын басу арқылы сатып алу шарттарына келісесіз.</i>"
     ),
-    Msg.PAYMENT_PRODUCT_BUTTON: "{name} · {credits} кредит · {stars} ⭐",
-    Msg.PAYMENT_TERMS_OPEN: "Сатып алу шарттарын ашу",
-    Msg.PAYMENT_TERMS_TEXT: "Сатып алу және қайтару шарттары: {url}",
+    Msg.PAYMENT_PRODUCT_BUTTON: "{name} · {credits} 💎 · {stars} ⭐",
+    Msg.PAYMENT_TERMS_OPEN: "📄 Сатып алу шарттары",
+    Msg.PAYMENT_TERMS_TEXT: "📄 Сатып алу және қайтару шарттары: {url}",
     Msg.PAYMENT_CREDITS_LABEL: "{credits} KELBET кредиті",
     Msg.PAYMENT_CHECKOUT_REJECTED: (
-        "Шоттың мерзімі өтті немесе параметрлері өзгерді. /buy арқылы жаңасын жасаңыз."
+        "⚠️ Шоттың мерзімі өтті немесе параметрлері өзгерді. /buy арқылы жаңасын жасаңыз."
     ),
     Msg.PAYMENT_SUCCESS: (
-        "Төлем қабылданды. {credits} кредит қосылды.\nАғымдағы баланс: {balance}."
+        "🎉 <b>Төлем қабылданды!</b>\n\n"
+        "⚡ Қосылды: <b>{credits}</b> кредит\n"
+        "💎 Ағымдағы баланс: <b>{balance}</b>"
     ),
     Msg.PAYMENT_REVIEW: (
-        "Telegram төлемді растады, бірақ кредитті қосу тексеруді қажет етеді. "
+        "⏳ Telegram төлемді растады, бірақ кредитті қосу тексеруді қажет етеді.\n"
         "/paysupport қызметіне жазыңыз — төлем сақталды."
     ),
 }

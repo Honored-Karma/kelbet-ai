@@ -2,6 +2,8 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
 
@@ -23,7 +25,10 @@ async def run_bot() -> None:
 
     redis = Redis.from_url(settings.redis_url)
     storage = RedisStorage(redis=redis)
-    bot = Bot(token=settings.bot_token)
+    bot = Bot(
+        token=settings.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     dp = Dispatcher(storage=storage)
 
     session_factory = build_session_factory(settings)

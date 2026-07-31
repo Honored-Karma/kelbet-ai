@@ -222,8 +222,8 @@ async def test_fsm_cancel_clears_state(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     settings = Settings(welcome_credits=5)
-    assert "Отмена" in texts_for(Msg.CHAT_CANCEL)
-    assert "Болдырмау" in texts_for(Msg.CHAT_CANCEL)
+    assert "❌ Отмена" in texts_for(Msg.CHAT_CANCEL)
+    assert "❌ Болдырмау" in texts_for(Msg.CHAT_CANCEL)
 
     async with session_factory() as session, session.begin():
         await _register_user(session, telegram_id=5008, language=Language.RU, settings=settings)
