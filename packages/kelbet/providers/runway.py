@@ -18,6 +18,8 @@ from kelbet.providers.base import (
 
 logger = logging.getLogger(__name__)
 
+_MAX_PROVIDER_ERROR_LENGTH = 500
+
 _PNG_1X1 = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
     b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
@@ -102,6 +104,62 @@ def host_allowed(url: str, allowlist: list[str]) -> bool:
     if not host:
         return False
     return any(host == item or host.endswith(f".{item}") for item in allowlist if item)
+
+
+def _provider_error_message(response: httpx.Response) -> str | None:
+    """Extract Runway's documented human-readable error without storing raw bodies."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    error = payload.get("error")
+    if isinstance(error, str):
+        message = error
+    elif isinstance(error, dict):
+        parts = [error.get("code"), error.get("message"), error.get("detail")]
+        message = ": ".join(str(part) for part in parts if part)
+    else:
+        return None
+
+    normalized = " ".join(message.split())
+    return normalized[:_MAX_PROVIDER_ERROR_LENGTH] or None
+
+
+def _http_error_result(
+    response: httpx.Response,
+    *,
+    latency_ms: int,
+    provider_job_id: str | None = None,
+) -> GenerationProviderResult:
+    provider_error = _provider_error_message(response)
+    error_lower = (provider_error or "").lower()
+    if response.status_code == 401:
+        error_code = "provider_auth_error"
+    elif response.status_code == 429:
+        error_code = "rate_limited"
+    elif response.status_code >= 500:
+        error_code = "provider_unavailable"
+    elif response.status_code == 400 and any(
+        token in error_lower for token in ("credit", "balance", "billing")
+    ):
+        error_code = "provider_insufficient_credits"
+    else:
+        error_code = "provider_http_error"
+
+    meta: dict[str, Any] = {"http_status": response.status_code}
+    if provider_error:
+        meta["provider_error"] = provider_error
+    return GenerationProviderResult(
+        status="failed",
+        provider_job_id=provider_job_id,
+        error_code=error_code,
+        error_message_safe=provider_error or f"Runway HTTP {response.status_code}",
+        latency_ms=latency_ms,
+        meta=meta,
+    )
 
 
 class RunwayProvider:
@@ -264,12 +322,9 @@ class RunwayProvider:
                     response.status_code,
                     request.generation_id,
                 )
-                return GenerationProviderResult(
-                    status="failed",
-                    error_code="provider_http_error",
-                    error_message_safe=f"Runway HTTP {response.status_code}",
+                return _http_error_result(
+                    response,
                     latency_ms=latency_ms,
-                    meta={"http_status": response.status_code},
                 )
             data = response.json()
             task_id = data.get("id")
@@ -342,10 +397,8 @@ class RunwayProvider:
             )
             latency_ms = int((time.perf_counter() - started) * 1000)
             if response.status_code >= 400:
-                return GenerationProviderResult(
-                    status="failed",
-                    error_code="provider_http_error",
-                    error_message_safe=f"Runway task HTTP {response.status_code}",
+                return _http_error_result(
+                    response,
                     latency_ms=latency_ms,
                     provider_job_id=provider_job_id,
                 )

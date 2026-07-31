@@ -43,6 +43,19 @@ def _token(meta: dict[str, object] | None, key: str) -> int | None:
     return value if isinstance(value, int) else None
 
 
+def _attempt_diagnostics(meta: dict[str, object] | None) -> dict[str, object]:
+    if not meta:
+        return {}
+    safe_keys = {
+        "create_path",
+        "http_status",
+        "provider_error",
+        "provider_error_code",
+        "provider_status",
+    }
+    return {key: value for key, value in meta.items() if key in safe_keys}
+
+
 class GenerationRunner:
     def __init__(
         self,
@@ -200,6 +213,7 @@ class GenerationRunner:
             "status": result.status,
             "provider": job.provider,
             "provider_model_id": job.provider_model_id,
+            **_attempt_diagnostics(result.meta),
         }
 
         if result.status == "failed":
@@ -317,6 +331,7 @@ class GenerationRunner:
             "status": result.status,
             "provider": job.provider,
             "provider_model_id": job.provider_model_id,
+            **_attempt_diagnostics(result.meta),
         }
 
         if result.status == "failed":
@@ -408,6 +423,7 @@ class GenerationRunner:
             "provider": original_provider,
             "provider_model_id": original_model_id,
             "fallback_to": fallback_provider,
+            **_attempt_diagnostics(result.meta),
         }
         await self._jobs.add_usage(
             generation_id=job.id,
@@ -456,6 +472,7 @@ class GenerationRunner:
             "provider": job.provider,
             "provider_model_id": job.provider_model_id,
             "fallback_from": original_provider,
+            **_attempt_diagnostics(fallback_result.meta),
         }
 
         if fallback_result.status == "failed":

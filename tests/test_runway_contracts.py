@@ -113,6 +113,60 @@ async def test_runway_image_sends_reference_images() -> None:
 
 
 @pytest.mark.asyncio
+async def test_runway_classifies_insufficient_provider_credits() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/text_to_image"
+        return httpx.Response(
+            400,
+            json={"error": "Your organization does not have enough credits."},
+        )
+
+    provider, client = _provider(handler)
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="seedream5_lite",
+                modality="image",
+                prompt="a product in a studio",
+                params={"aspect_ratio": "1:1", "resolution": "2k"},
+            )
+        )
+
+    assert result.status == "failed"
+    assert result.error_code == "provider_insufficient_credits"
+    assert result.meta == {
+        "http_status": 400,
+        "provider_error": "Your organization does not have enough credits.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_runway_classifies_retryable_http_errors() -> None:
+    responses = iter(
+        [
+            httpx.Response(429, json={"error": "Daily limit reached"}),
+            httpx.Response(503, json={"error": "Temporarily unavailable"}),
+        ]
+    )
+
+    provider, client = _provider(lambda _: next(responses))
+    request = GenerationRequest(
+        generation_id=uuid4(),
+        provider_model_id="seedream5_lite",
+        modality="image",
+        prompt="a product in a studio",
+        params={"aspect_ratio": "1:1", "resolution": "2k"},
+    )
+    async with client:
+        limited = await provider.generate(request)
+        unavailable = await provider.generate(request)
+
+    assert limited.error_code == "rate_limited"
+    assert unavailable.error_code == "provider_unavailable"
+
+
+@pytest.mark.asyncio
 async def test_runway_seedream_edit_keeps_reference_order() -> None:
     references = [
         "https://assets.example.test/front.jpg",
