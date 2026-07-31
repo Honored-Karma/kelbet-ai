@@ -26,6 +26,28 @@ type MessageKey =
   | "home.imageStudioHelp"
   | "home.videoStudio"
   | "home.videoStudioHelp"
+  | "home.trendsEyebrow"
+  | "home.trendsTitle"
+  | "home.trendsAll"
+  | "trends.title"
+  | "trends.subtitle"
+  | "trends.filterAll"
+  | "trends.filterPhoto"
+  | "trends.filterVideo"
+  | "trends.galleryLabel"
+  | "trends.badgeHot"
+  | "trends.badgeNew"
+  | "trends.applyEyebrow"
+  | "trends.photoNote"
+  | "trends.videoNote"
+  | "trends.stepPhoto"
+  | "trends.photoReady"
+  | "trends.uploadTitle"
+  | "trends.uploadHelp"
+  | "trends.submit"
+  | "trends.photoRequired"
+  | "trends.pickFirst"
+  | "trends.noModels"
   | "create.title"
   | "create.subtitle"
   | "create.balance"
@@ -353,6 +375,28 @@ const ru: Record<MessageKey, string> = {
   "home.imageStudioHelp": "Создание, редактирование и увеличение изображений",
   "home.videoStudio": "Video Studio",
   "home.videoStudioHelp": "Ролики из текста или одного фото для соцсетей и бизнеса",
+  "home.trendsEyebrow": "TREND LAB",
+  "home.trendsTitle": "Тренды недели",
+  "home.trendsAll": "Все тренды",
+  "trends.title": "Тренды",
+  "trends.subtitle": "Загрузите фото — KELBET сам применит вирусный стиль",
+  "trends.filterAll": "Все",
+  "trends.filterPhoto": "Фото",
+  "trends.filterVideo": "Видео",
+  "trends.galleryLabel": "Подборка трендов",
+  "trends.badgeHot": "ХИТ",
+  "trends.badgeNew": "НОВОЕ",
+  "trends.applyEyebrow": "Применить тренд",
+  "trends.photoNote": "Одно фото — и стиль тренда применится автоматически. Промпт уже настроен.",
+  "trends.videoNote": "Видео-тренд: ваше фото превратится в короткий ролик с движением.",
+  "trends.stepPhoto": "Ваше фото",
+  "trends.photoReady": "Фото готово к работе",
+  "trends.uploadTitle": "Загрузите фото",
+  "trends.uploadHelp": "JPG, PNG или WebP · лицо или объект крупным планом",
+  "trends.submit": "Применить тренд",
+  "trends.photoRequired": "Добавьте фото, чтобы применить тренд",
+  "trends.pickFirst": "Выберите тренд из подборки",
+  "trends.noModels": "Тренды временно недоступны",
   "create.title": "Создать изображение",
   "create.subtitle": "Опишите идею — остальное соберём в студии",
   "create.balance": "Баланс",
@@ -683,6 +727,28 @@ const kk: Record<MessageKey, string> = {
   "home.imageStudioHelp": "Сурет жасау, өңдеу және үлкейту",
   "home.videoStudio": "Video Studio",
   "home.videoStudioHelp": "Әлеуметтік желі мен бизнеске мәтіннен не фотодан бейне жасау",
+  "home.trendsEyebrow": "TREND LAB",
+  "home.trendsTitle": "Апта трендтері",
+  "home.trendsAll": "Барлық трендтер",
+  "trends.title": "Трендтер",
+  "trends.subtitle": "Фото жүктеңіз — KELBET вирусты стильді өзі қолданады",
+  "trends.filterAll": "Барлығы",
+  "trends.filterPhoto": "Фото",
+  "trends.filterVideo": "Бейне",
+  "trends.galleryLabel": "Трендтер жинағы",
+  "trends.badgeHot": "ХИТ",
+  "trends.badgeNew": "ЖАҢА",
+  "trends.applyEyebrow": "Трендті қолдану",
+  "trends.photoNote": "Бір фото жеткілікті — тренд стилі автоматты қолданылады. Промпт дайын.",
+  "trends.videoNote": "Бейне-тренд: фотоңыз қозғалысы бар қысқа бейнеге айналады.",
+  "trends.stepPhoto": "Сіздің фотоңыз",
+  "trends.photoReady": "Фото жұмысқа дайын",
+  "trends.uploadTitle": "Фото жүктеңіз",
+  "trends.uploadHelp": "JPG, PNG немесе WebP · бет немесе зат ірі планда",
+  "trends.submit": "Трендті қолдану",
+  "trends.photoRequired": "Трендті қолдану үшін фото қосыңыз",
+  "trends.pickFirst": "Жинақтан тренд таңдаңыз",
+  "trends.noModels": "Трендтер уақытша қолжетімсіз",
   "create.title": "Сурет жасау",
   "create.subtitle": "Ойыңызды сипаттаңыз — қалғанын студияда жинаймыз",
   "create.balance": "Баланс",

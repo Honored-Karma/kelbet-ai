@@ -10,6 +10,7 @@ class Msg:
 
     MENU_CREATE = "menu.create"
     MENU_VIDEO = "menu.video"
+    MENU_TRENDS = "menu.trends"
     MENU_AI_CHAT = "menu.ai_chat"
     MENU_MY_WORKS = "menu.my_works"
     MENU_TARIFFS = "menu.tariffs"
@@ -25,6 +26,7 @@ class Msg:
     MINI_APP_UNAVAILABLE = "mini_app.unavailable"
     MINI_APP_CREATE = "mini_app.create"
     MINI_APP_VIDEO = "mini_app.video"
+    MINI_APP_TRENDS = "mini_app.trends"
     MINI_APP_HISTORY = "mini_app.history"
     MINI_APP_PLANS = "mini_app.plans"
 
@@ -68,6 +70,7 @@ class Msg:
     CMD_MENU = "command.menu"
     CMD_CREATE = "command.create"
     CMD_VIDEO = "command.video"
+    CMD_TRENDS = "command.trends"
     CMD_CHAT = "command.chat"
     CMD_HISTORY = "command.history"
     CMD_BALANCE = "command.balance"

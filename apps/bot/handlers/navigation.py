@@ -124,6 +124,24 @@ async def on_video(
     )
 
 
+@router.message(Command("trends"))
+@router.message(MenuText(Msg.MENU_TRENDS))
+async def on_trends(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    settings: Settings,
+) -> None:
+    await _open_mini_app(
+        message,
+        session,
+        state,
+        settings,
+        path="trends",
+        label_key=Msg.MINI_APP_TRENDS,
+    )
+
+
 @router.message(Command("history"))
 @router.message(MenuText(Msg.MENU_MY_WORKS))
 async def on_history(

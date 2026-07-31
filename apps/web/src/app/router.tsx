@@ -24,6 +24,9 @@ const PlansPage = lazy(async () => ({
 const ProfilePage = lazy(async () => ({
   default: (await import("../pages/ProfilePage")).ProfilePage,
 }));
+const TrendsPage = lazy(async () => ({
+  default: (await import("../pages/TrendsPage")).TrendsPage,
+}));
 const VideoPage = lazy(async () => ({
   default: (await import("../pages/VideoPage")).VideoPage,
 }));
@@ -75,6 +78,14 @@ export function AppRouter() {
           element={
             <LazyPage>
               <VideoPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="trends"
+          element={
+            <LazyPage>
+              <TrendsPage />
             </LazyPage>
           }
         />

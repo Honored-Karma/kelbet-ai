@@ -31,7 +31,8 @@ export function AppShell() {
   const isWideRoute =
     location.pathname === "/" ||
     location.pathname === "/create" ||
-    location.pathname === "/video";
+    location.pathname === "/video" ||
+    location.pathname === "/trends";
   const topRailTitle =
     location.pathname === "/history"
       ? tx("nav.history")

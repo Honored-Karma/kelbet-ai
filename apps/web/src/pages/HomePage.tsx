@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import contactSheet from "../assets/kelbet-contact-sheet.webp";
 import { CREATE_TEMPLATES } from "../features/create/templates";
+import { TREND_TEMPLATES } from "../features/trends/templates";
 import { api } from "../shared/api/client";
 import { useI18n } from "../shared/i18n/runtime";
 import { ErrorState } from "../shared/ui/ErrorState";
@@ -103,6 +104,34 @@ export function HomePage() {
           <span className="home-task-arrow"><Icon name="arrow" /></span>
         </Link>
       </div>
+
+      <section className="home-trends" aria-labelledby="home-trends-title">
+        <header className="home-section-heading">
+          <div>
+            <p className="eyebrow">{tx("home.trendsEyebrow")}</p>
+            <h2 id="home-trends-title">{tx("home.trendsTitle")}</h2>
+          </div>
+          <Link to="/trends">
+            {tx("home.trendsAll")} <Icon name="arrow" />
+          </Link>
+        </header>
+        <div className="home-trend-rail">
+          {TREND_TEMPLATES.slice(0, 4).map((trend) => (
+            <Link
+              key={trend.id}
+              to={`/trends?trend=${encodeURIComponent(trend.id)}`}
+              className="home-trend-card"
+            >
+              <span className="home-trend-visual" aria-hidden>
+                <img src={trend.preview} alt="" loading="lazy" decoding="async" />
+                <i>{trend.kind === "video" ? "MOTION" : "STILL"}</i>
+              </span>
+              <strong>{trend.title[language]}</strong>
+              <small>{trend.description[language]}</small>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="home-recipes" aria-labelledby="home-recipes-title">
         <header className="home-section-heading">

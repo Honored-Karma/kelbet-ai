@@ -61,7 +61,11 @@ def main_menu_keyboard(lang: Language, mini_app_url: str = "") -> ReplyKeyboardM
                 ),
             ],
             [
-                KeyboardButton(text=t(Msg.MENU_AI_CHAT, lang)),
+                _mini_app_button(
+                    text=t(Msg.MENU_TRENDS, lang),
+                    base_url=mini_app_url,
+                    path="trends",
+                ),
                 _mini_app_button(
                     text=t(Msg.MENU_MY_WORKS, lang),
                     base_url=mini_app_url,
@@ -69,7 +73,10 @@ def main_menu_keyboard(lang: Language, mini_app_url: str = "") -> ReplyKeyboardM
                 ),
             ],
             [
+                KeyboardButton(text=t(Msg.MENU_AI_CHAT, lang)),
                 KeyboardButton(text=t(Msg.MENU_BALANCE, lang)),
+            ],
+            [
                 KeyboardButton(text=t(Msg.MENU_PROFILE, lang)),
             ],
         ],

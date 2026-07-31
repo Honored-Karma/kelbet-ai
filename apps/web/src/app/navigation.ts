@@ -12,6 +12,7 @@ const STATIC_APP_PATHS = new Set([
   "/",
   "/create",
   "/video",
+  "/trends",
   "/history",
   "/plans",
   "/profile",

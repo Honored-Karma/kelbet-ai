@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from apps.bot.commands import bot_commands, configure_bot_commands
 from apps.bot.filters import MenuText
-from apps.bot.handlers.navigation import on_balance, on_create, on_video
+from apps.bot.handlers.navigation import on_balance, on_create, on_trends, on_video
 from apps.bot.keyboards import main_menu_keyboard
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -62,13 +62,16 @@ def test_main_menu_uses_mini_app_links_when_configured() -> None:
 
     create = keyboard.keyboard[0][0]
     video = keyboard.keyboard[0][1]
+    trends = keyboard.keyboard[1][0]
     history = keyboard.keyboard[1][1]
-    balance = keyboard.keyboard[2][0]
+    balance = keyboard.keyboard[2][1]
 
     assert create.web_app is not None
     assert create.web_app.url == "https://app.kelbet.ai/create"
     assert video.web_app is not None
     assert video.web_app.url == "https://app.kelbet.ai/video"
+    assert trends.web_app is not None
+    assert trends.web_app.url == "https://app.kelbet.ai/trends"
     assert history.web_app is not None
     assert history.web_app.url == "https://app.kelbet.ai/history"
     assert balance.text == t(Msg.MENU_BALANCE, Language.RU)
@@ -80,8 +83,9 @@ def test_main_menu_falls_back_to_regular_buttons_without_url() -> None:
 
     assert keyboard.keyboard[0][0].web_app is None
     assert keyboard.keyboard[0][1].web_app is None
+    assert keyboard.keyboard[1][0].web_app is None
     assert keyboard.keyboard[1][1].web_app is None
-    assert keyboard.keyboard[2][0].text == t(Msg.MENU_BALANCE, Language.KK)
+    assert keyboard.keyboard[2][1].text == t(Msg.MENU_BALANCE, Language.KK)
 
 
 def test_bot_commands_are_localized() -> None:
@@ -93,6 +97,7 @@ def test_bot_commands_are_localized() -> None:
         "menu",
         "create",
         "video",
+        "trends",
         "chat",
         "history",
         "balance",
@@ -176,6 +181,26 @@ async def test_video_command_returns_video_studio_link(
         assert args[0] == t(Msg.MINI_APP_OPEN, Language.KK)
         button = kwargs["reply_markup"].inline_keyboard[0][0]
         assert button.web_app.url == "https://app.kelbet.ai/video"
+
+
+@pytest.mark.asyncio
+async def test_trends_command_returns_trend_lab_link(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = Settings(mini_app_url="https://app.kelbet.ai")
+
+    async with session_factory() as session, session.begin():
+        await _register(session, telegram_id=6105, language=Language.RU)
+        message = _message(telegram_id=6105, text="/trends")
+        state = AsyncMock()
+
+        await on_trends(message, session, state, settings)
+
+        state.clear.assert_awaited_once()
+        args, kwargs = message.answer.await_args
+        assert args[0] == t(Msg.MINI_APP_OPEN, Language.RU)
+        button = kwargs["reply_markup"].inline_keyboard[0][0]
+        assert button.web_app.url == "https://app.kelbet.ai/trends"
 
 
 @pytest.mark.asyncio
