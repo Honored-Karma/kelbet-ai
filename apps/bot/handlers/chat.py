@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.bot.filters import MenuText
 from apps.bot.keyboards import (
     chat_after_answer_keyboard,
     chat_waiting_keyboard,
@@ -20,16 +21,13 @@ from kelbet.domain.exceptions import (
     InsufficientCreditsError,
     UserNotFoundError,
 )
-from kelbet.i18n import Msg, t, texts_for
+from kelbet.i18n import Msg, t
 from kelbet.services.chat import ChatService
 from kelbet.services.registration import RegistrationService
 
 router = Router(name="chat")
 
-_AI_CHAT_TEXTS = texts_for(Msg.MENU_AI_CHAT)
-_CANCEL_TEXTS = texts_for(Msg.CHAT_CANCEL)
-_ASK_AGAIN_TEXTS = texts_for(Msg.CHAT_ASK_AGAIN)
-_MAIN_MENU_TEXTS = list(dict.fromkeys(texts_for(Msg.CHAT_MAIN_MENU) + texts_for(Msg.MENU_TITLE)))
+_MAIN_MENU_FILTER = MenuText(Msg.CHAT_MAIN_MENU, Msg.MENU_TITLE)
 
 
 async def _resolve_lang(session: AsyncSession, telegram_id: int, username: str | None) -> Language:
@@ -41,7 +39,7 @@ async def _resolve_lang(session: AsyncSession, telegram_id: int, username: str |
 
 
 @router.message(Command("chat"))
-@router.message(F.text.in_(_AI_CHAT_TEXTS))
+@router.message(MenuText(Msg.MENU_AI_CHAT))
 async def on_ai_chat_entry(
     message: Message,
     session: AsyncSession,
@@ -76,7 +74,7 @@ async def on_ai_chat_entry(
     )
 
 
-@router.message(F.text.in_(_ASK_AGAIN_TEXTS))
+@router.message(MenuText(Msg.CHAT_ASK_AGAIN))
 async def on_chat_ask_again(
     message: Message,
     session: AsyncSession,
@@ -112,7 +110,7 @@ async def on_chat_ask_again(
     )
 
 
-@router.message(ChatStates.waiting_message, F.text.in_(_CANCEL_TEXTS))
+@router.message(ChatStates.waiting_message, MenuText(Msg.CHAT_CANCEL))
 async def on_chat_cancel(
     message: Message,
     session: AsyncSession,
@@ -129,7 +127,7 @@ async def on_chat_cancel(
     )
 
 
-@router.message(ChatStates.waiting_message, F.text.in_(_MAIN_MENU_TEXTS))
+@router.message(ChatStates.waiting_message, _MAIN_MENU_FILTER)
 async def on_chat_main_menu(
     message: Message,
     session: AsyncSession,
@@ -146,7 +144,7 @@ async def on_chat_main_menu(
     )
 
 
-@router.message(F.text.in_(_MAIN_MENU_TEXTS))
+@router.message(_MAIN_MENU_FILTER)
 async def on_main_menu_button(
     message: Message,
     session: AsyncSession,

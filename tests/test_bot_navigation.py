@@ -2,13 +2,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from apps.bot.commands import bot_commands, configure_bot_commands
+from apps.bot.filters import MenuText
 from apps.bot.handlers.navigation import on_balance, on_create, on_video
 from apps.bot.keyboards import main_menu_keyboard
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from kelbet.config import Settings
 from kelbet.domain.enums import Language
-from kelbet.i18n import Msg, t
+from kelbet.i18n import Msg, normalize_button_text, t
 from kelbet.services.registration import RegistrationService
 
 
@@ -31,6 +32,29 @@ def _message(*, telegram_id: int, text: str) -> MagicMock:
     message.text = text
     message.answer = AsyncMock()
     return message
+
+
+def test_normalize_button_text_ignores_emoji_punctuation_and_case() -> None:
+    assert normalize_button_text("🎨 Создать изображение") == "создать изображение"
+    assert normalize_button_text("💬 AI-чат") == normalize_button_text("AI-чат")
+    assert normalize_button_text("  Сурет   жасау ") == "сурет жасау"
+
+
+@pytest.mark.asyncio
+async def test_menu_buttons_match_legacy_labels_without_emoji() -> None:
+    """Кнопки со старых reply-клавиатур (до добавления эмодзи) должны работать."""
+    create_filter = MenuText(Msg.MENU_CREATE)
+
+    for text in (
+        t(Msg.MENU_CREATE, Language.RU),
+        t(Msg.MENU_CREATE, Language.KK),
+        "Создать изображение",
+        "Сурет жасау",
+    ):
+        assert await create_filter(_message(telegram_id=1, text=text)) is True
+
+    assert await create_filter(_message(telegram_id=1, text="Создать видео")) is False
+    assert await create_filter(_message(telegram_id=1, text=None)) is False
 
 
 def test_main_menu_uses_mini_app_links_when_configured() -> None:

@@ -28,4 +28,15 @@ def texts_for(key: str) -> list[str]:
     return values
 
 
-__all__ = ["Msg", "t", "texts_for", "Language"]
+def normalize_button_text(text: str) -> str:
+    """Канонизирует подпись кнопки: без эмодзи и пунктуации, регистронезависимо.
+
+    Reply-клавиатуры остаются в чатах пользователей навсегда, поэтому нажатия
+    со старых клавиатур должны матчиться даже после смены оформления подписей
+    (например, добавления эмодзи).
+    """
+    cleaned = "".join(ch if ch.isalnum() else " " for ch in text)
+    return " ".join(cleaned.split()).casefold()
+
+
+__all__ = ["Msg", "t", "texts_for", "normalize_button_text", "Language"]

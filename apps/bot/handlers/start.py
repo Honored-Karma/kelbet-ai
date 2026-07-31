@@ -18,7 +18,6 @@ async def cmd_start(
     message: Message,
     session: AsyncSession,
     state: FSMContext,
-    settings: Settings,
 ) -> None:
     if message.from_user is None:
         return
@@ -27,18 +26,11 @@ async def cmd_start(
     service = RegistrationService(session)
     result = await service.handle_start(message.from_user.id, message.from_user.username)
 
-    if result.needs_language:
-        await message.answer(
-            t(Msg.START_CHOOSE_LANG, Language.KK),
-            reply_markup=language_keyboard(),
-        )
-        return
-
-    assert result.user is not None
-    lang = result.user.language
+    # Язык выбирается при каждом /start; приветствие приходит после выбора.
+    prompt_lang = result.user.language if result.user is not None else Language.KK
     await message.answer(
-        t(Msg.START_WELCOME_BACK, lang),
-        reply_markup=main_menu_keyboard(lang, settings.mini_app_url),
+        t(Msg.START_CHOOSE_LANG, prompt_lang),
+        reply_markup=language_keyboard(),
     )
 
 

@@ -79,11 +79,14 @@ class AuthService:
             ttl_seconds=self._settings.telegram_auth_max_age_seconds,
         )
 
+        # Язык из Telegram initData используется только при первой регистрации:
+        # выбор пользователя (в боте или в мини-аппе) не должен затираться при логине.
         language = resolve_language(validated.user.language_code)
         user_dto, credit = await self._registration.register_with_language(
             telegram_id=validated.user.id,
             username=validated.user.username,
             language=language,
+            overwrite_language=False,
         )
 
         raw_token = secrets.token_urlsafe(32)

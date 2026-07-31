@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from aiogram import F, Router
+from aiogram import Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.bot.filters import MenuText
 from apps.bot.keyboards import (
     language_keyboard,
     main_menu_keyboard,
@@ -14,20 +15,11 @@ from apps.bot.keyboards import (
 )
 from kelbet.config import Settings
 from kelbet.domain.enums import Language
-from kelbet.i18n import Msg, t, texts_for
+from kelbet.i18n import Msg, t
 from kelbet.services.profile import ProfileService
 from kelbet.services.registration import RegistrationService, UserDTO
 
 router = Router(name="navigation")
-
-_CREATE_TEXTS = texts_for(Msg.MENU_CREATE)
-_VIDEO_TEXTS = texts_for(Msg.MENU_VIDEO)
-_HISTORY_TEXTS = texts_for(Msg.MENU_MY_WORKS)
-_BALANCE_TEXTS = texts_for(Msg.MENU_BALANCE)
-_INVITE_TEXTS = list(
-    dict.fromkeys(texts_for(Msg.MENU_INVITE) + texts_for(Msg.MENU_PARTNERSHIP))
-)
-_PLANS_TEXTS = texts_for(Msg.MENU_TARIFFS)
 
 
 async def _registered_user(
@@ -97,7 +89,7 @@ async def on_menu(
 
 
 @router.message(Command("create"))
-@router.message(F.text.in_(_CREATE_TEXTS))
+@router.message(MenuText(Msg.MENU_CREATE))
 async def on_create(
     message: Message,
     session: AsyncSession,
@@ -115,7 +107,7 @@ async def on_create(
 
 
 @router.message(Command("video"))
-@router.message(F.text.in_(_VIDEO_TEXTS))
+@router.message(MenuText(Msg.MENU_VIDEO))
 async def on_video(
     message: Message,
     session: AsyncSession,
@@ -133,7 +125,7 @@ async def on_video(
 
 
 @router.message(Command("history"))
-@router.message(F.text.in_(_HISTORY_TEXTS))
+@router.message(MenuText(Msg.MENU_MY_WORKS))
 async def on_history(
     message: Message,
     session: AsyncSession,
@@ -151,7 +143,7 @@ async def on_history(
 
 
 @router.message(Command("plans"))
-@router.message(F.text.in_(_PLANS_TEXTS))
+@router.message(MenuText(Msg.MENU_TARIFFS))
 async def on_plans(
     message: Message,
     session: AsyncSession,
@@ -169,7 +161,7 @@ async def on_plans(
 
 
 @router.message(Command("balance"))
-@router.message(F.text.in_(_BALANCE_TEXTS))
+@router.message(MenuText(Msg.MENU_BALANCE))
 async def on_balance(
     message: Message,
     session: AsyncSession,
@@ -237,7 +229,7 @@ async def on_support(
     )
 
 
-@router.message(F.text.in_(_INVITE_TEXTS))
+@router.message(MenuText(Msg.MENU_INVITE, Msg.MENU_PARTNERSHIP))
 async def on_invite(
     message: Message,
     session: AsyncSession,

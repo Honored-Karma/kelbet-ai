@@ -1,13 +1,16 @@
-from aiogram import F, Router
+from aiogram import Router
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.bot.filters import MenuText
 from kelbet.domain.enums import Language
-from kelbet.i18n import Msg, t, texts_for
+from kelbet.i18n import Msg, t
 from kelbet.services.registration import RegistrationService
 
 router = Router(name="menu")
 
+# Резервный ответ, если раздел ещё не подключён в navigation-роутере
+# (он зарегистрирован раньше и перехватывает эти кнопки, когда доступен).
 _STUB_KEYS = (
     Msg.MENU_CREATE,
     Msg.MENU_MY_WORKS,
@@ -15,10 +18,8 @@ _STUB_KEYS = (
     Msg.MENU_PARTNERSHIP,
 )
 
-_STUB_TEXTS = [text for key in _STUB_KEYS for text in texts_for(key)]
 
-
-@router.message(F.text.in_(_STUB_TEXTS))
+@router.message(MenuText(*_STUB_KEYS))
 async def on_stub_menu(message: Message, session: AsyncSession) -> None:
     if message.from_user is None:
         return

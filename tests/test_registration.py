@@ -57,6 +57,34 @@ async def test_registration_grants_welcome_credits_once(
 
 
 @pytest.mark.asyncio
+async def test_login_does_not_overwrite_chosen_language(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    settings = Settings(welcome_credits=5)
+
+    async with session_factory() as session, session.begin():
+        service = RegistrationService(session, settings=settings)
+        await service.register_with_language(
+            telegram_id=2003,
+            username="dana",
+            language=Language.KK,
+        )
+
+    # Мини-апп логинится с языком из Telegram initData (например, ru),
+    # но выбранный пользователем язык не должен перезаписываться.
+    async with session_factory() as session, session.begin():
+        service = RegistrationService(session, settings=settings)
+        user, credit = await service.register_with_language(
+            telegram_id=2003,
+            username="dana",
+            language=Language.RU,
+            overwrite_language=False,
+        )
+        assert credit.applied is False
+        assert user.language == Language.KK
+
+
+@pytest.mark.asyncio
 async def test_repeated_start_does_not_create_duplicate_user(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

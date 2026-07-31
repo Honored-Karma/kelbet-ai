@@ -1,21 +1,20 @@
-from aiogram import F, Router
+from aiogram import Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.bot.filters import MenuText
 from kelbet.domain.enums import Language, Plan
 from kelbet.domain.exceptions import UserNotFoundError
-from kelbet.i18n import Msg, t, texts_for
+from kelbet.i18n import Msg, t
 from kelbet.services.profile import ProfileService
 
 router = Router(name="profile")
 
-_PROFILE_TEXTS = texts_for(Msg.MENU_PROFILE)
-
 
 @router.message(Command("profile"))
-@router.message(F.text.in_(_PROFILE_TEXTS))
+@router.message(MenuText(Msg.MENU_PROFILE))
 async def on_profile(
     message: Message,
     session: AsyncSession,

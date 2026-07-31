@@ -62,11 +62,13 @@ class RegistrationService:
         telegram_id: int,
         username: str | None,
         language: Language,
+        overwrite_language: bool = True,
     ) -> tuple[UserDTO, CreditResult]:
         user = await self._get_or_create_user(
             telegram_id=telegram_id,
             username=username,
             language=language,
+            overwrite_language=overwrite_language,
         )
         wallet = await self._get_or_create_wallet(user.id)
 
@@ -94,13 +96,11 @@ class RegistrationService:
         telegram_id: int,
         username: str | None,
         language: Language,
+        overwrite_language: bool = True,
     ) -> User:
         user = await self._users.get_by_telegram_id(telegram_id)
         if user is not None:
-            await self._users.update_language(user, language)
-            if username != user.username:
-                await self._users.update_username(user, username)
-            return user
+            return await self._sync_existing_user(user, username, language, overwrite_language)
 
         try:
             async with self._session.begin_nested():
@@ -114,10 +114,20 @@ class RegistrationService:
             user = await self._users.get_by_telegram_id(telegram_id)
             if user is None:
                 raise
+            return await self._sync_existing_user(user, username, language, overwrite_language)
+
+    async def _sync_existing_user(
+        self,
+        user: User,
+        username: str | None,
+        language: Language,
+        overwrite_language: bool,
+    ) -> User:
+        if overwrite_language and user.language != language.value:
             await self._users.update_language(user, language)
-            if username != user.username:
-                await self._users.update_username(user, username)
-            return user
+        if username != user.username:
+            await self._users.update_username(user, username)
+        return user
 
     async def _get_or_create_wallet(self, user_id: UUID) -> Wallet:
         wallet = await self._wallets.get_by_user_id(user_id)
