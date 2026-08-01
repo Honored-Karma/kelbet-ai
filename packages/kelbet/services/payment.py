@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
@@ -24,12 +25,40 @@ from kelbet.domain.exceptions import (
     UserNotFoundError,
     WalletNotFoundError,
 )
+from kelbet.observability import get_metrics
 from kelbet.repositories.payment import PaymentRepository
 from kelbet.repositories.user import UserRepository
 from kelbet.repositories.wallet import WalletRepository
 from kelbet.services.wallet import WalletService
 
 STARS_CURRENCY = "XTR"
+
+
+def _record_payment_rejection(reason: str) -> None:
+    get_metrics().incr("payment.rejected", tags={"reason": reason})
+
+
+def payment_production_gate_failures(settings: Settings) -> tuple[str, ...]:
+    """Return stable gate codes; this never treats a local flag as external approval."""
+
+    failures: list[str] = []
+    for code, value in (
+        ("terms_url_missing", settings.payment_terms_url),
+        ("refund_policy_url_missing", settings.payment_refund_policy_url),
+    ):
+        parsed = urlparse(value.strip())
+        if parsed.scheme != "https" or not parsed.netloc:
+            failures.append(code)
+    version = settings.payment_terms_version.strip().lower()
+    if not version or version in {"draft", "placeholder", "unapproved"}:
+        failures.append("terms_version_unapproved")
+    if not settings.payment_seller_identity.strip():
+        failures.append("seller_identity_missing")
+    if not settings.payment_finance_review_confirmed:
+        failures.append("finance_review_missing")
+    if not settings.support_username.strip().lstrip("@"):
+        failures.append("support_contact_missing")
+    return tuple(failures)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,11 +113,7 @@ class PaymentService:
         self._wallet_service = WalletService(session)
 
     def _assert_available(self) -> None:
-        if (
-            not self._settings.payments_enabled
-            or not self._settings.payment_terms_url.strip()
-            or not self._settings.support_username.strip().lstrip("@")
-        ):
+        if not self._settings.payments_enabled or payment_production_gate_failures(self._settings):
             raise PaymentUnavailableError("Telegram Stars payments are not configured")
 
     async def list_products(self, language: Language) -> list[PaymentProductDTO]:
@@ -119,6 +144,8 @@ class PaymentService:
             if existing.user_id != user_id or existing.product_snapshot.get("slug") != product.slug:
                 raise IdempotencyConflictError("Payment idempotency key payload changed")
             return self._order_dto(existing, language)
+
+        await self._users.assert_paid_operations_allowed(user_id)
 
         user = await self._users.get_by_id(user_id)
         if user is None:
@@ -172,6 +199,7 @@ class PaymentService:
         try:
             self._assert_available()
         except PaymentUnavailableError:
+            _record_payment_rejection("payments_unavailable")
             return PreCheckoutResult(ok=False, error_code="payments_unavailable")
         current = now or datetime.now(UTC)
         order = await self._payments.get_order_by_payload(invoice_payload, for_update=True)
@@ -182,11 +210,13 @@ class PaymentService:
             total_amount=total_amount,
         )
         if error is not None:
+            _record_payment_rejection(error)
             return PreCheckoutResult(ok=False, error_code=error)
         assert order is not None
         if order.expires_at <= current:
             order.status = PaymentStatus.EXPIRED.value
             await self._session.flush()
+            _record_payment_rejection("order_expired")
             return PreCheckoutResult(ok=False, error_code="order_expired")
         order.pre_checkout_query_id = query_id[:128]
         await self._session.flush()
@@ -206,6 +236,7 @@ class PaymentService:
         current = now or datetime.now(UTC)
         existing = await self._payments.get_receipt_by_charge_id(telegram_payment_charge_id)
         if existing is not None:
+            get_metrics().incr("payment.receipt", tags={"status": "duplicate"})
             return await self._completion_from_receipt(existing)
 
         receipt = PaymentReceipt(
@@ -228,6 +259,7 @@ class PaymentService:
             existing = await self._payments.get_receipt_by_charge_id(telegram_payment_charge_id)
             if existing is None:
                 raise
+            get_metrics().incr("payment.receipt", tags={"status": "duplicate"})
             return await self._completion_from_receipt(existing)
 
         order = await self._payments.get_order_by_payload(invoice_payload, for_update=True)
@@ -243,6 +275,8 @@ class PaymentService:
             receipt.error_code = error or "order_not_found"
             receipt.processed_at = current
             await self._session.flush()
+            get_metrics().incr("payment.receipt", tags={"status": "rejected"})
+            _record_payment_rejection(receipt.error_code or "other")
             return PaymentCompletionResult(
                 processed=False,
                 applied=False,
@@ -257,6 +291,8 @@ class PaymentService:
             receipt.error_code = "order_already_paid"
             receipt.processed_at = current
             await self._session.flush()
+            get_metrics().incr("payment.receipt", tags={"status": "rejected"})
+            _record_payment_rejection("order_already_paid")
             return PaymentCompletionResult(
                 processed=False,
                 applied=False,
@@ -289,6 +325,7 @@ class PaymentService:
         receipt.error_code = None
         receipt.processed_at = current
         await self._session.flush()
+        get_metrics().incr("payment.receipt", tags={"status": "processed"})
         return PaymentCompletionResult(
             processed=True,
             applied=credit.applied,

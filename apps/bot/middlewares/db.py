@@ -5,6 +5,8 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from kelbet.domain.exceptions import ModerationRateLimitError, ModerationRejectedError
+
 
 class DbSessionMiddleware(BaseMiddleware):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -22,6 +24,9 @@ class DbSessionMiddleware(BaseMiddleware):
                 result = await handler(event, data)
                 await session.commit()
                 return result
+            except (ModerationRejectedError, ModerationRateLimitError):
+                await session.commit()
+                raise
             except Exception:
                 await session.rollback()
                 raise

@@ -31,9 +31,7 @@ class WebhookResponse(BaseModel):
         "requestBody": {
             "required": True,
             "content": {
-                "application/json": {
-                    "schema": {"type": "object", "additionalProperties": True}
-                }
+                "application/json": {"schema": {"type": "object", "additionalProperties": True}}
             },
         }
     },

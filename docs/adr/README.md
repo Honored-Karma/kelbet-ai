@@ -16,3 +16,4 @@ Index of ADRs for KELBET AI v0.3. Full context: [KELBET_V03_PLAN.md](../architec
 | [ADR-010](./ADR-010-observability-redaction.md) | Observability redaction | Accepted |
 | [ADR-011](./ADR-011-integer-economics.md) | Integer economics | Accepted |
 | [ADR-012](./ADR-012-api-versioning.md) | API versioning | Accepted |
+| [ADR-013](./ADR-013-google-gemini-image-fallback.md) | Google Gemini image fallback | Accepted |

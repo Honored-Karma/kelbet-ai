@@ -1,6 +1,7 @@
 # KELBET AI v0.3 — Data Model (ER)
 
-**Status:** Draft for approval (no code until confirmed)  
+**Status:** Implemented locally through additive migration `0017_referral_mvp`; external
+deployment remains unverified.
 **Source of truth:** PostgreSQL  
 **Constraint:** Migration `0001_initial` is immutable; all changes are additive revisions.
 
@@ -23,6 +24,11 @@ users 1──1 wallets 1──* credit_transactions
   │
   └──* uploads (input assets pending / bound)
 
+users 1──1 referral_codes
+users 1──* referral_attributions (inviter)
+users 1──0..1 referral_attributions (invited, immutable)
+referral_attributions 1──1 referral_rewards *──0..1 payment_orders
+
 catalog_models (standalone, referenced by generation_jobs.model_id)
 feature_flags (standalone)
 ```
@@ -42,12 +48,13 @@ feature_flags (standalone)
 | `plan` | VARCHAR(32) | currently `free` |
 | `created_at` / `updated_at` | TIMESTAMPTZ | |
 
-**v0.3 additive columns (migration 0002):**
+**Operator additive columns (migration 0012):**
 
 | Column | Type | Notes |
 |--------|------|--------|
 | `is_blocked` | BOOLEAN NOT NULL DEFAULT false | soft ban |
-| `last_seen_at` | TIMESTAMPTZ NULL | Mini App / bot activity |
+| `blocked_at` | TIMESTAMPTZ NULL | time of current block |
+| `blocked_reason` | VARCHAR(64) NULL | safe reason code, never free-form PII/prompt |
 
 ### 2.2 `wallets` (0001_initial)
 
@@ -341,6 +348,134 @@ Duplicate webhook protection (provider callbacks).
 | `payload` | JSONB NULL | percentage rollout, allowlist telegram_ids |
 | `updated_at` | TIMESTAMPTZ | |
 
+### 3.10 `operator_memberships` (0012)
+
+| Column | Type | Notes |
+|--------|------|--------|
+| `user_id` | UUID PK/FK → users RESTRICT | operator identity is an existing Telegram user |
+| `role` | VARCHAR(16) | CHECK `support` or `admin` |
+| `granted_by_user_id` | UUID NULL FK → users RESTRICT | granting operator, when known |
+| `granted_at` | TIMESTAMPTZ | |
+| `revoked_at` | TIMESTAMPTZ NULL | active membership has NULL |
+
+Bootstrap admins are resolved server-side from `ADMIN_BOOTSTRAP_TELEGRAM_IDS`; the URL and client
+state never grant a role.
+
+### 3.11 `audit_events` (0012)
+
+| Column | Type | Notes |
+|--------|------|--------|
+| `id` | UUID PK | |
+| `action_id` | UUID UNIQUE | mutation replay/idempotency identity |
+| `request_hash` | CHAR(64) | detects same ID with changed payload/operator |
+| `operator_user_id` | UUID FK → users RESTRICT | |
+| `operator_role` | VARCHAR(16) | role at action time |
+| `action` | VARCHAR(64) | bounded action code |
+| `object_type` / `object_id` | VARCHAR | safe target identity |
+| `before_data` / `after_data` | JSONB | explicit safe snapshots, no prompt/secrets/raw payload |
+| `reason` / `reference` | VARCHAR(64) | validated safe codes |
+| `correlation_id` | UUID | HTTP → audit correlation |
+| `created_at` | TIMESTAMPTZ | server timestamp |
+
+DB trigger rejects every UPDATE or DELETE. Application code only exposes append/list operations.
+
+### 3.12 `moderation_decisions` (0013)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | decision identity |
+| `user_id` | UUID FK → users CASCADE | subject identity |
+| `generation_id` | UUID NULL FK → generation_jobs SET NULL | bound after a generation row is created |
+| `asset_ids` | UUID[] | owned input references; never file content |
+| `context` / `idempotency_key` | VARCHAR | generation/chat/prompt-assistant replay scope |
+| `input_hash` | CHAR(64) | SHA-256 over text + asset IDs + context + policy version; raw text is not stored |
+| `mode` / `outcome` | VARCHAR | `off/report/block` and `allow/report/block` |
+| `reason_codes` | VARCHAR[] | bounded policy/technical codes |
+| `policy_version` | VARCHAR | immutable decision policy |
+| `provider` / `provider_model` | VARCHAR | bounded adapter metadata |
+| `provider_request_id` / `error_code` | VARCHAR NULL | investigation IDs/codes; no response body |
+| `review_status` / `review_outcome` | VARCHAR | operator queue state |
+| `reviewed_by_user_id` / `reviewed_at` | UUID/TIMESTAMPTZ NULL | admin review identity/time |
+| `created_at` | TIMESTAMPTZ | server timestamp |
+
+UNIQUE `(user_id, context, idempotency_key)`. The table deliberately has no prompt,
+image payload or raw provider-response column.
+
+### 3.13 `user_consents` (0013)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID FK → users CASCADE | confirming user |
+| `generation_id` | UUID NULL FK → generation_jobs SET NULL | bound to accepted generation |
+| `consent_type` | VARCHAR | currently `photo_rights` |
+| `policy_version` | VARCHAR | must equal current server requirement |
+| `asset_ids` | UUID[] | exact source-photo scope |
+| `idempotency_key` | VARCHAR | replay scope |
+| `confirmed_at` | TIMESTAMPTZ | explicit confirmation time |
+
+UNIQUE `(user_id, consent_type, idempotency_key)`; a changed asset set or policy version
+under the same key is an idempotency conflict.
+
+### 3.14 `generation_templates` and snapshots (0014)
+
+`generation_templates` is the canonical RU/KK catalog for six image templates and five video
+recipes. A stable UUID and slug identify the template; `version`, `kind`, `enabled`,
+`display_order`, localized name/description and prompt preset, aspect ratio, optional duration,
+compatible modalities, required-input schema, preview metadata and optional controlled compositor
+are stored server-side.
+
+`price_quotes` and `generation_jobs` receive nullable `template_id`, `template_slug`,
+`template_version`, `template_inputs` and `template_snapshot`. Existing rows remain valid with
+`NULL`/empty values. New template quotes and jobs preserve a full immutable JSON snapshot, so
+history does not depend on a later catalog edit. PostgreSQL triggers reject changes to the five
+template fields on both quote and job rows. Catalog rows are referenced with `RESTRICT`; operators
+disable a template instead of deleting it.
+
+Only the validated fields declared by `required_inputs` are accepted. Product-card and
+toi-invitation text is rendered after provider completion by a deterministic compositor. The
+provider never controls price/contact/date placement, and the compositor accepts no client font,
+position, URL or markup.
+
+### 3.15 Telegram Stars refunds and reconciliation (0015)
+
+`payment_refunds` is the durable state machine for one refund per Stars charge. Order, receipt,
+charge ID and operator reference are unique. The row separates external confirmation
+(`external_refunded_at`) from idempotent reverse-ledger completion (`ledger_transaction_id`), so a
+crash between Telegram and PostgreSQL is recoverable.
+
+`star_transaction_observations` stores normalized transaction metadata with unique
+`(telegram_transaction_id, direction)`. It intentionally omits raw Telegram responses. The same
+Telegram ID may appear once as incoming purchase and once as outgoing reversal.
+
+`payment_reconciliation_runs` records bounded run outcome/counts. `payment_reconciliation_issues`
+upserts stable discrepancy keys with `open`, `needs_review` or `resolved` state. Foreign keys to an
+order/refund are optional because Telegram can expose a transaction for which the local receipt is
+missing.
+
+### 3.16 Immutable image routing snapshot (0016)
+
+`generation_jobs.routing_snapshot` stores the server-selected primary and optional fallback route,
+provider model identifiers, operation/capability decision, safe cost ceiling and rollout gates at
+job creation. The worker completes or recovers the job from this snapshot rather than mutable
+catalog state, so an operator toggle cannot change an already-confirmed user price or introduce a
+new retry loop. The migration seeds `google_image=false` and `image_fallback=false`; the Google
+route supports image generation/edit only, while upscale stays primary-only.
+
+### 3.17 Referral MVP (0017)
+
+`referral_codes` provides at most one opaque personal code per user. `referral_attributions` stores
+exactly one inviter for an invited user, rejects self-referral, uses `RESTRICT` foreign keys and is
+protected by a database trigger that rejects both UPDATE and DELETE. Attribution is created only
+inside the successful new-user registration path; later `/start` updates cannot replace it.
+
+`referral_rewards` is a one-to-one state machine for an attribution and, once observed, a unique
+first payment order. Valid states are `pending`, `eligible`, `credited`, `cancelled` and
+`needs_review`. Bonus amounts are snapshotted as non-negative integers. Unique ledger transaction
+references plus WalletService idempotency keys (`referral:<reward_id>:inviter|invitee`) prevent
+double credit. A reversal before credit cancels the reward; a reversal after credit marks it for
+review without an automatic negative-wallet clawback.
+
 ---
 
 ## 4. Relationship diagram (Mermaid)
@@ -351,6 +486,14 @@ erDiagram
   users ||--o{ auth_sessions : has
   users ||--o{ generation_jobs : owns
   users ||--o{ generation_assets : owns
+  users ||--o| operator_memberships : operator_role
+  users ||--o{ audit_events : performs
+  users ||--o{ moderation_decisions : subject
+  users ||--o{ user_consents : confirms
+  users ||--o{ payment_orders : buys
+  users ||--o| referral_codes : owns
+  users ||--o{ referral_attributions : invites
+  users ||--o| referral_attributions : invited_by
   wallets ||--o{ credit_transactions : ledger
   wallets ||--o{ credit_reservations : holds
   catalog_models ||--o{ generation_jobs : priced_by
@@ -360,6 +503,17 @@ erDiagram
   generation_jobs ||--o{ provider_usage : costs
   generation_attempts ||--o{ provider_usage : attempt_cost
   generation_jobs ||--o{ webhook_receipts : callbacks
+  generation_jobs ||--o{ moderation_decisions : decision
+  generation_jobs ||--o{ user_consents : consent
+  generation_templates ||--o{ generation_jobs : snapshotted_by
+  generation_templates ||--o{ price_quotes : quoted_by
+  payment_orders ||--o| payment_receipts : confirmed_by
+  payment_orders ||--o| payment_refunds : refunded_by
+  payment_refunds ||--o{ payment_reconciliation_issues : investigated_by
+  referral_codes ||--o{ referral_attributions : attributes
+  referral_attributions ||--|| referral_rewards : rewards
+  payment_orders ||--o| referral_rewards : qualifies
+  credit_transactions ||--o| referral_rewards : credits
 ```
 
 ---
@@ -392,8 +546,19 @@ erDiagram
 | `0001_initial` | **DO NOT MODIFY** — users, wallets, credit_transactions |
 | `0002_wallet_reserved` | `wallets.reserved` + CHECKs; minimal `credit_reservations` (generation_id nullable, no FK yet) |
 | `0003_auth_sessions` | `auth_sessions` |
-| `0004_catalog_models` | `catalog_models` + seed mock/openrouter/runway rows |
-| `0005_generations` | `generation_jobs`, `generation_attempts`, `generation_assets`, `provider_usage`, `webhook_receipts`; FK `credit_reservations.generation_id` |
-| `0006_feature_flags` | `feature_flags` + seed |
+| `0004_catalog` | `catalog_models`, `price_quotes`, `feature_flags` + seed |
+| `0005_assets` | `generation_assets` |
+| `0006_generations` | generation jobs/attempts/provider usage/webhook receipts |
+| `0007_catalog_ui_flags` | catalog UI metadata and gates |
+| `0008_assistant_notifications` | prompt assistant requests and notification outbox |
+| `0009_studio_operations` | generation operation metadata |
+| `0010_video_mvp` | video lifecycle/provider fields |
+| `0011_telegram_stars_payments` | products, orders and durable receipts |
+| `0012_admin_operator_audit` | operator RBAC, user block state, append-only audit |
+| `0013_moderation_consent` | privacy-safe moderation decisions, operator review state and versioned photo consent |
+| `0014_generation_templates` | canonical RU/KK templates, immutable quote/job snapshots and controlled compositor metadata |
+| `0015_stars_refunds` | recoverable Stars refunds, normalized transaction observations, reconciliation runs/issues |
+| `0016_image_fallback` | immutable generation routing snapshot, opt-in Google image route and fallback catalog controls |
+| `0017_referral_mvp` | personal codes, immutable new-user attribution and ledger-backed referral reward states |
 
-> Note: Soft-hold reservations landed in `0002` with Stage B (ahead of original `0005`) so wallet primitives are testable without the full generation schema.
+> The migration chain is additive; do not rewrite older applied revisions.

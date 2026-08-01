@@ -11,12 +11,14 @@ from apps.bot.keyboards import (
     language_keyboard,
     main_menu_keyboard,
     mini_app_launch_keyboard,
+    referral_keyboard,
     support_keyboard,
 )
 from kelbet.config import Settings
 from kelbet.domain.enums import Language
 from kelbet.i18n import Msg, t
 from kelbet.services.profile import ProfileService
+from kelbet.services.referral import ReferralService
 from kelbet.services.registration import RegistrationService, UserDTO
 
 router = Router(name="navigation")
@@ -219,8 +221,7 @@ async def on_settings(
         return
     await state.clear()
     await message.answer(
-        f"{t(Msg.SETTINGS_TITLE, user.language)}\n"
-        f"{t(Msg.SETTINGS_LANGUAGE, user.language)}",
+        f"{t(Msg.SETTINGS_TITLE, user.language)}\n{t(Msg.SETTINGS_LANGUAGE, user.language)}",
         reply_markup=language_keyboard(),
     )
 
@@ -247,14 +248,37 @@ async def on_support(
     )
 
 
+@router.message(Command("invite"))
 @router.message(MenuText(Msg.MENU_INVITE, Msg.MENU_PARTNERSHIP))
 async def on_invite(
     message: Message,
     session: AsyncSession,
     state: FSMContext,
+    settings: Settings,
 ) -> None:
     user = await _registered_user(message, session)
     if user is None:
         return
     await state.clear()
-    await message.answer(t(Msg.INVITE_COMING_SOON, user.language))
+    summary = await ReferralService(session, settings).get_summary(user.id)
+    if not summary.enabled or not summary.link:
+        await message.answer(t(Msg.INVITE_COMING_SOON, user.language))
+        return
+    await message.answer(
+        t(
+            Msg.INVITE_SUMMARY,
+            user.language,
+            link=summary.link,
+            invited=summary.invited_count,
+            pending=summary.pending_rewards_count,
+            credited=summary.credited_bonus_credits,
+            inviter_bonus=summary.inviter_bonus_credits,
+            minimum=summary.minimum_purchase_stars,
+            waiting=summary.waiting_period_hours,
+        ),
+        reply_markup=referral_keyboard(
+            user.language,
+            link=summary.link,
+            mini_app_url=settings.mini_app_url,
+        ),
+    )

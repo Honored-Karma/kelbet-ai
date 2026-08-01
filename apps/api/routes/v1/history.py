@@ -54,9 +54,7 @@ async def history(
                 progress_pct=item.progress_pct,
                 output_asset_ids=[str(x) for x in item.output_asset_ids],
                 created_at=item.created_at.isoformat(),
-                preview_asset_id=(
-                    str(item.preview_asset_id) if item.preview_asset_id else None
-                ),
+                preview_asset_id=(str(item.preview_asset_id) if item.preview_asset_id else None),
                 preview_content_type=item.preview_content_type,
             )
             for item in items

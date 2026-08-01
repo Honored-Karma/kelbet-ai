@@ -63,14 +63,24 @@ class RegistrationService:
         username: str | None,
         language: Language,
         overwrite_language: bool = True,
+        referral_code: str | None = None,
     ) -> tuple[UserDTO, CreditResult]:
-        user = await self._get_or_create_user(
+        user, created = await self._get_or_create_user(
             telegram_id=telegram_id,
             username=username,
             language=language,
             overwrite_language=overwrite_language,
         )
         wallet = await self._get_or_create_wallet(user.id)
+
+        if created and referral_code:
+            from kelbet.services.referral import ReferralService
+
+            await ReferralService(self._session, self._settings).attribute_new_user(
+                invited_user_id=user.id,
+                code=referral_code,
+                created_in_registration=True,
+            )
 
         credit_result = await self._wallet_service.credit(
             wallet.id,
@@ -97,24 +107,31 @@ class RegistrationService:
         username: str | None,
         language: Language,
         overwrite_language: bool = True,
-    ) -> User:
+    ) -> tuple[User, bool]:
         user = await self._users.get_by_telegram_id(telegram_id)
         if user is not None:
-            return await self._sync_existing_user(user, username, language, overwrite_language)
+            return (
+                await self._sync_existing_user(user, username, language, overwrite_language),
+                False,
+            )
 
         try:
             async with self._session.begin_nested():
-                return await self._users.create(
+                user = await self._users.create(
                     telegram_id=telegram_id,
                     username=username,
                     language=language,
                     plan=Plan.FREE,
                 )
+                return user, True
         except IntegrityError:
             user = await self._users.get_by_telegram_id(telegram_id)
             if user is None:
                 raise
-            return await self._sync_existing_user(user, username, language, overwrite_language)
+            return (
+                await self._sync_existing_user(user, username, language, overwrite_language),
+                False,
+            )
 
     async def _sync_existing_user(
         self,

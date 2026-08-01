@@ -23,17 +23,22 @@ from kelbet.domain.exceptions import (
     AssetNotFoundError,
     GenerationConflictError,
     GenerationNotFoundError,
+    GenerationTemplateValidationError,
     QuoteNotFoundError,
     UploadValidationError,
     WalletNotFoundError,
 )
+from kelbet.observability import get_metrics
 from kelbet.queue import GenerationQueue
 from kelbet.repositories.asset import AssetRepository
 from kelbet.repositories.catalog import CatalogRepository
 from kelbet.repositories.generation import GenerationRepository
+from kelbet.repositories.user import UserRepository
 from kelbet.repositories.wallet import WalletRepository
 from kelbet.services.catalog import FeatureFlagService, QuoteService
 from kelbet.services.generation_sm import apply_transition
+from kelbet.services.moderation import ModerationService
+from kelbet.services.templates import GenerationTemplateService, validate_asset_count
 from kelbet.services.wallet import WalletService
 
 
@@ -55,6 +60,8 @@ class GenerationDTO:
     preview_content_type: str | None = None
     eta_seconds: int | None = None
     estimated_remaining_seconds: int | None = None
+    template_slug: str | None = None
+    template_version: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +77,10 @@ class GenerationDraftDTO:
     missing_input_assets: int
     model_available: bool
     replacement_slug: str | None
+    template_id: UUID | None
+    template_slug: str | None
+    template_version: int | None
+    template_inputs: dict[str, Any]
 
 
 def _request_hash(
@@ -78,6 +89,8 @@ def _request_hash(
     params: dict[str, Any],
     input_asset_ids: list[UUID],
     prompt: str,
+    template_id: UUID | None,
+    template_inputs: dict[str, Any],
 ) -> str:
     canonical = {
         "model_slug": model_slug,
@@ -85,6 +98,8 @@ def _request_hash(
         "input_asset_ids": [str(x) for x in input_asset_ids],
         "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
         "prompt_len": len(prompt),
+        "template_id": str(template_id) if template_id else None,
+        "template_inputs": template_inputs,
     }
     raw = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -106,6 +121,8 @@ class GenerationService:
         self._wallets = WalletRepository(session)
         self._wallet_svc = WalletService(session)
         self._quotes = QuoteService(session, self._settings)
+        self._users = UserRepository(session)
+        self._templates = GenerationTemplateService(session, self._settings)
 
     async def create(
         self,
@@ -116,6 +133,10 @@ class GenerationService:
         quote_id: UUID,
         prompt: str,
         input_asset_ids: list[UUID] | None = None,
+        rights_consent_confirmed: bool = False,
+        rights_consent_version: str | None = None,
+        template_id: UUID | None = None,
+        template_inputs: dict[str, object] | None = None,
         correlation_id: UUID | None = None,
         now: datetime | None = None,
     ) -> GenerationDTO:
@@ -124,7 +145,41 @@ class GenerationService:
             user_id=user_id, idempotency_key=idempotency_key
         )
         if existing is not None:
+            if existing.template_id is None:
+                same_legacy_request = (
+                    template_id is None
+                    and not template_inputs
+                    and quote_id == existing.quote_id
+                    and (input_asset_ids or []) == list(existing.input_asset_ids or [])
+                    and prompt.strip() == (existing.prompt or "")
+                )
+                if not same_legacy_request:
+                    raise GenerationConflictError(
+                        "Idempotency key was already used for another generation request"
+                    )
+                return await self._to_dto(existing)
+            existing_model = await self._catalog.get_by_id(existing.model_id)
+            if existing_model is None:
+                raise GenerationConflictError("Idempotent generation model is unavailable")
+            if quote_id != existing.quote_id:
+                raise GenerationConflictError(
+                    "Idempotency key was already used for another generation request"
+                )
+            replay_hash = _request_hash(
+                model_slug=existing_model.slug,
+                params=dict(existing.params or {}),
+                input_asset_ids=input_asset_ids or [],
+                prompt=prompt.strip(),
+                template_id=template_id,
+                template_inputs=dict(template_inputs or {}),
+            )
+            if replay_hash != existing.request_hash:
+                raise GenerationConflictError(
+                    "Idempotency key was already used for another generation request"
+                )
             return await self._to_dto(existing)
+
+        user = await self._users.assert_paid_operations_allowed(user_id)
 
         active = await self._jobs.count_active_for_user(user_id)
         if active >= self._settings.max_active_generations_per_user:
@@ -148,6 +203,29 @@ class GenerationService:
                     f"(limit {self._settings.max_active_video_generations_per_user})"
                 )
 
+        if quote.template_id is None:
+            if template_id is not None or template_inputs:
+                raise GenerationTemplateValidationError(
+                    "Generation template does not match the quote"
+                )
+        else:
+            if template_id != quote.template_id:
+                raise GenerationTemplateValidationError(
+                    "Generation template does not match the quote"
+                )
+            current_template = await self._templates.require_current(quote.template_id)
+            if (
+                current_template.slug != quote.template_slug
+                or current_template.version != quote.template_version
+            ):
+                raise GenerationTemplateValidationError(
+                    "Generation template version changed; request a new quote"
+                )
+            if dict(template_inputs or {}) != quote.template_inputs:
+                raise GenerationTemplateValidationError(
+                    "Generation template inputs do not match the quote"
+                )
+
         text = prompt.strip()
         requirements = model.input_requirements or {}
         prompt_requirement = str(requirements.get("prompt") or "required")
@@ -157,6 +235,8 @@ class GenerationService:
             raise UploadValidationError("This model does not accept a prompt")
 
         asset_ids = input_asset_ids or []
+        if quote.template_id is not None:
+            validate_asset_count(quote.template_snapshot, len(asset_ids))
         if len(asset_ids) != len(set(asset_ids)):
             raise UploadValidationError("Duplicate input assets are not allowed")
 
@@ -212,6 +292,28 @@ class GenerationService:
                     f"Asset {asset_id} exceeds the maximum height of {max_input_height}px"
                 )
 
+        moderation = ModerationService(self._session, self._settings)
+        consent = None
+        if asset_ids and model.modality in {"image_edit", "video"}:
+            consent = await moderation.require_photo_rights(
+                user_id=user_id,
+                idempotency_key=idempotency_key,
+                asset_ids=asset_ids,
+                confirmed=rights_consent_confirmed,
+                version=rights_consent_version,
+                language=user.language,
+                now=current,
+            )
+        _moderation_dto, moderation_row = await moderation.evaluate_text(
+            user_id=user_id,
+            text=text,
+            context="generation",
+            idempotency_key=idempotency_key,
+            language=user.language,
+            asset_ids=asset_ids,
+            now=current,
+        )
+
         wallet = await self._wallets.get_by_user_id(user_id)
         if wallet is None:
             raise WalletNotFoundError(f"Wallet for user {user_id} not found")
@@ -221,6 +323,14 @@ class GenerationService:
             params=quote.params,
             input_asset_ids=asset_ids,
             prompt=text,
+            template_id=quote.template_id,
+            template_inputs=quote.template_inputs,
+        )
+        primary_route = quote.routing_snapshot.get("primary")
+        primary_route = primary_route if isinstance(primary_route, dict) else {}
+        quoted_provider = str(primary_route.get("provider") or model.provider)
+        quoted_provider_model_id = str(
+            primary_route.get("provider_model_id") or model.provider_model_id
         )
         job = await self._jobs.create(
             user_id=user_id,
@@ -233,15 +343,26 @@ class GenerationService:
             params=quote.params,
             input_asset_ids=asset_ids or None,
             quote_id=quote.quote_id,
+            template_id=quote.template_id,
+            template_slug=quote.template_slug,
+            template_version=quote.template_version,
+            template_inputs=quote.template_inputs,
+            template_snapshot=quote.template_snapshot,
+            routing_snapshot=quote.routing_snapshot,
             user_credit_price=quote.user_credit_price,
-            provider=model.provider,
-            provider_model_id=model.provider_model_id,
+            provider=quoted_provider,
+            provider_model_id=quoted_provider_model_id,
             progress_pct=0,
             progress_stage="created",
             attempt_count=0,
             max_attempts=3,
             correlation_id=correlation_id or uuid4(),
             prompt=text,
+        )
+        await moderation.bind_generation(
+            decision=moderation_row,
+            consent=consent,
+            generation_id=job.id,
         )
 
         reservation = await self._wallet_svc.reserve(
@@ -254,6 +375,9 @@ class GenerationService:
                 "model_slug": model.slug,
                 "user_credit_price": quote.user_credit_price,
                 "params": quote.params,
+                "template_id": str(quote.template_id) if quote.template_id else None,
+                "template_slug": quote.template_slug,
+                "template_version": quote.template_version,
             },
             now=current,
         )
@@ -270,6 +394,18 @@ class GenerationService:
         apply_transition(job, GenerationStatus.QUEUED, now=current, progress_stage="queued")
         await self._session.flush()
         await self._queue.enqueue(job.id, modality=model.modality)
+        get_metrics().incr(
+            "generation.created",
+            tags={"modality": model.modality, "provider": model.provider},
+        )
+        if quote.template_slug is not None:
+            get_metrics().incr(
+                "template.started",
+                tags={
+                    "template": quote.template_slug,
+                    "kind": str(quote.template_snapshot["kind"]),
+                },
+            )
         return await self._to_dto(job, model_slug=model.slug)
 
     async def get(self, *, user_id: UUID, generation_id: UUID) -> GenerationDTO:
@@ -336,6 +472,13 @@ class GenerationService:
         if mode in {"remix", "upscale"} and not valid_input_ids:
             missing_input_assets = max(1, missing_input_assets)
 
+        if job.template_slug is not None:
+            kind = str(job.template_snapshot.get("kind") or "other")
+            get_metrics().incr(
+                "template.reused",
+                tags={"template": job.template_slug, "kind": kind},
+            )
+
         return GenerationDraftDTO(
             source_generation_id=job.id,
             mode=mode,
@@ -348,6 +491,10 @@ class GenerationService:
             missing_input_assets=missing_input_assets,
             model_available=model_available,
             replacement_slug=model.replacement_slug if model is not None else None,
+            template_id=job.template_id,
+            template_slug=job.template_slug,
+            template_version=job.template_version,
+            template_inputs=dict(job.template_inputs),
         )
 
     async def list_history(
@@ -427,6 +574,8 @@ class GenerationService:
                     output_asset_ids=output_ids.get(job.id, []),
                     preview_asset_id=preview.id if preview is not None else None,
                     preview_content_type=(preview.content_type if preview is not None else None),
+                    template_slug=job.template_slug,
+                    template_version=job.template_version,
                 )
             )
         return items
@@ -461,6 +610,22 @@ class GenerationService:
             )
             if job.reservation_id is not None:
                 await self._wallet_svc.release(job.reservation_id, now=current)
+            get_metrics().incr(
+                "generation.terminal",
+                tags={"status": GenerationStatus.CANCELLED.value, "modality": job.modality},
+            )
+            created_at = job.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=UTC)
+            get_metrics().observe(
+                "generation.duration_seconds",
+                max(0.0, (current - created_at).total_seconds()),
+                tags={
+                    "status": GenerationStatus.CANCELLED.value,
+                    "modality": job.modality,
+                    "provider": job.provider,
+                },
+            )
         await self._session.flush()
         if status in {GenerationStatus.SUBMITTING, GenerationStatus.RUNNING}:
             await self._queue.enqueue(job.id, modality=job.modality)
@@ -529,4 +694,6 @@ class GenerationService:
             output_asset_ids=output_ids,
             eta_seconds=eta_seconds,
             estimated_remaining_seconds=estimated_remaining_seconds,
+            template_slug=job.template_slug,
+            template_version=job.template_version,
         )

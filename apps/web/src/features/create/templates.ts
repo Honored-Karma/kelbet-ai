@@ -1,4 +1,4 @@
-import type { Language } from "../../shared/api/types";
+import type { GenerationTemplate, Language } from "../../shared/api/types";
 
 export type CreateIntentHint = "scratch" | "photo";
 
@@ -102,3 +102,48 @@ export const CREATE_TEMPLATES: CreateTemplate[] = [
     aspectRatio: "1:1",
   },
 ];
+
+const MOCK_IMAGE_TEMPLATE_IDS = [
+  "22222222-2222-2222-2222-222222222201",
+  "22222222-2222-2222-2222-222222222202",
+  "22222222-2222-2222-2222-222222222203",
+  "22222222-2222-2222-2222-222222222204",
+  "22222222-2222-2222-2222-222222222205",
+  "22222222-2222-2222-2222-222222222206",
+] as const;
+
+/** Checked-in preview data is intentionally reachable only in explicit mock mode. */
+export function mockImageTemplates(language: Language): GenerationTemplate[] {
+  return CREATE_TEMPLATES.map((template, index) => ({
+    id: MOCK_IMAGE_TEMPLATE_IDS[index]!,
+    slug: template.id,
+    version: 1,
+    kind: "image",
+    display_order: index + 10,
+    localization: {
+      name: template.title[language],
+      description: template.description[language],
+    },
+    prompt_preset: template.prompt[language],
+    aspect_ratio: template.aspectRatio,
+    duration_sec: null,
+    compatible_modalities:
+      template.id === "local-service-story" || template.id === "nauryz"
+        ? ["image"]
+        : ["image", "image_edit"],
+    required_inputs: {
+      assets: { min: 0, max: 4 },
+      fields:
+        template.id === "marketplace-product"
+          ? [
+              { key: "headline", type: "text", required: true, max_length: 80, label: language === "ru" ? "Название" : "Атауы" },
+              { key: "body", type: "text", required: false, max_length: 120, label: language === "ru" ? "Описание" : "Сипаттама" },
+              { key: "price", type: "text", required: true, max_length: 32, label: language === "ru" ? "Цена" : "Бағасы" },
+              { key: "contact", type: "text", required: true, max_length: 80, label: language === "ru" ? "Контакт" : "Байланыс" },
+            ]
+          : [],
+    },
+    preview_metadata: { marker: template.glyph, source: "mock-local-v1" },
+    compositor: template.id === "marketplace-product" ? "product_card_v1" : null,
+  }));
+}

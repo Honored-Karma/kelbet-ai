@@ -22,9 +22,7 @@ def test_existing_async_database_url_is_unchanged() -> None:
 
 
 def test_cors_origins_are_normalized_for_browser_origin_headers() -> None:
-    settings = Settings(
-        cors_origins=" https://kelbet-ai.vercel.app/, https://web.telegram.org/ "
-    )
+    settings = Settings(cors_origins=" https://kelbet-ai.vercel.app/, https://web.telegram.org/ ")
 
     assert cors_origin_list(settings) == [
         "https://kelbet-ai.vercel.app",

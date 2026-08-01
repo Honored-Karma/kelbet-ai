@@ -117,9 +117,15 @@ async def test_catalog_lists_enabled_localized_models(api_client: AsyncClient) -
     assert edit["modality"] == "image_edit"
     assert edit["input_requirements"]["source_image"] == "required"
     assert edit["input_requirements"]["max_input_assets"] == 10
+    assert edit["capabilities"]["fallback"]["provider_model_id"] == ("gemini-3.1-flash-image")
+    assert edit["capabilities"]["fallback"]["supported_modalities"] == [
+        "image",
+        "image_edit",
+    ]
     upscale = next(item for item in items if item["slug"] == "runway-magnific-image-upscale")
     assert upscale["modality"] == "upscale"
     assert upscale["capabilities"]["scale_factors"] == [2]
+    assert "fallback" not in upscale["capabilities"]
     video = next(item for item in items if item["slug"] == "runway-gemini-omni-video-fast")
     assert video["capabilities"]["durations_sec"] == [4, 8]
     assert video["capabilities"]["fallback"]["provider"] == "google"

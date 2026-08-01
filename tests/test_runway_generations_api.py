@@ -23,7 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from kelbet.auth import MemoryReplayStore, sign_init_data
 from kelbet.catalog.seed_db import seed_catalog
 from kelbet.config import Settings, get_settings
-from kelbet.db.models.generation import GenerationJob, ProviderUsage
+from kelbet.db.models.catalog import FeatureFlag
+from kelbet.db.models.generation import GenerationAttempt, GenerationJob, ProviderUsage
 from kelbet.db.models.wallet import Wallet
 from kelbet.providers.base import GenerationOutput, GenerationProviderResult, GenerationRequest
 from kelbet.providers.runway import RunwayProvider
@@ -65,6 +66,28 @@ class StickyAsyncProvider:
 
     async def cancel(self, provider_job_id: str) -> None:
         self.cancel_calls += 1
+
+
+class ImmediateProvider:
+    def __init__(self, result: GenerationProviderResult, *, name: str) -> None:
+        self.result = result
+        self.provider_name = name
+        self.requests: list[GenerationRequest] = []
+
+    @property
+    def name(self) -> str:
+        return self.provider_name
+
+    async def generate(self, request: GenerationRequest) -> GenerationProviderResult:
+        self.requests.append(request)
+        return self.result
+
+    async def get_status(self, provider_job_id: str) -> GenerationProviderResult:
+        del provider_job_id
+        return self.result
+
+    async def cancel(self, provider_job_id: str) -> None:
+        del provider_job_id
 
 
 def _signed_init_data(*, telegram_id: int) -> str:
@@ -511,3 +534,354 @@ async def test_video_transient_failure_falls_back_without_price_change(
     )
     assert got.json()["status"] == "succeeded"
     assert got.json()["user_credit_price"] == quoted_price
+
+
+@pytest.mark.asyncio
+async def test_image_transient_failure_uses_canary_fallback_and_captures_once(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, app = api_client
+    telegram_id = 910_006
+    token = await _login(client, telegram_id)
+    quote_id = await _quote(client, token, model_slug="runway-gen4-image")
+    created = await client.post(
+        "/api/v1/generations",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Idempotency-Key": "image-fallback-canary-1",
+        },
+        json={"quote_id": quote_id, "prompt": "A clean product photograph"},
+    )
+    assert created.status_code == 201, created.text
+    quoted_price = created.json()["user_credit_price"]
+
+    primary = ImmediateProvider(
+        GenerationProviderResult(
+            status="failed",
+            error_code="provider_unavailable",
+            error_message_safe="Primary temporarily unavailable",
+            meta={"http_status": 503},
+        ),
+        name="runway",
+    )
+    fallback = ImmediateProvider(
+        GenerationProviderResult(
+            status="succeeded",
+            outputs=[GenerationOutput(content_type="image/png", data=_PNG_1X1)],
+            provider_cost_units=670,
+        ),
+        name="google",
+    )
+
+    def route_provider(provider_name: str, **_: object) -> ImmediateProvider:
+        return fallback if provider_name == "google" else primary
+
+    monkeypatch.setattr("kelbet.services.generation_runner.resolve_provider", route_provider)
+    async with session_factory() as session, session.begin():
+        for key in ("google_image", "image_fallback"):
+            flag = await session.get(FeatureFlag, key)
+            assert flag is not None
+            flag.enabled = True
+            flag.payload = {"telegram_ids": [telegram_id]}
+
+    queue: InlineGenerationQueue = app.state.generation_queue  # type: ignore[attr-defined]
+    storage = app.state.object_storage  # type: ignore[attr-defined]
+    job_id = queue.pop_all()[0][0]
+    settings = Settings(runway_api_key="test-runway", google_api_key="test-google")
+    async with session_factory() as session, session.begin():
+        first = await GenerationRunner(session, storage, settings=settings).process(job_id)
+        assert first.value == "succeeded"
+    async with session_factory() as session, session.begin():
+        replay = await GenerationRunner(session, storage, settings=settings).process(job_id)
+        assert replay.value == "succeeded"
+        job = await session.get(GenerationJob, job_id)
+        assert job is not None
+        attempts = list(
+            (
+                await session.execute(
+                    select(GenerationAttempt)
+                    .where(GenerationAttempt.generation_id == job_id)
+                    .order_by(GenerationAttempt.attempt_no)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        usages = list(
+            (
+                await session.execute(
+                    select(ProviderUsage)
+                    .where(ProviderUsage.generation_id == job_id)
+                    .order_by(ProviderUsage.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        wallet = (await session.execute(select(Wallet))).scalar_one()
+        assert job.provider == "google"
+        assert job.user_credit_price == quoted_price
+        assert len(attempts) == 2
+        assert [row.provider for row in usages] == ["runway", "google"]
+        assert wallet.reserved == 0
+        assert wallet.balance == 500 - quoted_price
+    assert len(primary.requests) == len(fallback.requests) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error_code", "http_status"),
+    [
+        ("invalid_input", 400),
+        ("moderation_rejected", 400),
+        ("unsupported_capability", 404),
+        ("provider_account_error", 403),
+    ],
+)
+async def test_image_permanent_failures_never_fallback(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    error_code: str,
+    http_status: int,
+) -> None:
+    client, app = api_client
+    telegram_id = 910_100 + http_status + len(error_code)
+    token = await _login(client, telegram_id)
+    quote_id = await _quote(client, token, model_slug="runway-gen4-image")
+    created = await client.post(
+        "/api/v1/generations",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Idempotency-Key": f"image-permanent-{error_code}",
+        },
+        json={"quote_id": quote_id, "prompt": "A safe studio scene"},
+    )
+    assert created.status_code == 201, created.text
+    primary = ImmediateProvider(
+        GenerationProviderResult(
+            status="failed",
+            error_code=error_code,
+            error_message_safe="Permanent provider rejection",
+            meta={"http_status": http_status},
+        ),
+        name="runway",
+    )
+    fallback = ImmediateProvider(
+        GenerationProviderResult(
+            status="succeeded",
+            outputs=[GenerationOutput(content_type="image/png", data=_PNG_1X1)],
+        ),
+        name="google",
+    )
+
+    def route_provider(provider_name: str, **_: object) -> ImmediateProvider:
+        return fallback if provider_name == "google" else primary
+
+    monkeypatch.setattr("kelbet.services.generation_runner.resolve_provider", route_provider)
+    async with session_factory() as session, session.begin():
+        for key in ("google_image", "image_fallback"):
+            flag = await session.get(FeatureFlag, key)
+            assert flag is not None
+            flag.enabled = True
+            flag.payload = {"telegram_ids": [telegram_id]}
+    queue: InlineGenerationQueue = app.state.generation_queue  # type: ignore[attr-defined]
+    job_id = queue.pop_all()[0][0]
+    async with session_factory() as session, session.begin():
+        status = await GenerationRunner(
+            session,
+            app.state.object_storage,  # type: ignore[attr-defined]
+            settings=Settings(runway_api_key="test", google_api_key="test"),
+        ).process(job_id)
+        assert status.value == "failed"
+        wallet = (await session.execute(select(Wallet))).scalar_one()
+        assert wallet.balance == 500 and wallet.reserved == 0
+    assert not fallback.requests
+
+
+@pytest.mark.asyncio
+async def test_image_fallback_cost_ceiling_blocks_route(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, app = api_client
+    telegram_id = 910_007
+    token = await _login(client, telegram_id)
+    quote_id = await _quote(client, token, model_slug="runway-gen4-image")
+    created = await client.post(
+        "/api/v1/generations",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Idempotency-Key": "image-fallback-cost-ceiling",
+        },
+        json={"quote_id": quote_id, "prompt": "A neutral product scene"},
+    )
+    assert created.status_code == 201
+    primary = ImmediateProvider(
+        GenerationProviderResult(status="failed", error_code="provider_unavailable"),
+        name="runway",
+    )
+    fallback = ImmediateProvider(
+        GenerationProviderResult(
+            status="succeeded",
+            outputs=[GenerationOutput(content_type="image/png", data=_PNG_1X1)],
+        ),
+        name="google",
+    )
+
+    def route_provider(provider_name: str, **_: object) -> ImmediateProvider:
+        return fallback if provider_name == "google" else primary
+
+    monkeypatch.setattr("kelbet.services.generation_runner.resolve_provider", route_provider)
+    queue: InlineGenerationQueue = app.state.generation_queue  # type: ignore[attr-defined]
+    job_id = queue.pop_all()[0][0]
+    async with session_factory() as session, session.begin():
+        for key in ("google_image", "image_fallback"):
+            flag = await session.get(FeatureFlag, key)
+            assert flag is not None
+            flag.enabled = True
+            flag.payload = {"telegram_ids": [telegram_id]}
+        job = await session.get(GenerationJob, job_id)
+        assert job is not None
+        routing = dict(job.routing_snapshot)
+        fallback_route = dict(routing["fallback"])
+        fallback_route["provider_cost_ceiling_units"] = 100
+        routing["fallback"] = fallback_route
+        job.routing_snapshot = routing
+    async with session_factory() as session, session.begin():
+        status = await GenerationRunner(
+            session,
+            app.state.object_storage,  # type: ignore[attr-defined]
+            settings=Settings(runway_api_key="test", google_api_key="test"),
+        ).process(job_id)
+        assert status.value == "failed"
+    assert not fallback.requests
+
+
+@pytest.mark.asyncio
+async def test_image_fallback_kill_switch_blocks_route(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, app = api_client
+    telegram_id = 910_008
+    token = await _login(client, telegram_id)
+    quote_id = await _quote(client, token, model_slug="runway-gen4-image")
+    created = await client.post(
+        "/api/v1/generations",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Idempotency-Key": "image-fallback-kill-switch",
+        },
+        json={"quote_id": quote_id, "prompt": "A neutral product scene"},
+    )
+    assert created.status_code == 201
+    primary = ImmediateProvider(
+        GenerationProviderResult(status="failed", error_code="provider_unavailable"),
+        name="runway",
+    )
+    fallback = ImmediateProvider(
+        GenerationProviderResult(
+            status="succeeded",
+            outputs=[GenerationOutput(content_type="image/png", data=_PNG_1X1)],
+        ),
+        name="google",
+    )
+
+    def route_provider(provider_name: str, **_: object) -> ImmediateProvider:
+        return fallback if provider_name == "google" else primary
+
+    monkeypatch.setattr("kelbet.services.generation_runner.resolve_provider", route_provider)
+    queue: InlineGenerationQueue = app.state.generation_queue  # type: ignore[attr-defined]
+    job_id = queue.pop_all()[0][0]
+    async with session_factory() as session, session.begin():
+        provider_flag = await session.get(FeatureFlag, "google_image")
+        kill_switch = await session.get(FeatureFlag, "image_fallback")
+        assert provider_flag is not None and kill_switch is not None
+        provider_flag.enabled = True
+        provider_flag.payload = {"telegram_ids": [telegram_id]}
+        kill_switch.enabled = False
+    async with session_factory() as session, session.begin():
+        status = await GenerationRunner(
+            session,
+            app.state.object_storage,  # type: ignore[attr-defined]
+            settings=Settings(runway_api_key="test", google_api_key="test"),
+        ).process(job_id)
+        assert status.value == "failed"
+        wallet = (await session.execute(select(Wallet))).scalar_one()
+        assert wallet.balance == 500 and wallet.reserved == 0
+    assert len(primary.requests) == 1
+    assert not fallback.requests
+
+
+@pytest.mark.asyncio
+async def test_image_fallback_failure_releases_once_and_worker_replay_is_safe(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, app = api_client
+    telegram_id = 910_009
+    token = await _login(client, telegram_id)
+    quote_id = await _quote(client, token, model_slug="runway-gen4-image")
+    created = await client.post(
+        "/api/v1/generations",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Idempotency-Key": "image-fallback-failure-replay",
+        },
+        json={"quote_id": quote_id, "prompt": "A neutral product scene"},
+    )
+    assert created.status_code == 201
+    quoted_price = created.json()["user_credit_price"]
+    primary = ImmediateProvider(
+        GenerationProviderResult(status="failed", error_code="provider_unavailable"),
+        name="runway",
+    )
+    fallback = ImmediateProvider(
+        GenerationProviderResult(status="failed", error_code="provider_timeout"),
+        name="google",
+    )
+
+    def route_provider(provider_name: str, **_: object) -> ImmediateProvider:
+        return fallback if provider_name == "google" else primary
+
+    monkeypatch.setattr("kelbet.services.generation_runner.resolve_provider", route_provider)
+    queue: InlineGenerationQueue = app.state.generation_queue  # type: ignore[attr-defined]
+    job_id = queue.pop_all()[0][0]
+    async with session_factory() as session, session.begin():
+        for key in ("google_image", "image_fallback"):
+            flag = await session.get(FeatureFlag, key)
+            assert flag is not None
+            flag.enabled = True
+            flag.payload = {"telegram_ids": [telegram_id]}
+    settings = Settings(runway_api_key="test", google_api_key="test")
+    storage = app.state.object_storage  # type: ignore[attr-defined]
+    async with session_factory() as session, session.begin():
+        status = await GenerationRunner(session, storage, settings=settings).process(job_id)
+        assert status.value == "failed"
+    async with session_factory() as session, session.begin():
+        replay = await GenerationRunner(session, storage, settings=settings).process(job_id)
+        assert replay.value == "failed"
+        job = await session.get(GenerationJob, job_id)
+        assert job is not None
+        wallet = (await session.execute(select(Wallet))).scalar_one()
+        usages = list(
+            (
+                await session.execute(
+                    select(ProviderUsage)
+                    .where(ProviderUsage.generation_id == job_id)
+                    .order_by(ProviderUsage.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert job.user_credit_price == quoted_price
+        assert wallet.balance == 500 and wallet.reserved == 0
+        assert [usage.provider for usage in usages] == ["runway", "google"]
+    assert len(primary.requests) == len(fallback.requests) == 1

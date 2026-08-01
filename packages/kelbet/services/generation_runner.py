@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -21,19 +22,69 @@ from kelbet.domain.enums import (
     RetentionClass,
 )
 from kelbet.domain.exceptions import GenerationNotFoundError
+from kelbet.observability import classify_provider_failure, get_metrics
 from kelbet.providers.base import GenerationProvider, GenerationProviderResult, GenerationRequest
 from kelbet.providers.factory import resolve_provider
 from kelbet.repositories.asset import AssetRepository
 from kelbet.repositories.catalog import CatalogRepository
 from kelbet.repositories.generation import GenerationRepository
 from kelbet.repositories.notification import NotificationRepository
+from kelbet.repositories.user import UserRepository
+from kelbet.services.catalog import FeatureFlagService
 from kelbet.services.generation_sm import apply_transition
+from kelbet.services.template_compositor import TemplateCompositor, TemplateCompositorError
 from kelbet.services.wallet import WalletService
 from kelbet.storage import ObjectStorage, build_output_object_key, image_dimensions
 from kelbet.storage.memory import MemoryObjectStorage
 from kelbet.storage.s3 import S3ObjectStorage
 
 logger = logging.getLogger(__name__)
+
+
+def _record_terminal_metrics(
+    job: GenerationJob,
+    status: GenerationStatus,
+    *,
+    now: datetime,
+) -> None:
+    metrics = get_metrics()
+    metrics.incr(
+        "generation.terminal",
+        tags={"status": status.value, "modality": job.modality},
+    )
+    if job.template_slug and status in {
+        GenerationStatus.SUCCEEDED,
+        GenerationStatus.FAILED,
+    }:
+        raw_kind = job.template_snapshot.get("kind")
+        kind = raw_kind if isinstance(raw_kind, str) else "other"
+        metrics.incr(
+            "template.terminal",
+            tags={"template": job.template_slug, "kind": kind, "outcome": status.value},
+        )
+    created_at = job.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    metrics.observe(
+        "generation.duration_seconds",
+        max(0.0, (now - created_at).total_seconds()),
+        tags={"status": status.value, "modality": job.modality, "provider": job.provider},
+    )
+
+
+def _record_provider_failure_metrics(
+    job: GenerationJob,
+    result: GenerationProviderResult,
+) -> None:
+    raw_status = result.meta.get("http_status")
+    http_status = raw_status if isinstance(raw_status, int) else None
+    get_metrics().incr(
+        "provider.failure",
+        tags={
+            "provider": job.provider,
+            "classification": classify_provider_failure(result.error_code, http_status),
+        },
+    )
 
 
 def _token(meta: dict[str, object] | None, key: str) -> int | None:
@@ -56,6 +107,35 @@ def _attempt_diagnostics(meta: dict[str, object] | None) -> dict[str, object]:
     return {key: value for key, value in meta.items() if key in safe_keys}
 
 
+def _provider_route(job: GenerationJob) -> str:
+    primary = (job.routing_snapshot or {}).get("primary")
+    primary = primary if isinstance(primary, dict) else {}
+    return "primary" if primary.get("provider") in {None, job.provider} else "fallback"
+
+
+def _record_provider_route_metrics(
+    job: GenerationJob,
+    result: GenerationProviderResult,
+    *,
+    outcome: str,
+) -> None:
+    route = _provider_route(job)
+    tags = {
+        "provider": job.provider,
+        "route": route,
+        "outcome": outcome,
+        "modality": job.modality,
+    }
+    metrics = get_metrics()
+    metrics.incr("provider.route", tags=tags)
+    metrics.observe("provider.route_latency_seconds", max(0, result.latency_ms) / 1000, tags=tags)
+    metrics.observe(
+        "provider.route_cost_units",
+        max(0, result.provider_cost_units),
+        tags={"provider": job.provider, "route": route, "modality": job.modality},
+    )
+
+
 class GenerationRunner:
     def __init__(
         self,
@@ -72,6 +152,7 @@ class GenerationRunner:
         self._catalog = CatalogRepository(session)
         self._notifications = NotificationRepository(session)
         self._wallet = WalletService(session)
+        self._template_compositor = TemplateCompositor()
 
     def _provider_for(self, job: GenerationJob) -> GenerationProvider:
         return self._provider_override or resolve_provider(
@@ -217,7 +298,8 @@ class GenerationRunner:
         }
 
         if result.status == "failed":
-            fallback_status = await self._try_video_fallback(
+            _record_provider_failure_metrics(job, result)
+            fallback_status = await self._try_fallback(
                 job,
                 attempt,
                 result,
@@ -281,6 +363,38 @@ class GenerationRunner:
             provider = self._provider_for(job)
             if job.provider_job_id:
                 await provider.cancel(job.provider_job_id)
+            timeout_result = GenerationProviderResult(
+                status="failed",
+                provider_job_id=job.provider_job_id,
+                error_code="provider_timeout",
+                error_message_safe="Provider generation timed out",
+            )
+            timeout_attempt = await self._jobs.add_attempt(
+                generation_id=job.id,
+                attempt_no=job.attempt_count + 1,
+                now=current,
+            )
+            job.attempt_count += 1
+            timeout_attempt.provider_job_id = job.provider_job_id
+            timeout_attempt.raw_response_meta = {
+                "status": "failed",
+                "provider": job.provider,
+                "provider_model_id": job.provider_model_id,
+            }
+            _record_provider_failure_metrics(job, timeout_result)
+            fallback_status = await self._try_fallback(
+                job,
+                timeout_attempt,
+                timeout_result,
+                now=current,
+            )
+            if fallback_status is not None:
+                return fallback_status
+            timeout_attempt.status = AttemptStatus.FAILED.value
+            timeout_attempt.error_code = "provider_timeout"
+            timeout_attempt.error_message_safe = "Provider generation timed out"
+            timeout_attempt.finished_at = current
+            _record_provider_route_metrics(job, timeout_result, outcome="failed")
             apply_transition(
                 job,
                 GenerationStatus.TIMED_OUT,
@@ -293,6 +407,7 @@ class GenerationRunner:
                 await self._wallet.release(job.reservation_id, now=current)
             job.next_poll_at = None
             await self._session.flush()
+            _record_terminal_metrics(job, GenerationStatus.TIMED_OUT, now=current)
             return GenerationStatus.TIMED_OUT
 
         provider = self._provider_for(job)
@@ -335,7 +450,8 @@ class GenerationRunner:
         }
 
         if result.status == "failed":
-            fallback_status = await self._try_video_fallback(
+            _record_provider_failure_metrics(job, result)
+            fallback_status = await self._try_fallback(
                 job,
                 attempt,
                 result,
@@ -356,7 +472,7 @@ class GenerationRunner:
             statuses.append(status.value)
         return statuses
 
-    async def _try_video_fallback(
+    async def _try_fallback(
         self,
         job: GenerationJob,
         attempt: GenerationAttempt,
@@ -366,38 +482,37 @@ class GenerationRunner:
         input_keys: list[str] | None = None,
         input_urls: list[str] | None = None,
     ) -> GenerationStatus | None:
-        if (
-            job.modality != "video"
-            or job.attempt_count >= job.max_attempts
-            or not self._is_retryable_provider_failure(result)
-        ):
+        if job.attempt_count >= job.max_attempts or not self._is_retryable_provider_failure(result):
             return None
 
-        model = await self._catalog.get_by_id(job.model_id)
-        capabilities = dict(model.capabilities or {}) if model is not None else {}
-        fallback = capabilities.get("fallback")
+        fallback = (job.routing_snapshot or {}).get("fallback")
+        capabilities: dict[str, object] = {}
+        if not isinstance(fallback, dict):
+            # Compatibility for jobs created before immutable routing snapshots.
+            model = await self._catalog.get_by_id(job.model_id)
+            capabilities = dict(model.capabilities or {}) if model is not None else {}
+            fallback = capabilities.get("fallback")
         if not isinstance(fallback, dict):
             return None
 
         fallback_provider = str(fallback.get("provider") or "").strip()
         fallback_model_id = str(fallback.get("provider_model_id") or "").strip()
+        supported_modalities = fallback.get("supported_modalities")
         if (
             not fallback_provider
             or not fallback_model_id
             or fallback_provider == job.provider
             or (fallback_provider == "google" and not self._settings.google_api_key)
+            or (isinstance(supported_modalities, list) and job.modality not in supported_modalities)
         ):
             return None
 
-        ui = capabilities.get("ui")
-        ui = ui if isinstance(ui, dict) else {}
-        ceiling_per_second = int(ui.get("provider_cost_ceiling_units_per_second") or 0)
-        fallback_per_second = int(fallback.get("provider_cost_units_per_second") or 0)
-        if (
-            ceiling_per_second <= 0
-            or fallback_per_second <= 0
-            or fallback_per_second > ceiling_per_second
-        ):
+        if not await self._fallback_flags_enabled(job, fallback):
+            return None
+
+        fallback_cost = self._fallback_cost_units(job, fallback)
+        ceiling = self._fallback_cost_ceiling(job, fallback, capabilities)
+        if ceiling <= 0 or fallback_cost <= 0 or fallback_cost > ceiling:
             logger.warning(
                 "generation_fallback_blocked_cost generation_id=%s from=%s to=%s",
                 job.id,
@@ -434,9 +549,10 @@ class GenerationRunner:
             provider_cost_units=result.provider_cost_units,
             user_credit_price=job.user_credit_price,
             latency_ms=result.latency_ms,
-            meta={"status": "fallback", **(result.meta or {})},
+            meta={"status": "fallback", **_attempt_diagnostics(result.meta)},
             now=now,
         )
+        _record_provider_route_metrics(job, result, outcome="failed")
 
         job.provider = fallback_provider
         job.provider_model_id = fallback_model_id
@@ -476,6 +592,7 @@ class GenerationRunner:
         }
 
         if fallback_result.status == "failed":
+            _record_provider_failure_metrics(job, fallback_result)
             return await self._fail(
                 job,
                 fallback_attempt,
@@ -492,6 +609,7 @@ class GenerationRunner:
                 progress_stage="fallback_running",
             )
             job.next_poll_at = now + self._poll_interval(job)
+            job.started_at = now
             await self._session.flush()
             logger.info(
                 "generation_fallback_started generation_id=%s from=%s to=%s",
@@ -506,6 +624,70 @@ class GenerationRunner:
             fallback_result,
             now=now,
         )
+
+    async def _fallback_flags_enabled(
+        self,
+        job: GenerationJob,
+        fallback: dict[str, object],
+    ) -> bool:
+        keys = [
+            str(value)
+            for value in (
+                fallback.get("provider_feature_flag"),
+                fallback.get("feature_flag"),
+            )
+            if isinstance(value, str) and value
+        ]
+        if not keys:
+            return True
+        user = await UserRepository(self._session).get_by_id(job.user_id)
+        if user is None:
+            return False
+        flags = FeatureFlagService(self._session)
+        for key in keys:
+            if not await flags.is_enabled(key, telegram_id=user.telegram_id):
+                return False
+        return True
+
+    @staticmethod
+    def _fallback_cost_units(
+        job: GenerationJob,
+        fallback: dict[str, object],
+    ) -> int:
+        per_second = fallback.get("provider_cost_units_per_second")
+        if isinstance(per_second, int) and per_second > 0:
+            duration = int((job.params or {}).get("duration_sec") or 0)
+            return per_second * duration
+        by_resolution = fallback.get("provider_cost_units_by_resolution")
+        if isinstance(by_resolution, dict):
+            resolution = str((job.params or {}).get("resolution") or "1k").lower()
+            value = by_resolution.get(resolution)
+            if isinstance(value, int):
+                return value
+        value = fallback.get("provider_cost_units")
+        return value if isinstance(value, int) else 0
+
+    @staticmethod
+    def _fallback_cost_ceiling(
+        job: GenerationJob,
+        fallback: dict[str, object],
+        capabilities: dict[str, object],
+    ) -> int:
+        ceiling = fallback.get("provider_cost_ceiling_units")
+        if isinstance(ceiling, int) and ceiling > 0:
+            return ceiling
+        ceiling_per_second = fallback.get("provider_cost_ceiling_units_per_second")
+        if not isinstance(ceiling_per_second, int):
+            ui = capabilities.get("ui")
+            ui = ui if isinstance(ui, dict) else {}
+            ceiling_per_second = ui.get("provider_cost_ceiling_units_per_second")
+        if isinstance(ceiling_per_second, int) and ceiling_per_second > 0:
+            duration = int((job.params or {}).get("duration_sec") or 0)
+            return ceiling_per_second * duration
+        ui = capabilities.get("ui")
+        ui = ui if isinstance(ui, dict) else {}
+        legacy = ui.get("provider_cost_ceiling_units")
+        return legacy if isinstance(legacy, int) else 0
 
     async def _prepare_input_materials(
         self,
@@ -549,18 +731,28 @@ class GenerationRunner:
         return status is None or status == 429 or (isinstance(status, int) and status >= 500)
 
     async def _expected_provider_cost_units(self, job: GenerationJob) -> int:
+        routing = dict(job.routing_snapshot or {})
+        primary = routing.get("primary")
+        primary = primary if isinstance(primary, dict) else {}
+        if primary.get("provider") == job.provider:
+            value = primary.get("provider_cost_units")
+            return value if isinstance(value, int) else 0
+        fallback = routing.get("fallback")
+        if isinstance(fallback, dict) and fallback.get("provider") == job.provider:
+            return self._fallback_cost_units(job, fallback)
+
+        # Compatibility for legacy jobs without a routing snapshot.
         model = await self._catalog.get_by_id(job.model_id)
         if model is None:
             return 0
         capabilities = dict(model.capabilities or {})
-        duration = int((job.params or {}).get("duration_sec") or 0)
         if job.provider != model.provider:
-            fallback = capabilities.get("fallback")
-            if isinstance(fallback, dict) and fallback.get("provider") == job.provider:
-                per_second = int(fallback.get("provider_cost_units_per_second") or 0)
-                return per_second * duration
-            return 0
-        if model.provider_cost_units <= 0:
+            legacy_fallback = capabilities.get("fallback")
+            if (
+                isinstance(legacy_fallback, dict)
+                and legacy_fallback.get("provider") == job.provider
+            ):
+                return self._fallback_cost_units(job, legacy_fallback)
             return 0
         return compute_user_credit_price(
             model.provider_cost_units,
@@ -580,6 +772,7 @@ class GenerationRunner:
             await self._wallet.release(job.reservation_id, now=now)
         job.next_poll_at = None
         await self._session.flush()
+        _record_terminal_metrics(job, GenerationStatus.CANCELLED, now=now)
         return GenerationStatus.CANCELLED
 
     async def _fail_running(
@@ -595,6 +788,7 @@ class GenerationRunner:
             now=now,
         )
         job.attempt_count += 1
+        _record_provider_failure_metrics(job, result)
         return await self._fail(job, attempt, result, now=now)
 
     async def _fail(
@@ -604,6 +798,7 @@ class GenerationRunner:
         result: GenerationProviderResult,
         *,
         now: datetime,
+        error_class: str = "provider",
     ) -> GenerationStatus:
         attempt.status = AttemptStatus.FAILED.value
         attempt.error_code = result.error_code
@@ -614,7 +809,7 @@ class GenerationRunner:
             GenerationStatus.FAILED,
             now=now,
             error_code=result.error_code or "provider_failed",
-            error_class="provider",
+            error_class=error_class,
             progress_stage="failed",
         )
         if job.reservation_id is not None:
@@ -631,12 +826,14 @@ class GenerationRunner:
             ),
             user_credit_price=job.user_credit_price,
             latency_ms=result.latency_ms,
-            meta={"status": "failed", **(result.meta or {})},
+            meta={"status": "failed", **_attempt_diagnostics(result.meta)},
             tokens_in=_token(result.meta, "tokens_in"),
             tokens_out=_token(result.meta, "tokens_out"),
             now=now,
         )
+        _record_provider_route_metrics(job, result, outcome="failed")
         await self._session.flush()
+        _record_terminal_metrics(job, GenerationStatus.FAILED, now=now)
         return GenerationStatus.FAILED
 
     async def _finalize_success(
@@ -647,6 +844,38 @@ class GenerationRunner:
         *,
         now: datetime,
     ) -> GenerationStatus:
+        compositor = job.template_snapshot.get("compositor")
+        if self._settings.template_compositor_enabled and isinstance(compositor, str):
+            try:
+                composed_outputs = [
+                    await self._template_compositor.compose(
+                        output,
+                        compositor=compositor,
+                        inputs=dict(job.template_inputs or {}),
+                        aspect_ratio=str(job.template_snapshot.get("aspect_ratio") or "9:16"),
+                    )
+                    for output in result.outputs
+                ]
+                result = replace(result, outputs=composed_outputs)
+            except TemplateCompositorError:
+                logger.exception(
+                    "template_compositor_failed",
+                    extra={"generation_id": str(job.id), "template": job.template_slug},
+                )
+                failed = replace(
+                    result,
+                    status="failed",
+                    outputs=[],
+                    error_code="template_compositor_failed",
+                    error_message_safe="Template output could not be finalized",
+                )
+                return await self._fail(
+                    job,
+                    attempt,
+                    failed,
+                    now=now,
+                    error_class="template",
+                )
         apply_transition(
             job,
             GenerationStatus.FINALIZING,
@@ -705,11 +934,12 @@ class GenerationRunner:
             ),
             user_credit_price=job.user_credit_price,
             latency_ms=result.latency_ms,
-            meta={"status": "succeeded", **(result.meta or {})},
+            meta={"status": "succeeded", **_attempt_diagnostics(result.meta)},
             tokens_in=_token(result.meta, "tokens_in"),
             tokens_out=_token(result.meta, "tokens_out"),
             now=now,
         )
+        _record_provider_route_metrics(job, result, outcome="succeeded")
         if job.reservation_id is not None:
             await self._wallet.capture(
                 job.reservation_id,
@@ -730,4 +960,5 @@ class GenerationRunner:
             now=now,
         )
         await self._session.flush()
+        _record_terminal_metrics(job, GenerationStatus.SUCCEEDED, now=now)
         return GenerationStatus.SUCCEEDED

@@ -37,9 +37,7 @@ async def test_stuck_sweeper_times_out_running_and_releases(
         plan=Plan.FREE,
     )
     wallet = await WalletRepository(session).create(user.id)
-    await WalletService(session).credit(
-        wallet.id, 50, TxReason.WELCOME_BONUS, f"welcome:{user.id}"
-    )
+    await WalletService(session).credit(wallet.id, 50, TxReason.WELCOME_BONUS, f"welcome:{user.id}")
     reservation = await WalletService(session).reserve(
         wallet.id,
         5,

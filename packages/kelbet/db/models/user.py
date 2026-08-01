@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, String
+from sqlalchemy import BigInteger, Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kelbet.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -26,6 +27,14 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default=True,
         server_default="true",
     )
+    is_blocked: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    blocked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     wallet: Mapped[Wallet | None] = relationship(
         "Wallet",

@@ -375,10 +375,7 @@ class GoogleVeoProvider:
             response = await client.get(url, headers={"x-goog-api-key": self._api_key})
             response.raise_for_status()
             content_type = (
-                (response.headers.get("content-type") or "video/mp4")
-                .split(";")[0]
-                .strip()
-                .lower()
+                (response.headers.get("content-type") or "video/mp4").split(";")[0].strip().lower()
             )
             if content_type == "application/octet-stream" and urlparse(url).path.lower().endswith(
                 ".mp4"

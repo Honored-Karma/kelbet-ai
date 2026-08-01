@@ -53,17 +53,13 @@ def verify_standard_webhook(
         raise WebhookVerificationError("Webhook signature has no supported v1 value")
 
     signed_payload = (
-        webhook_id.encode("utf-8")
-        + b"."
-        + webhook_timestamp.encode("ascii")
-        + b"."
-        + payload
+        webhook_id.encode("utf-8") + b"." + webhook_timestamp.encode("ascii") + b"." + payload
     )
     for serialized_secret in signing_secrets:
         key = _decode_standard_secret(serialized_secret)
-        expected = base64.b64encode(
-            hmac.new(key, signed_payload, hashlib.sha256).digest()
-        ).decode("ascii")
+        expected = base64.b64encode(hmac.new(key, signed_payload, hashlib.sha256).digest()).decode(
+            "ascii"
+        )
         if any(hmac.compare_digest(expected, candidate) for candidate in candidates):
             return
 

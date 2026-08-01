@@ -17,9 +17,17 @@ from kelbet.domain.exceptions import (
     ReservationNotFoundError,
     WalletNotFoundError,
 )
+from kelbet.observability import get_metrics
 from kelbet.repositories.wallet import WalletRepository
 
 DEFAULT_RESERVATION_TTL = timedelta(hours=1)
+
+
+def _record_wallet_operation(operation: str, *, applied: bool) -> None:
+    get_metrics().incr(
+        "wallet.operation",
+        tags={"operation": operation, "outcome": "applied" if applied else "idempotent"},
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,7 +248,9 @@ class WalletService:
             wallet = await self._wallets.get_by_id(existing.wallet_id)
             if wallet is None:
                 raise WalletNotFoundError(f"Wallet {existing.wallet_id} not found")
-            return self._reservation_result(applied=False, reservation=existing, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=existing, wallet=wallet)
+            _record_wallet_operation("reserve", applied=False)
+            return result
 
         held_at = now or datetime.now(UTC)
         expires_at = held_at + ttl
@@ -248,7 +258,9 @@ class WalletService:
         wallet = await self._get_wallet_for_update(wallet_id)
         existing = await self._get_reservation_by_key(idempotency_key)
         if existing is not None:
-            return self._reservation_result(applied=False, reservation=existing, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=existing, wallet=wallet)
+            _record_wallet_operation("reserve", applied=False)
+            return result
 
         available = wallet.balance - wallet.reserved
         if available < amount:
@@ -272,12 +284,16 @@ class WalletService:
             existing = await self._get_reservation_by_key(idempotency_key)
             if existing is not None:
                 await self._session.refresh(wallet)
-                return self._reservation_result(
+                result = self._reservation_result(
                     applied=False, reservation=existing, wallet=wallet
                 )
+                _record_wallet_operation("reserve", applied=False)
+                return result
             raise
 
-        return self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        result = self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        _record_wallet_operation("reserve", applied=True)
+        return result
 
     async def capture(
         self,
@@ -291,7 +307,9 @@ class WalletService:
         finalized_at = now or datetime.now(UTC)
 
         if reservation.status == ReservationStatus.CAPTURED.value:
-            return self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            _record_wallet_operation("capture", applied=False)
+            return result
 
         if reservation.status != ReservationStatus.HELD.value:
             raise InvalidReservationStateError(
@@ -313,7 +331,9 @@ class WalletService:
             reservation.capture_tx_id = existing_tx.id
             reservation.finalized_at = reservation.finalized_at or finalized_at
             await self._session.flush()
-            return self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            _record_wallet_operation("capture", applied=False)
+            return result
 
         new_balance = wallet.balance - amount
         new_reserved = wallet.reserved - amount
@@ -349,12 +369,16 @@ class WalletService:
                     reservation.capture_tx_id = existing_tx.id
                     reservation.finalized_at = reservation.finalized_at or finalized_at
                     await self._session.flush()
-                return self._reservation_result(
+                result = self._reservation_result(
                     applied=False, reservation=reservation, wallet=wallet
                 )
+                _record_wallet_operation("capture", applied=False)
+                return result
             raise
 
-        return self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        result = self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        _record_wallet_operation("capture", applied=True)
+        return result
 
     async def release(
         self,
@@ -367,10 +391,14 @@ class WalletService:
         finalized_at = now or datetime.now(UTC)
 
         if reservation.status == ReservationStatus.RELEASED.value:
-            return self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            _record_wallet_operation("release", applied=False)
+            return result
 
         if reservation.status == ReservationStatus.EXPIRED.value:
-            return self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            _record_wallet_operation("release", applied=False)
+            return result
 
         if reservation.status != ReservationStatus.HELD.value:
             raise InvalidReservationStateError(
@@ -389,7 +417,9 @@ class WalletService:
         reservation.finalized_at = finalized_at
         await self._session.flush()
 
-        return self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        result = self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        _record_wallet_operation("release", applied=True)
+        return result
 
     async def refund(
         self,
@@ -404,7 +434,9 @@ class WalletService:
         finalized_at = now or datetime.now(UTC)
 
         if reservation.refund_tx_id is not None:
-            return self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            _record_wallet_operation("refund", applied=False)
+            return result
 
         if reservation.status != ReservationStatus.CAPTURED.value:
             raise InvalidReservationStateError(
@@ -417,7 +449,9 @@ class WalletService:
         if existing_tx is not None:
             reservation.refund_tx_id = existing_tx.id
             await self._session.flush()
-            return self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
+            _record_wallet_operation("refund", applied=False)
+            return result
 
         new_balance = wallet.balance + amount
         try:
@@ -448,9 +482,13 @@ class WalletService:
                 await self._session.refresh(reservation)
                 reservation.refund_tx_id = existing_tx.id
                 await self._session.flush()
-                return self._reservation_result(
+                result = self._reservation_result(
                     applied=False, reservation=reservation, wallet=wallet
                 )
+                _record_wallet_operation("refund", applied=False)
+                return result
             raise
 
-        return self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        result = self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
+        _record_wallet_operation("refund", applied=True)
+        return result

@@ -9,12 +9,8 @@ from kelbet.domain.enums import GenerationStatus
 from kelbet.domain.exceptions import InvalidGenerationTransitionError
 
 _ALLOWED: dict[GenerationStatus, frozenset[GenerationStatus]] = {
-    GenerationStatus.CREATED: frozenset(
-        {GenerationStatus.QUEUED, GenerationStatus.CANCELLED}
-    ),
-    GenerationStatus.QUEUED: frozenset(
-        {GenerationStatus.SUBMITTING, GenerationStatus.CANCELLED}
-    ),
+    GenerationStatus.CREATED: frozenset({GenerationStatus.QUEUED, GenerationStatus.CANCELLED}),
+    GenerationStatus.QUEUED: frozenset({GenerationStatus.SUBMITTING, GenerationStatus.CANCELLED}),
     GenerationStatus.SUBMITTING: frozenset(
         {
             GenerationStatus.RUNNING,

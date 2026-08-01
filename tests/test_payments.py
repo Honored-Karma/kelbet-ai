@@ -19,6 +19,9 @@ def _settings() -> Settings:
         payments_enabled=True,
         payment_terms_url="https://kelbet.ai/terms",
         payment_terms_version="test-v1",
+        payment_refund_policy_url="https://kelbet.ai/refunds",
+        payment_seller_identity="KELBET TEST SELLER",
+        payment_finance_review_confirmed=True,
         payment_order_ttl_minutes=30,
         support_username="kelbet_support",
     )
@@ -104,9 +107,7 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
     assert duplicate.applied is False
     assert duplicate.balance == 105
 
-    wallet = (
-        await session.execute(select(Wallet).where(Wallet.user_id == user.id))
-    ).scalar_one()
+    wallet = (await session.execute(select(Wallet).where(Wallet.user_id == user.id))).scalar_one()
     stored_order = (
         await session.execute(select(PaymentOrder).where(PaymentOrder.id == order.id))
     ).scalar_one()
@@ -169,9 +170,7 @@ async def test_invalid_successful_payment_is_preserved_without_credit(
             )
         )
     ).scalar_one()
-    wallet = (
-        await session.execute(select(Wallet).where(Wallet.user_id == user.id))
-    ).scalar_one()
+    wallet = (await session.execute(select(Wallet).where(Wallet.user_id == user.id))).scalar_one()
     assert receipt.status == PaymentReceiptStatus.REJECTED.value
     assert receipt.error_code == "amount_mismatch"
     assert wallet.balance == 5

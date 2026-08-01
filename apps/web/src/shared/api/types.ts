@@ -16,6 +16,17 @@ export const meSchema = z.object({
 });
 export type Me = z.infer<typeof meSchema>;
 
+export const moderationConfigSchema = z
+  .object({
+    mode: z.enum(["off", "report", "block"]),
+    policy_version: z.string(),
+    photo_rights_consent_version: z.string(),
+    support_route: z.string().startsWith("/"),
+    image_moderation_supported: z.boolean(),
+  })
+  .strict();
+export type ModerationConfig = z.infer<typeof moderationConfigSchema>;
+
 export const promptAssistantIntentSchema = z.enum([
   "general",
   "product",
@@ -69,6 +80,49 @@ export const catalogModelSchema = z.object({
 });
 export type CatalogModel = z.infer<typeof catalogModelSchema>;
 
+export const generationTemplateFieldSchema = z
+  .object({
+    key: z.string(),
+    type: z.literal("text"),
+    required: z.boolean(),
+    max_length: z.number().int().positive(),
+    label: z.union([
+      z.string(),
+      z.object({ ru: z.string(), kk: z.string() }).strict(),
+    ]),
+  })
+  .strict();
+
+export const generationTemplateSchema = z
+  .object({
+    id: z.string().min(1),
+    slug: z.string(),
+    version: z.number().int().positive(),
+    kind: z.enum(["image", "video"]),
+    display_order: z.number().int().nonnegative(),
+    localization: z.object({
+      name: z.string(),
+      description: z.string(),
+    }),
+    prompt_preset: z.string(),
+    aspect_ratio: z.string(),
+    duration_sec: z.number().int().positive().nullable(),
+    compatible_modalities: z.array(z.string()),
+    required_inputs: z
+      .object({
+        assets: z.object({
+          min: z.number().int().nonnegative(),
+          max: z.number().int().nonnegative(),
+        }),
+        fields: z.array(generationTemplateFieldSchema),
+      })
+      .strict(),
+    preview_metadata: z.record(z.string(), z.unknown()),
+    compositor: z.string().nullable(),
+  })
+  .strict();
+export type GenerationTemplate = z.infer<typeof generationTemplateSchema>;
+
 export const quoteSchema = z.object({
   quote_id: z.string(),
   model_slug: z.string(),
@@ -76,6 +130,10 @@ export const quoteSchema = z.object({
   currency: z.string(),
   expires_at: z.string(),
   params: z.record(z.string(), z.unknown()),
+  template_id: z.string().min(1).nullable(),
+  template_slug: z.string().nullable(),
+  template_version: z.number().int().positive().nullable(),
+  template_inputs: z.record(z.string(), z.unknown()),
   available: z.number().int().optional(),
 });
 export type Quote = z.infer<typeof quoteSchema>;
@@ -118,6 +176,8 @@ export const generationSchema = z.object({
   status: z.string(),
   modality: z.string(),
   model_slug: z.string().nullable(),
+  template_slug: z.string().nullable(),
+  template_version: z.number().int().positive().nullable(),
   user_credit_price: z.number().int(),
   progress_pct: z.number().int(),
   progress_stage: z.string().nullable(),
@@ -146,6 +206,10 @@ export const generationDraftSchema = z.object({
   missing_input_assets: z.number().int().nonnegative(),
   model_available: z.boolean(),
   replacement_slug: z.string().nullable(),
+  template_id: z.string().min(1).nullable(),
+  template_slug: z.string().nullable(),
+  template_version: z.number().int().positive().nullable(),
+  template_inputs: z.record(z.string(), z.unknown()),
 });
 export type GenerationDraft = z.infer<typeof generationDraftSchema>;
 
@@ -205,6 +269,23 @@ export const paymentOrderSchema = z.object({
   paid_at: z.string().nullable(),
 });
 export type PaymentOrder = z.infer<typeof paymentOrderSchema>;
+
+export const referralSummarySchema = z
+  .object({
+    enabled: z.boolean(),
+    code: z.string().nullable(),
+    link: z.string().url().nullable(),
+    invited_count: z.number().int().nonnegative(),
+    pending_rewards_count: z.number().int().nonnegative(),
+    credited_rewards_count: z.number().int().nonnegative(),
+    credited_bonus_credits: z.number().int().nonnegative(),
+    inviter_bonus_credits: z.number().int().nonnegative(),
+    invitee_bonus_credits: z.number().int().nonnegative(),
+    minimum_purchase_stars: z.number().int().positive(),
+    waiting_period_hours: z.number().int().nonnegative(),
+  })
+  .strict();
+export type ReferralSummary = z.infer<typeof referralSummarySchema>;
 
 export class ApiError extends Error {
   readonly code: string;

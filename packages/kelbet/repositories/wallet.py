@@ -17,6 +17,12 @@ class WalletRepository:
         result = await self._session.execute(select(Wallet).where(Wallet.user_id == user_id))
         return result.scalar_one_or_none()
 
+    async def get_by_user_id_for_update(self, user_id: UUID) -> Wallet | None:
+        result = await self._session.execute(
+            select(Wallet).where(Wallet.user_id == user_id).with_for_update()
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_id(self, wallet_id: UUID) -> Wallet | None:
         result = await self._session.execute(select(Wallet).where(Wallet.id == wallet_id))
         return result.scalar_one_or_none()
@@ -106,3 +112,19 @@ class WalletRepository:
             .where(CreditTransaction.wallet_id == wallet_id)
         )
         return int(result.scalar_one())
+
+    async def list_transactions(
+        self,
+        wallet_id: UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[CreditTransaction]:
+        result = await self._session.execute(
+            select(CreditTransaction)
+            .where(CreditTransaction.wallet_id == wallet_id)
+            .order_by(CreditTransaction.created_at.desc(), CreditTransaction.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())

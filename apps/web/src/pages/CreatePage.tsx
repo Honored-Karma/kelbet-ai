@@ -9,9 +9,21 @@ import {
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PromptAssistant } from "../features/create/PromptAssistant";
-import { CREATE_TEMPLATES } from "../features/create/templates";
+import { mockImageTemplates } from "../features/create/templates";
+import { PhotoRightsConsent } from "../features/moderation/PhotoRightsConsent";
+import {
+  buildTemplateSelection,
+  isTemplateUnavailable,
+  templateFieldLabel,
+  templateFieldsValid,
+  templateMarker,
+  templateSelectionFromQuote,
+} from "../features/templates/selection";
 import { api, getApiMode } from "../shared/api/client";
-import type { CatalogModel, GenerationDraftMode } from "../shared/api/types";
+import type {
+  CatalogModel,
+  GenerationDraftMode,
+} from "../shared/api/types";
 import { useI18n } from "../shared/i18n/runtime";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { ErrorState } from "../shared/ui/ErrorState";
@@ -166,8 +178,11 @@ export function CreatePage() {
   const [references, setReferences] = useState<ReferenceItem[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [restoredTemplateSlug, setRestoredTemplateSlug] = useState<string | null>(null);
+  const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
   const [continuation, setContinuation] = useState<ContinuationNotice | null>(null);
   const [clock, setClock] = useState(Date.now());
+  const [rightsConsent, setRightsConsent] = useState(false);
 
   useEffect(() => {
     referencesRef.current = references;
@@ -186,9 +201,21 @@ export function CreatePage() {
   }, []);
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: () => api.getMe() });
+  const moderationQuery = useQuery({
+    queryKey: ["moderation", "config"],
+    queryFn: () => api.getModerationConfig(),
+    staleTime: 300_000,
+  });
   const modelsQuery = useQuery({
     queryKey: ["catalog", language],
     queryFn: () => api.listModels(language),
+  });
+  const templatesQuery = useQuery({
+    queryKey: ["catalog", "templates", language, "image"],
+    queryFn: async () => {
+      if (getApiMode() === "mock") return mockImageTemplates(language);
+      return api.listTemplates(language, "image");
+    },
   });
   const draftQuery = useQuery({
     queryKey: ["generation-draft", sourceId, draftMode],
@@ -240,6 +267,30 @@ export function CreatePage() {
     );
   }, [actualTier, explicitSlug, operation, operationModels, studioMode]);
 
+  const imageTemplates = useMemo(
+    () =>
+      (templatesQuery.data ?? []).filter(
+        (template) => !selected || template.compatible_modalities.includes(selected.modality),
+      ),
+    [selected, templatesQuery.data],
+  );
+  const activeTemplate = useMemo(
+    () =>
+      (templatesQuery.data ?? []).find((template) => template.id === activeTemplateId) ?? null,
+    [activeTemplateId, templatesQuery.data],
+  );
+  const templateSelection = useMemo(
+    () => buildTemplateSelection(activeTemplate, templateInputs),
+    [activeTemplate, templateInputs],
+  );
+  const templateUnavailable = isTemplateUnavailable(
+    activeTemplateId,
+    activeTemplate,
+    templatesQuery.isSuccess,
+  );
+  const templateValid =
+    !templateUnavailable && templateFieldsValid(activeTemplate, templateInputs);
+
   useEffect(() => {
     if (!selected) return;
     setParams((current) => compatibleParams(selected, operation, current));
@@ -272,7 +323,15 @@ export function CreatePage() {
       setExplicitSlug(chosen?.slug ?? null);
       setPrompt(restoredOperation === "upscale" ? "" : draft.prompt);
       setParams(chosen ? compatibleParams(chosen, restoredOperation, draft.params) : draft.params);
-      setActiveTemplateId(null);
+      setActiveTemplateId(draft.template_id);
+      setRestoredTemplateSlug(draft.template_slug);
+      setTemplateInputs(
+        Object.fromEntries(
+          Object.entries(draft.template_inputs).flatMap(([key, value]) =>
+            typeof value === "string" ? [[key, value]] : [],
+          ),
+        ),
+      );
 
       let restored: ReferenceItem[] = [];
       if (draft.input_asset_ids.length) {
@@ -319,14 +378,20 @@ export function CreatePage() {
     };
   }, [draftKey, draftQuery.data, studioModels]);
 
-  const maxReferences = numericCapability(
+  const modelMaxReferences = numericCapability(
     selected?.input_requirements.max_input_assets,
     operation === "edit" ? 10 : operation === "upscale" ? 1 : 0,
   );
-  const minReferences = numericCapability(
+  const modelMinReferences = numericCapability(
     selected?.input_requirements.min_input_assets,
     operation === "create" ? 0 : 1,
   );
+  const maxReferences = activeTemplate
+    ? Math.min(modelMaxReferences, activeTemplate.required_inputs.assets.max)
+    : modelMaxReferences;
+  const minReferences = activeTemplate
+    ? Math.max(modelMinReferences, activeTemplate.required_inputs.assets.min)
+    : modelMinReferences;
   const acceptedMime = stringOptions(selected?.input_requirements.accepted_mime);
   const allowedMime = acceptedMime.length ? acceptedMime : FALLBACK_MIME;
   const maxInputBytes = numericCapability(
@@ -352,9 +417,9 @@ export function CreatePage() {
     : 0;
 
   const quoteQuery = useQuery({
-    queryKey: ["quote", selected?.slug, params],
-    enabled: Boolean(selected),
-    queryFn: () => api.quote(selected!.slug, params),
+    queryKey: ["quote", selected?.slug, params, templateSelection],
+    enabled: Boolean(selected) && templateValid && !templatesQuery.isLoading,
+    queryFn: () => api.quote(selected!.slug, params, templateSelection),
     retry: 1,
   });
 
@@ -371,6 +436,7 @@ export function CreatePage() {
   );
   const uploadsPending = references.some((item) => item.status === "uploading");
   const referencesMissing = readyReferences.length < minReferences;
+  const referencesOverLimit = readyReferences.length > maxReferences;
   const upscaleSource = operation === "upscale" ? readyReferences[0] : undefined;
   const upscaleDimensionsKnown = Boolean(upscaleSource?.width && upscaleSource.height);
   const upscaleTooLarge = Boolean(
@@ -399,6 +465,12 @@ export function CreatePage() {
         prompt: operation === "upscale" ? "" : prompt.trim(),
         idempotencyKey: crypto.randomUUID(),
         inputAssetIds: readyReferences.map((item) => item.assetId),
+        rightsConsentConfirmed: operation === "edit" && rightsConsent,
+        rightsConsentVersion:
+          operation === "edit"
+            ? moderationQuery.data?.photo_rights_consent_version
+            : undefined,
+        ...templateSelectionFromQuote(freshQuote),
       });
     },
     onSuccess: (generation) => {
@@ -407,6 +479,7 @@ export function CreatePage() {
   });
 
   const clearReferences = () => {
+    setRightsConsent(false);
     setReferences((current) => {
       current.forEach((item) => revokeIfLocal(item.previewUrl));
       return [];
@@ -422,7 +495,10 @@ export function CreatePage() {
     setStudioMode("simple");
     setParams({});
     setActiveTemplateId(null);
+    setRestoredTemplateSlug(null);
+    setTemplateInputs({});
     setUploadError(null);
+    setRightsConsent(false);
     if (next === "create") clearReferences();
     if (next === "upscale") {
       setPrompt("");
@@ -434,6 +510,7 @@ export function CreatePage() {
   };
 
   const uploadFiles = async (files: File[]) => {
+    setRightsConsent(false);
     const remainingSlots = Math.max(0, maxReferences - references.length);
     const selectedFiles = files.slice(0, remainingSlots);
     if (selectedFiles.length < files.length) {
@@ -500,6 +577,7 @@ export function CreatePage() {
   };
 
   const removeReference = (localId: string) => {
+    setRightsConsent(false);
     setReferences((current) => {
       const removed = current.find((item) => item.localId === localId);
       if (removed) revokeIfLocal(removed.previewUrl);
@@ -524,28 +602,37 @@ export function CreatePage() {
   };
 
   const applyTemplate = (templateId: string) => {
-    const template = CREATE_TEMPLATES.find((item) => item.id === templateId);
+    if (activeTemplateId === templateId) {
+      setActiveTemplateId(null);
+      setRestoredTemplateSlug(null);
+      setTemplateInputs({});
+      return;
+    }
+    const template = imageTemplates.find((item) => item.id === templateId);
     if (!template) return;
     setActiveTemplateId(template.id);
-    setPrompt(template.prompt[language].slice(0, maxPromptChars));
-    if (aspects.includes(template.aspectRatio)) {
-      setParams((current) => ({ ...current, aspect_ratio: template.aspectRatio }));
+    setRestoredTemplateSlug(template.slug);
+    setTemplateInputs({});
+    setPrompt(template.prompt_preset.slice(0, maxPromptChars));
+    if (aspects.includes(template.aspect_ratio)) {
+      setParams((current) => ({ ...current, aspect_ratio: template.aspect_ratio }));
     }
   };
 
   useEffect(() => {
     if (!recipeParam || recipeHydratedRef.current === recipeParam || !studioModels.length) return;
-    const template = CREATE_TEMPLATES.find((item) => item.id === recipeParam);
+    const template = imageTemplates.find((item) => item.slug === recipeParam);
     if (!template) return;
     recipeHydratedRef.current = recipeParam;
     setOperation("create");
     setStudioMode("simple");
     setActiveTemplateId(template.id);
-    setPrompt(template.prompt[language].slice(0, maxPromptChars));
-    if (aspects.includes(template.aspectRatio)) {
-      setParams((current) => ({ ...current, aspect_ratio: template.aspectRatio }));
+    setRestoredTemplateSlug(template.slug);
+    setPrompt(template.prompt_preset.slice(0, maxPromptChars));
+    if (aspects.includes(template.aspect_ratio)) {
+      setParams((current) => ({ ...current, aspect_ratio: template.aspect_ratio }));
     }
-  }, [aspects, language, maxPromptChars, recipeParam, studioModels.length]);
+  }, [aspects, imageTemplates, maxPromptChars, recipeParam, studioModels.length]);
 
   const clearContinuation = () => {
     const next = new URLSearchParams(searchParams);
@@ -567,6 +654,15 @@ export function CreatePage() {
       />
     );
   }
+  if (templatesQuery.isError) {
+    return (
+      <ErrorState
+        title={language === "ru" ? "Не удалось загрузить каталог шаблонов" : "Үлгілер каталогы жүктелмеді"}
+        onRetry={() => void templatesQuery.refetch()}
+        retryLabel={tx("common.retry")}
+      />
+    );
+  }
   if (!studioModels.length) return <EmptyState title={tx("create.noModels")} />;
 
   const submitDisabled =
@@ -576,8 +672,11 @@ export function CreatePage() {
     insufficient ||
     uploadsPending ||
     referencesMissing ||
+    referencesOverLimit ||
     upscaleBlocked ||
-    createMutation.isPending;
+    createMutation.isPending ||
+    !templateValid ||
+    (operation === "edit" && (!moderationQuery.data || !rightsConsent));
 
   const operationOptions: Array<{
     id: Operation;
@@ -729,17 +828,17 @@ export function CreatePage() {
         </div>
       )}
 
-      {operation === "create" && studioMode === "simple" ? (
+      {operation !== "upscale" && (imageTemplates.length || templateUnavailable) ? (
         <section className="recipe-section" aria-labelledby="recipe-title">
           <div className="recipe-heading">
             <div>
               <p className="eyebrow">{tx("create.templatesEyebrow")}</p>
               <h2 id="recipe-title">{tx("create.templatesTitle")}</h2>
             </div>
-            <span>{tx("create.templatesCount")}</span>
+            <span>{String(imageTemplates.length).padStart(2, "0")}</span>
           </div>
           <div className="recipe-shelf">
-            {CREATE_TEMPLATES.map((template, index) => (
+            {imageTemplates.map((template, index) => (
               <button
                 key={template.id}
                 type="button"
@@ -748,13 +847,53 @@ export function CreatePage() {
                 onClick={() => applyTemplate(template.id)}
               >
                 <span className="recipe-index">{String(index + 1).padStart(2, "0")}</span>
-                <span className="recipe-glyph" aria-hidden>{template.glyph}</span>
-                <strong>{template.title[language]}</strong>
-                <small>{template.description[language]}</small>
-                <span className="recipe-format">{template.aspectRatio}</span>
+                <span className="recipe-glyph" aria-hidden>{templateMarker(template)}</span>
+                <strong>{template.localization.name}</strong>
+                <small>{template.localization.description}</small>
               </button>
             ))}
           </div>
+          {templateUnavailable ? (
+            <div className="continuation-banner is-warning" role="alert">
+              <strong>
+                {language === "ru"
+                  ? `Шаблон ${restoredTemplateSlug ?? ""} больше недоступен`
+                  : `${restoredTemplateSlug ?? ""} үлгісі енді қолжетімсіз`}
+              </strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTemplateId(null);
+                  setRestoredTemplateSlug(null);
+                  setTemplateInputs({});
+                }}
+              >
+                {language === "ru" ? "Продолжить без шаблона" : "Үлгісіз жалғастыру"}
+              </button>
+            </div>
+          ) : null}
+          {activeTemplate?.required_inputs.fields.length ? (
+            <div className="template-inputs" aria-label={language === "ru" ? "Данные шаблона" : "Үлгі деректері"}>
+              {activeTemplate.required_inputs.fields.map((field) => (
+                <label key={field.key}>
+                  <span>{templateFieldLabel(field, language)}{field.required ? " *" : ""}</span>
+                  <input
+                    type="text"
+                    value={templateInputs[field.key] ?? ""}
+                    maxLength={field.max_length}
+                    required={field.required}
+                    onChange={(event) =>
+                      setTemplateInputs((current) => ({
+                        ...current,
+                        [field.key]: event.target.value,
+                      }))
+                    }
+                  />
+                  <small>{(templateInputs[field.key] ?? "").length}/{field.max_length}</small>
+                </label>
+              ))}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -964,7 +1103,6 @@ export function CreatePage() {
                     <strong>{model.localization.name}</strong>
                     <small>{model.localization.description}</small>
                   </span>
-                  <span className="model-price">{model.user_credit_price} cr</span>
                 </button>
               ))}
             </div>
@@ -982,7 +1120,6 @@ export function CreatePage() {
                   className={params.aspect_ratio === aspect ? "selected" : ""}
                   onClick={() => setParams((current) => ({ ...current, aspect_ratio: aspect }))}
                 >
-                  <span className={`aspect-shape aspect-${aspect.replace(":", "-")}`} aria-hidden />
                   {aspect}
                 </button>
               ))}
@@ -1037,6 +1174,18 @@ export function CreatePage() {
           </>
         ) : null}
       </details>
+
+      {operation === "edit" ? (
+        <PhotoRightsConsent
+          id="create-photo-rights"
+          language={language}
+          config={moderationQuery.data}
+          checked={rightsConsent}
+          loading={moderationQuery.isLoading}
+          error={moderationQuery.isError}
+          onChange={setRightsConsent}
+        />
+      ) : null}
 
       <div className="create-action-spacer" />
       <aside className="create-action studio-quote" aria-live="polite">

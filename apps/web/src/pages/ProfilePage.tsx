@@ -185,14 +185,23 @@ export function ProfilePage() {
           </div>
         </header>
         <div className="profile-trust-list">
-          <div className="profile-support-row">
+          <Link to="/invite">
+            <Icon name="star" />
+            <span>
+              <strong>{tx("profile.invite")}</strong>
+              <small>{tx("profile.inviteHelp")}</small>
+            </span>
+            <Icon name="arrow" />
+          </Link>
+          <Link to="/support" className="profile-support-row">
             <Icon name="support" />
             <span>
               <strong>{tx("profile.support")}</strong>
               <small>{tx("profile.supportHelp")}</small>
             </span>
             <code>/support</code>
-          </div>
+            <Icon name="arrow" />
+          </Link>
           <Link to="/plans">
             <Icon name="wallet" />
             <span>

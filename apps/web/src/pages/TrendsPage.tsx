@@ -14,6 +14,7 @@ import {
   type TrendKind,
   type TrendTemplate,
 } from "../features/trends/templates";
+import { PhotoRightsConsent } from "../features/moderation/PhotoRightsConsent";
 import { api, getApiMode } from "../shared/api/client";
 import type { CatalogModel } from "../shared/api/types";
 import { useI18n } from "../shared/i18n/runtime";
@@ -124,6 +125,7 @@ export function TrendsPage() {
   const [photo, setPhoto] = useState<PhotoItem | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [clock, setClock] = useState(Date.now());
+  const [rightsConsent, setRightsConsent] = useState(false);
 
   useEffect(() => {
     photoRef.current = photo;
@@ -152,6 +154,11 @@ export function TrendsPage() {
   }, [trendParam]);
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: () => api.getMe() });
+  const moderationQuery = useQuery({
+    queryKey: ["moderation", "config"],
+    queryFn: () => api.getModerationConfig(),
+    staleTime: 300_000,
+  });
   const modelsQuery = useQuery({
     queryKey: ["catalog", language],
     queryFn: () => api.listModels(language),
@@ -223,6 +230,8 @@ export function TrendsPage() {
         prompt: selected!.prompt,
         idempotencyKey: crypto.randomUUID(),
         inputAssetIds: photo?.assetId ? [photo.assetId] : [],
+        rightsConsentConfirmed: rightsConsent,
+        rightsConsentVersion: moderationQuery.data?.photo_rights_consent_version,
       });
     },
     onSuccess: (generation) => {
@@ -240,6 +249,7 @@ export function TrendsPage() {
   };
 
   const clearPhoto = () => {
+    setRightsConsent(false);
     setPhoto((current) => {
       if (current) revokeIfLocal(current.previewUrl);
       return null;
@@ -249,6 +259,7 @@ export function TrendsPage() {
   };
 
   const uploadPhoto = async (file: File) => {
+    setRightsConsent(false);
     if (!allowedMime.includes(file.type)) {
       setUploadError(tx("create.invalidType"));
       return;
@@ -307,6 +318,8 @@ export function TrendsPage() {
     !quote ||
     insufficient ||
     !photoReady ||
+    !moderationQuery.data ||
+    !rightsConsent ||
     createMutation.isPending;
 
   const filters: Array<{ id: TrendFilter; label: string }> = [
@@ -456,6 +469,15 @@ export function TrendsPage() {
             </button>
           )}
           {uploadError ? <p className="field-error">{uploadError}</p> : null}
+          <PhotoRightsConsent
+            id="trend-photo-rights"
+            language={language}
+            config={moderationQuery.data}
+            checked={rightsConsent}
+            loading={moderationQuery.isLoading}
+            error={moderationQuery.isError}
+            onChange={setRightsConsent}
+          />
         </section>
       ) : null}
 

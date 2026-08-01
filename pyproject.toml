@@ -20,6 +20,10 @@ dependencies = [
     "httpx>=0.28,<1",
     "boto3>=1.35,<2",
     "arq>=0.26,<1",
+    "prometheus-client>=0.21,<1",
+    "sentry-sdk[fastapi]>=2.20,<3",
+    "pillow>=11.1,<13",
+    "imageio-ffmpeg>=0.6,<1",
 ]
 
 [project.optional-dependencies]
@@ -64,5 +68,13 @@ warn_unused_configs = true
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["aiogram.*", "asyncpg.*", "boto3.*", "botocore.*", "arq.*"]
+module = [
+    "aiogram.*",
+    "asyncpg.*",
+    "boto3.*",
+    "botocore.*",
+    "arq.*",
+    "PIL.*",
+    "imageio_ffmpeg.*",
+]
 ignore_missing_imports = true

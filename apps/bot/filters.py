@@ -13,9 +13,7 @@ class MenuText(BaseFilter):
     """
 
     def __init__(self, *keys: str) -> None:
-        self._normalized = {
-            normalize_button_text(text) for key in keys for text in texts_for(key)
-        }
+        self._normalized = {normalize_button_text(text) for key in keys for text in texts_for(key)}
 
     async def __call__(self, message: Message) -> bool:
         if message.text is None:

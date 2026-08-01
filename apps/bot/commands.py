@@ -14,6 +14,7 @@ def bot_commands(lang: Language) -> list[BotCommand]:
         BotCommand(command="trends", description=t(Msg.CMD_TRENDS, lang)),
         BotCommand(command="chat", description=t(Msg.CMD_CHAT, lang)),
         BotCommand(command="history", description=t(Msg.CMD_HISTORY, lang)),
+        BotCommand(command="invite", description=t(Msg.CMD_INVITE, lang)),
         BotCommand(command="balance", description=t(Msg.CMD_BALANCE, lang)),
         BotCommand(command="buy", description=t(Msg.CMD_BUY, lang)),
         BotCommand(command="profile", description=t(Msg.CMD_PROFILE, lang)),

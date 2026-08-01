@@ -8,7 +8,16 @@ import {
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, getApiMode } from "../shared/api/client";
-import type { CatalogModel } from "../shared/api/types";
+import { PhotoRightsConsent } from "../features/moderation/PhotoRightsConsent";
+import {
+  buildTemplateSelection,
+  isTemplateUnavailable,
+  templateFieldLabel,
+  templateFieldsValid,
+  templateMarker,
+  templateSelectionFromQuote,
+} from "../features/templates/selection";
+import type { CatalogModel, GenerationTemplate, Language } from "../shared/api/types";
 import { useI18n } from "../shared/i18n/runtime";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { ErrorState } from "../shared/ui/ErrorState";
@@ -36,7 +45,7 @@ type VideoRecipe = {
   durationSec: 4 | 8;
 };
 
-const VIDEO_RECIPES: VideoRecipe[] = [
+const MOCK_VIDEO_RECIPES: VideoRecipe[] = [
   {
     id: "kaspi-reveal",
     marker: "K",
@@ -113,6 +122,46 @@ const VIDEO_RECIPES: VideoRecipe[] = [
     durationSec: 4,
   },
 ];
+
+const MOCK_VIDEO_TEMPLATE_IDS = [
+  "22222222-2222-2222-2222-222222222207",
+  "22222222-2222-2222-2222-222222222208",
+  "22222222-2222-2222-2222-222222222209",
+  "22222222-2222-2222-2222-222222222210",
+  "22222222-2222-2222-2222-222222222211",
+] as const;
+
+function mockVideoTemplates(language: Language): GenerationTemplate[] {
+  return MOCK_VIDEO_RECIPES.map((recipe, index) => ({
+    id: MOCK_VIDEO_TEMPLATE_IDS[index]!,
+    slug: recipe.id,
+    version: 1,
+    kind: "video",
+    display_order: index + 100,
+    localization: {
+      name: recipe.title[language],
+      description: recipe.description[language],
+    },
+    prompt_preset: recipe.prompt[language],
+    aspect_ratio: recipe.aspectRatio,
+    duration_sec: recipe.durationSec,
+    compatible_modalities: ["video"],
+    required_inputs: {
+      assets: { min: 0, max: 1 },
+      fields:
+        recipe.id === "toi"
+          ? [
+              { key: "headline", type: "text", required: true, max_length: 80, label: language === "ru" ? "Имена или заголовок" : "Есімдер немесе тақырып" },
+              { key: "body", type: "text", required: false, max_length: 120, label: language === "ru" ? "Приглашение" : "Шақыру мәтіні" },
+              { key: "date", type: "text", required: true, max_length: 64, label: language === "ru" ? "Дата и время" : "Күні мен уақыты" },
+              { key: "contact", type: "text", required: true, max_length: 80, label: language === "ru" ? "Место или контакт" : "Орын немесе байланыс" },
+            ]
+          : [],
+    },
+    preview_metadata: { marker: recipe.marker, source: "mock-local-v1" },
+    compositor: recipe.id === "toi" ? "toi_invite_v1" : null,
+  }));
+}
 
 const FALLBACK_MIME = ["image/jpeg", "image/png", "image/webp"];
 const FALLBACK_MAX_BYTES = 10_485_760;
@@ -208,9 +257,12 @@ export function VideoPage() {
   });
   const [photo, setPhoto] = useState<SourcePhoto | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [activeRecipe, setActiveRecipe] = useState<string | null>(null);
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [restoredTemplateSlug, setRestoredTemplateSlug] = useState<string | null>(null);
+  const [templateInputs, setTemplateInputs] = useState<Record<string, string>>({});
   const [continuation, setContinuation] = useState<"repeat" | "frame" | null>(null);
   const [clock, setClock] = useState(Date.now());
+  const [rightsConsent, setRightsConsent] = useState(false);
 
   useEffect(() => {
     photoRef.current = photo;
@@ -229,9 +281,21 @@ export function VideoPage() {
   }, []);
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: () => api.getMe() });
+  const moderationQuery = useQuery({
+    queryKey: ["moderation", "config"],
+    queryFn: () => api.getModerationConfig(),
+    staleTime: 300_000,
+  });
   const modelsQuery = useQuery({
     queryKey: ["catalog", language],
     queryFn: () => api.listModels(language),
+  });
+  const templatesQuery = useQuery({
+    queryKey: ["catalog", "templates", language, "video"],
+    queryFn: () =>
+      getApiMode() === "mock"
+        ? Promise.resolve(mockVideoTemplates(language))
+        : api.listTemplates(language, "video"),
   });
   const draftQuery = useQuery({
     queryKey: ["generation-draft", sourceGenerationId, "repeat"],
@@ -287,6 +351,29 @@ export function VideoPage() {
     );
   }, [actualTier, advanced, explicitSlug, videoModels]);
 
+  const videoTemplates = useMemo(
+    () =>
+      (templatesQuery.data ?? []).filter(
+        (template) => !selected || template.compatible_modalities.includes(selected.modality),
+      ),
+    [selected, templatesQuery.data],
+  );
+  const activeTemplate = useMemo(
+    () => videoTemplates.find((template) => template.id === activeTemplateId) ?? null,
+    [activeTemplateId, videoTemplates],
+  );
+  const templateSelection = useMemo(
+    () => buildTemplateSelection(activeTemplate, templateInputs),
+    [activeTemplate, templateInputs],
+  );
+  const templateUnavailable = isTemplateUnavailable(
+    activeTemplateId,
+    activeTemplate,
+    templatesQuery.isSuccess,
+  );
+  const templateValid =
+    !templateUnavailable && templateFieldsValid(activeTemplate, templateInputs);
+
   useEffect(() => {
     if (!selected) return;
     setParams((current) => compatibleParams(selected, current));
@@ -301,6 +388,15 @@ export function VideoPage() {
         const original = videoModels.find((model) => model.slug === draft.model_slug);
         setPrompt(draft.prompt);
         setParams(original ? compatibleParams(original, draft.params) : draft.params);
+        setActiveTemplateId(draft.template_id);
+        setRestoredTemplateSlug(draft.template_slug);
+        setTemplateInputs(
+          Object.fromEntries(
+            Object.entries(draft.template_inputs).flatMap(([key, value]) =>
+              typeof value === "string" ? [[key, value]] : [],
+            ),
+          ),
+        );
         if (original) {
           setAdvanced(true);
           setExplicitSlug(original.slug);
@@ -359,9 +455,9 @@ export function VideoPage() {
   const etaSeconds = selected ? numericCapability(uiValue(selected, "eta_seconds"), 0) : 0;
 
   const quoteQuery = useQuery({
-    queryKey: ["quote", selected?.slug, params],
-    queryFn: () => api.quote(selected!.slug, params),
-    enabled: Boolean(selected),
+    queryKey: ["quote", selected?.slug, params, templateSelection],
+    queryFn: () => api.quote(selected!.slug, params, templateSelection),
+    enabled: Boolean(selected) && templateValid && !templatesQuery.isLoading,
     retry: 1,
   });
   const quote = quoteQuery.data;
@@ -373,6 +469,11 @@ export function VideoPage() {
   const remaining = quote ? Math.max(0, available - quote.user_credit_price) : available;
   const photoReady = Boolean(photo?.status === "ready" && photo.assetId);
   const photoPending = photo?.status === "uploading";
+  const templateAssetCount = photoReady && mode === "photo" ? 1 : 0;
+  const templateAssetsValid = activeTemplate
+    ? templateAssetCount >= activeTemplate.required_inputs.assets.min &&
+      templateAssetCount <= activeTemplate.required_inputs.assets.max
+    : true;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -392,6 +493,10 @@ export function VideoPage() {
         prompt: prompt.trim(),
         idempotencyKey: crypto.randomUUID(),
         inputAssetIds: mode === "photo" && photo?.assetId ? [photo.assetId] : [],
+        rightsConsentConfirmed: mode === "photo" && rightsConsent,
+        rightsConsentVersion:
+          mode === "photo" ? moderationQuery.data?.photo_rights_consent_version : undefined,
+        ...templateSelectionFromQuote(freshQuote),
       });
     },
     onSuccess: (generation) => {
@@ -400,6 +505,7 @@ export function VideoPage() {
   });
 
   const clearPhoto = () => {
+    setRightsConsent(false);
     setPhoto((current) => {
       if (current) revokeLocal(current.previewUrl);
       return null;
@@ -422,6 +528,7 @@ export function VideoPage() {
       return;
     }
     const previewUrl = URL.createObjectURL(file);
+    setRightsConsent(false);
     setUploadError(null);
     setPhoto((current) => {
       if (current) revokeLocal(current.previewUrl);
@@ -456,13 +563,26 @@ export function VideoPage() {
     }
   };
 
-  const applyRecipe = (recipe: VideoRecipe) => {
-    setActiveRecipe(recipe.id);
-    setPrompt(recipe.prompt[language].slice(0, maxPromptChars));
+  const applyTemplate = (template: GenerationTemplate) => {
+    if (activeTemplateId === template.id) {
+      setActiveTemplateId(null);
+      setRestoredTemplateSlug(null);
+      setTemplateInputs({});
+      return;
+    }
+    setActiveTemplateId(template.id);
+    setRestoredTemplateSlug(template.slug);
+    setTemplateInputs({});
+    setPrompt(template.prompt_preset.slice(0, maxPromptChars));
     setParams((current) => ({
       ...current,
-      aspect_ratio: recipe.aspectRatio,
-      duration_sec: recipe.durationSec,
+      aspect_ratio: aspects.includes(template.aspect_ratio)
+        ? template.aspect_ratio
+        : current.aspect_ratio,
+      duration_sec:
+        template.duration_sec && durations.includes(template.duration_sec)
+          ? template.duration_sec
+          : current.duration_sec,
     }));
   };
 
@@ -485,6 +605,15 @@ export function VideoPage() {
       />
     );
   }
+  if (templatesQuery.isError) {
+    return (
+      <ErrorState
+        title={language === "ru" ? "Не удалось загрузить каталог шаблонов" : "Үлгілер каталогы жүктелмеді"}
+        onRetry={() => void templatesQuery.refetch()}
+        retryLabel={tx("common.retry")}
+      />
+    );
+  }
   if (!videoModels.length) return <EmptyState title={tx("video.noModels")} />;
 
   const submitDisabled =
@@ -494,8 +623,10 @@ export function VideoPage() {
     insufficient ||
     Boolean(photoPending) ||
     (mode === "photo" && !photoReady) ||
+    (mode === "photo" && (!moderationQuery.data || !rightsConsent)) ||
+    !templateValid ||
+    !templateAssetsValid ||
     createMutation.isPending;
-  const selectedRecipe = VIDEO_RECIPES.find((recipe) => recipe.id === activeRecipe);
 
   return (
     <section className="video-studio">
@@ -570,7 +701,10 @@ export function VideoPage() {
                   type="button"
                   className={mode === item ? "selected" : ""}
                   aria-pressed={mode === item}
-                  onClick={() => setMode(item)}
+                  onClick={() => {
+                    if (item !== mode) setRightsConsent(false);
+                    setMode(item);
+                  }}
                 >
                   <span aria-hidden>{item === "text" ? "Aa" : "▣"}</span>
                   <strong>{tx(item === "text" ? "video.textMode" : "video.photoMode")}</strong>
@@ -586,32 +720,70 @@ export function VideoPage() {
                 <p className="eyebrow">{tx("video.recipesEyebrow")}</p>
                 <h2 id="video-recipes-title">{tx("video.recipesTitle")}</h2>
               </div>
-              <span>05 SCENES</span>
+              <span>{String(videoTemplates.length).padStart(2, "0")} SCENES</span>
             </div>
             <div className="video-recipe-rail">
-              {VIDEO_RECIPES.map((recipe, index) => (
+              {videoTemplates.map((template, index) => (
                 <button
-                  key={recipe.id}
+                  key={template.id}
                   type="button"
-                  className={activeRecipe === recipe.id ? "selected" : ""}
-                  aria-pressed={activeRecipe === recipe.id}
-                  onClick={() => applyRecipe(recipe)}
+                  className={activeTemplateId === template.id ? "selected" : ""}
+                  aria-pressed={activeTemplateId === template.id}
+                  onClick={() => applyTemplate(template)}
                 >
                   <span className="video-recipe-number">{String(index + 1).padStart(2, "0")}</span>
-                  <span className="video-recipe-marker" aria-hidden>{recipe.marker}</span>
-                  <strong>{recipe.title[language]}</strong>
-                  <small>{recipe.description[language]}</small>
-                  <span className="video-recipe-meta">
-                    {recipe.aspectRatio} · {recipe.durationSec}s
-                  </span>
+                  <span className="video-recipe-marker" aria-hidden>{templateMarker(template)}</span>
+                  <strong>{template.localization.name}</strong>
+                  <small>{template.localization.description}</small>
                 </button>
               ))}
             </div>
+            {templateUnavailable ? (
+              <div className="continuation-banner is-warning" role="alert">
+                <strong>
+                  {language === "ru"
+                    ? `Шаблон ${restoredTemplateSlug ?? ""} больше недоступен`
+                    : `${restoredTemplateSlug ?? ""} үлгісі енді қолжетімсіз`}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTemplateId(null);
+                    setRestoredTemplateSlug(null);
+                    setTemplateInputs({});
+                  }}
+                >
+                  {language === "ru" ? "Продолжить без шаблона" : "Үлгісіз жалғастыру"}
+                </button>
+              </div>
+            ) : null}
+            {activeTemplate?.required_inputs.fields.length ? (
+              <div className="template-inputs" aria-label={language === "ru" ? "Данные шаблона" : "Үлгі деректері"}>
+                {activeTemplate.required_inputs.fields.map((field) => (
+                  <label key={field.key}>
+                    <span>{templateFieldLabel(field, language)}{field.required ? " *" : ""}</span>
+                    <input
+                      type="text"
+                      value={templateInputs[field.key] ?? ""}
+                      maxLength={field.max_length}
+                      required={field.required}
+                      onChange={(event) =>
+                        setTemplateInputs((current) => ({
+                          ...current,
+                          [field.key]: event.target.value,
+                        }))
+                      }
+                    />
+                    <small>{(templateInputs[field.key] ?? "").length}/{field.max_length}</small>
+                  </label>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           <div className="video-film-rail" aria-label="Storyboard">
             {[
-              activeRecipe ? "RECIPE" : "IDEA",
+              activeTemplateId ? "RECIPE" : "IDEA",
               mode === "photo" ? "PHOTO" : "TEXT",
               String(params.aspect_ratio ?? "—"),
               `00:${String(params.duration_sec ?? 4).padStart(2, "0")}`,
@@ -678,6 +850,15 @@ export function VideoPage() {
                 </button>
               )}
               {uploadError ? <p className="field-error">{uploadError}</p> : null}
+              <PhotoRightsConsent
+                id="video-photo-rights"
+                language={language}
+                config={moderationQuery.data}
+                checked={rightsConsent}
+                loading={moderationQuery.isLoading}
+                error={moderationQuery.isError}
+                onChange={setRightsConsent}
+              />
             </section>
           ) : null}
 
@@ -695,7 +876,6 @@ export function VideoPage() {
               placeholder={tx("video.promptHint")}
               onChange={(event) => {
                 setPrompt(event.target.value);
-                setActiveRecipe(null);
               }}
             />
             <p className="video-prompt-guide">{tx("video.promptGuide")}</p>
@@ -863,7 +1043,7 @@ export function VideoPage() {
               <small>
                 {quote
                   ? `${tx("create.balanceAfter")}: ${remaining}`
-                  : selectedRecipe?.title[language] ?? selected?.localization.name}
+                  : activeTemplate?.localization.name ?? selected?.localization.name}
                 {etaSeconds ? ` · ETA ~${Math.ceil(etaSeconds / 60)} min` : ""}
               </small>
             </div>

@@ -29,9 +29,7 @@ from kelbet.storage import MemoryObjectStorage
 
 BOT_TOKEN = "999:TEST-TOKEN-GEN"
 GOOGLE_WEBHOOK_KEY = b"g" * 32
-GOOGLE_WEBHOOK_SECRET = (
-    f"whsec_{base64.b64encode(GOOGLE_WEBHOOK_KEY).decode('ascii')}"
-)
+GOOGLE_WEBHOOK_SECRET = f"whsec_{base64.b64encode(GOOGLE_WEBHOOK_KEY).decode('ascii')}"
 PNG_BYTES = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
     b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
@@ -182,10 +180,15 @@ async def test_generation_happy_path_capture(
     client, app = api_client
     token = await _login(client, 710001)
     quote_id = await _quote(client, token)
+    correlation_id = str(uuid4())
 
     created = await client.post(
         "/api/v1/generations",
-        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "idem-happy-1"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Idempotency-Key": "idem-happy-1",
+            "X-Correlation-ID": correlation_id,
+        },
         json={"quote_id": quote_id, "prompt": "a red cube"},
     )
     assert created.status_code == 201, created.text
@@ -196,8 +199,10 @@ async def test_generation_happy_path_capture(
 
     async with session_factory() as session, session.begin():
         wallet = (await session.execute(select(Wallet))).scalar_one()
+        job = (await session.execute(select(GenerationJob))).scalar_one()
         assert wallet.balance == 20
         assert wallet.reserved == 5
+        assert str(job.correlation_id) == correlation_id
 
     statuses = await _drain_queue(app, session_factory)
     assert statuses == ["succeeded"]
@@ -401,6 +406,8 @@ async def test_edit_accepts_ordered_references_and_upscale_requires_one(
             "quote_id": edit_quote["quote_id"],
             "prompt": "Keep Figure 1, use Figure 2 and Figure 3 as visual references",
             "input_asset_ids": references,
+            "rights_consent_confirmed": True,
+            "rights_consent_version": "2026-08-01-v1",
         },
     )
     assert edit.status_code == 201, edit.text
@@ -499,6 +506,10 @@ async def test_generation_draft_restores_owned_request_and_omits_expired_referen
         "missing_input_assets": 0,
         "model_available": True,
         "replacement_slug": None,
+        "template_id": None,
+        "template_slug": None,
+        "template_version": None,
+        "template_inputs": {},
     }
 
     stolen = await client.get(
@@ -727,9 +738,7 @@ async def test_google_video_webhook_signature_wakes_worker_once(
     future_poll = datetime.now(UTC) + timedelta(minutes=5)
     async with session_factory() as session, session.begin():
         job = (
-            await session.execute(
-                select(GenerationJob).where(GenerationJob.id == generation_id)
-            )
+            await session.execute(select(GenerationJob).where(GenerationJob.id == generation_id))
         ).scalar_one()
         job.provider = "google"
         job.provider_model_id = "veo-3.1-lite-generate-preview"
@@ -777,9 +786,7 @@ async def test_google_video_webhook_signature_wakes_worker_once(
 
     async with session_factory() as session:
         job = (
-            await session.execute(
-                select(GenerationJob).where(GenerationJob.id == generation_id)
-            )
+            await session.execute(select(GenerationJob).where(GenerationJob.id == generation_id))
         ).scalar_one()
         assert job.webhook_last_event_id == webhook_id
         assert job.next_poll_at is not None

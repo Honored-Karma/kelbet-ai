@@ -6,9 +6,11 @@ import type {
   Generation,
   GenerationDraft,
   GenerationDraftMode,
+  GenerationTemplate,
   HistoryItem,
   Language,
   Me,
+  ModerationConfig,
   PaymentOrder,
   PaymentProducts,
   PresignedUpload,
@@ -16,6 +18,7 @@ import type {
   PromptAssistantIntent,
   PromptAssistantResult,
   Quote,
+  ReferralSummary,
 } from "./types";
 import { ApiError } from "./types";
 import mockResultUrl from "../../assets/mock-result.webp";
@@ -508,6 +511,10 @@ type StoredGenerationRequest = {
   params: Record<string, unknown>;
   inputAssetIds: string[];
   outputAssetIds: string[];
+  templateId?: string | null;
+  templateSlug?: string | null;
+  templateVersion?: number | null;
+  templateInputs?: Record<string, unknown>;
 };
 const MOCK_DRAFTS_KEY = "kelbet.mock.generation-drafts";
 const MOCK_GENERATIONS_KEY = "kelbet.mock.generations";
@@ -573,6 +580,8 @@ if (!generations.size) {
       status: "succeeded",
       modality: "image",
       model_slug: "runway-gen4-image",
+      template_slug: null,
+      template_version: null,
       user_credit_price: 8,
       progress_pct: 100,
       progress_stage: "done",
@@ -587,6 +596,8 @@ if (!generations.size) {
       status: "running",
       modality: "image",
       model_slug: "mock-image",
+      template_slug: null,
+      template_version: null,
       user_credit_price: 5,
       progress_pct: 62,
       progress_stage: "running",
@@ -601,6 +612,8 @@ if (!generations.size) {
       status: "failed",
       modality: "image",
       model_slug: "runway-gen4-image",
+      template_slug: null,
+      template_version: null,
       user_credit_price: 8,
       progress_pct: 18,
       progress_stage: "failed",
@@ -749,7 +762,25 @@ function me(): Me {
 }
 
 /** Server-side style integer quote — client must never invent prices. */
-function serverQuote(modelSlug: string, params: Record<string, unknown>): Quote {
+const MOCK_TEMPLATE_SLUGS = new Map([
+  ["22222222-2222-2222-2222-222222222201", "marketplace-product"],
+  ["22222222-2222-2222-2222-222222222202", "cafe-promo"],
+  ["22222222-2222-2222-2222-222222222203", "local-service-story"],
+  ["22222222-2222-2222-2222-222222222204", "kazakh-fashion"],
+  ["22222222-2222-2222-2222-222222222205", "real-estate"],
+  ["22222222-2222-2222-2222-222222222206", "nauryz"],
+  ["22222222-2222-2222-2222-222222222207", "kaspi-reveal"],
+  ["22222222-2222-2222-2222-222222222208", "cafe-menu"],
+  ["22222222-2222-2222-2222-222222222209", "property"],
+  ["22222222-2222-2222-2222-222222222210", "toi"],
+  ["22222222-2222-2222-2222-222222222211", "social-hook"],
+]);
+
+function serverQuote(
+  modelSlug: string,
+  params: Record<string, unknown>,
+  template?: { templateId: string | null; templateInputs: Record<string, unknown> },
+): Quote {
   const model = models.find((item) => item.slug === modelSlug);
   if (!model) {
     throw new Error("model_not_found");
@@ -769,6 +800,12 @@ function serverQuote(modelSlug: string, params: Record<string, unknown>): Quote 
   if (model.modality === "video" && params.duration_sec === 8) {
     price *= 2;
   }
+  const canonicalTemplateInputs = Object.fromEntries(
+    Object.entries(template?.templateInputs ?? {}).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value.normalize("NFC").trim() : value,
+    ]),
+  );
   const quote: Quote = {
     quote_id: crypto.randomUUID(),
     model_slug: modelSlug,
@@ -776,6 +813,12 @@ function serverQuote(modelSlug: string, params: Record<string, unknown>): Quote 
     currency: "credits",
     expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
     params,
+    template_id: template?.templateId ?? null,
+    template_slug: template?.templateId
+      ? MOCK_TEMPLATE_SLUGS.get(template.templateId) ?? null
+      : null,
+    template_version: template?.templateId ? 1 : null,
+    template_inputs: canonicalTemplateInputs,
     available: balance - reserved,
   };
   quotes.set(quote.quote_id, quote);
@@ -794,6 +837,22 @@ export const mockApi = {
 
   async getMe(): Promise<Me> {
     return me();
+  },
+
+  async getReferralSummary(): Promise<ReferralSummary> {
+    return {
+      enabled: true,
+      code: "KELBETDEMO",
+      link: "https://t.me/kelbet_demo_bot?start=ref_KELBETDEMO",
+      invited_count: 4,
+      pending_rewards_count: 1,
+      credited_rewards_count: 2,
+      credited_bonus_credits: 10,
+      inviter_bonus_credits: 5,
+      invitee_bonus_credits: 2,
+      minimum_purchase_stars: 50,
+      waiting_period_hours: 72,
+    };
   },
 
   async patchMe(payload: {
@@ -888,6 +947,24 @@ export const mockApi = {
     return localizedModels();
   },
 
+  async listTemplates(
+    _lang?: Language,
+    _kind?: "image" | "video",
+  ): Promise<GenerationTemplate[]> {
+    // Pages provide the checked-in catalog only in explicit mock mode.
+    return [];
+  },
+
+  async getModerationConfig(): Promise<ModerationConfig> {
+    return {
+      mode: "report",
+      policy_version: "2026-08-01-v1",
+      photo_rights_consent_version: "2026-08-01-v1",
+      support_route: "/support",
+      image_moderation_supported: false,
+    };
+  },
+
   async getModel(slug: string): Promise<CatalogModel> {
     const model = localizedModels().find((item) => item.slug === slug);
     if (!model) {
@@ -896,9 +973,13 @@ export const mockApi = {
     return model;
   },
 
-  async quote(modelSlug: string, params: Record<string, unknown>): Promise<Quote> {
+  async quote(
+    modelSlug: string,
+    params: Record<string, unknown>,
+    template?: { templateId: string | null; templateInputs: Record<string, unknown> },
+  ): Promise<Quote> {
     await delay(180);
-    return serverQuote(modelSlug, params);
+    return serverQuote(modelSlug, params, template);
   },
 
   async presignUpload(file: File): Promise<PresignedUpload> {
@@ -1065,6 +1146,10 @@ export const mockApi = {
     prompt: string;
     idempotencyKey: string;
     inputAssetIds?: string[];
+    rightsConsentConfirmed?: boolean;
+    rightsConsentVersion?: string;
+    templateId?: string | null;
+    templateInputs?: Record<string, unknown>;
   }): Promise<Generation> {
     await delay(220);
     const existingId = generationByIdempotency.get(input.idempotencyKey);
@@ -1075,6 +1160,22 @@ export const mockApi = {
     const quote = quotes.get(input.quoteId);
     if (!quote) {
       throw new Error("quote_not_found");
+    }
+    if (
+      (input.templateId ?? null) !== quote.template_id ||
+      JSON.stringify(input.templateInputs ?? {}) !== JSON.stringify(quote.template_inputs)
+    ) {
+      throw new ApiError("template_snapshot_mismatch", "Template snapshot mismatch", 409);
+    }
+    const model = models.find((item) => item.slug === quote.model_slug);
+    const needsPhotoConsent =
+      Boolean(input.inputAssetIds?.length) &&
+      (model?.modality === "image_edit" || model?.modality === "video");
+    if (
+      needsPhotoConsent &&
+      (!input.rightsConsentConfirmed || input.rightsConsentVersion !== "2026-08-01-v1")
+    ) {
+      throw new ApiError("photo_rights_consent_required", "Photo rights consent required", 422);
     }
     if (balance - reserved < quote.user_credit_price) {
       throw new Error("insufficient_credits");
@@ -1091,6 +1192,8 @@ export const mockApi = {
       status: "queued",
       modality: models.find((m) => m.slug === quote.model_slug)?.modality ?? "text",
       model_slug: quote.model_slug,
+      template_slug: quote.template_slug,
+      template_version: quote.template_version,
       user_credit_price: quote.user_credit_price,
       progress_pct: 0,
       progress_stage: "queued",
@@ -1108,6 +1211,10 @@ export const mockApi = {
       params: { ...quote.params },
       inputAssetIds: [...(input.inputAssetIds ?? [])],
       outputAssetIds: [],
+      templateId: quote.template_id,
+      templateSlug: quote.template_slug,
+      templateVersion: quote.template_version,
+      templateInputs: { ...quote.template_inputs },
     });
     persistGenerations();
     persistGenerationRequests();
@@ -1166,6 +1273,10 @@ export const mockApi = {
             : 0,
       model_available: Boolean(model?.enabled && !model.deprecated),
       replacement_slug: model?.replacement_slug ?? null,
+      template_id: source.templateId ?? null,
+      template_slug: source.templateSlug ?? null,
+      template_version: source.templateVersion ?? null,
+      template_inputs: { ...(source.templateInputs ?? {}) },
     };
   },
 

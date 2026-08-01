@@ -26,9 +26,11 @@ async def ready(request: Request) -> JSONResponse:
             ok = False
 
     redis = getattr(request.app.state, "redis", None)
+    redis_required = bool(getattr(request.app.state, "readiness_require_redis", True))
     if redis is None:
-        # Replay store may be in-memory in tests; readiness still reports redis status
-        checks["redis"] = "skipped"
+        checks["redis"] = "missing" if redis_required else "skipped"
+        if redis_required:
+            ok = False
     else:
         try:
             pong = await redis.ping()

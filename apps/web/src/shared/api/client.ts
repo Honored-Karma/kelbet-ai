@@ -6,14 +6,17 @@ import {
   completedUploadSchema,
   generationDraftSchema,
   generationSchema,
+  generationTemplateSchema,
   historyItemSchema,
   meSchema,
+  moderationConfigSchema,
   paymentOrderSchema,
   paymentProductsSchema,
   promptAssistantConfigSchema,
   promptAssistantResultSchema,
   presignedUploadSchema,
   quoteSchema,
+  referralSummarySchema,
   type AssetDownload,
   type AuthResponse,
   type CatalogModel,
@@ -21,9 +24,11 @@ import {
   type Generation,
   type GenerationDraft,
   type GenerationDraftMode,
+  type GenerationTemplate,
   type HistoryItem,
   type Language,
   type Me,
+  type ModerationConfig,
   type PaymentOrder,
   type PaymentProducts,
   type PromptAssistantConfig,
@@ -31,6 +36,7 @@ import {
   type PromptAssistantResult,
   type PresignedUpload,
   type Quote,
+  type ReferralSummary,
 } from "./types";
 import { validateApiBaseUrl } from "./config";
 import { mockApi } from "./mock";
@@ -43,7 +49,7 @@ export function getApiMode(): "mock" | "live" {
   if (mode === "live" || mode === "mock") {
     return mode;
   }
-  return "mock";
+  return import.meta.env.DEV ? "mock" : "live";
 }
 
 export function getToken(): string | null {
@@ -112,6 +118,8 @@ async function liveRequest<T>(
   return schema.parse(payload);
 }
 
+export { liveRequest as requestApi };
+
 export const api = {
   async authTelegram(initData: string): Promise<AuthResponse> {
     if (getApiMode() === "mock") {
@@ -128,6 +136,20 @@ export const api = {
       return mockApi.getMe();
     }
     return liveRequest("/api/v1/me", meSchema);
+  },
+
+  async getReferralSummary(): Promise<ReferralSummary> {
+    if (getApiMode() === "mock") {
+      return mockApi.getReferralSummary();
+    }
+    return liveRequest("/api/v1/referrals/me", referralSummarySchema);
+  },
+
+  async getModerationConfig(): Promise<ModerationConfig> {
+    if (getApiMode() === "mock") {
+      return mockApi.getModerationConfig();
+    }
+    return liveRequest("/api/v1/moderation/config", moderationConfigSchema);
   },
 
   async patchMe(payload: {
@@ -152,13 +174,37 @@ export const api = {
     return data.items;
   },
 
-  async quote(modelSlug: string, params: Record<string, unknown>): Promise<Quote> {
+  async listTemplates(lang?: Language, kind?: "image" | "video"): Promise<GenerationTemplate[]> {
     if (getApiMode() === "mock") {
-      return mockApi.quote(modelSlug, params);
+      return mockApi.listTemplates(lang, kind);
+    }
+    const params = new URLSearchParams();
+    if (lang) params.set("lang", lang);
+    if (kind) params.set("kind", kind);
+    const query = params.size ? `?${params.toString()}` : "";
+    const data = await liveRequest(
+      `/api/v1/catalog/templates${query}`,
+      z.object({ items: z.array(generationTemplateSchema) }),
+    );
+    return data.items;
+  },
+
+  async quote(
+    modelSlug: string,
+    params: Record<string, unknown>,
+    template?: { templateId: string | null; templateInputs: Record<string, unknown> },
+  ): Promise<Quote> {
+    if (getApiMode() === "mock") {
+      return mockApi.quote(modelSlug, params, template);
     }
     return liveRequest("/api/v1/wallet/quote", quoteSchema, {
       method: "POST",
-      json: { model_slug: modelSlug, params },
+      json: {
+        model_slug: modelSlug,
+        params,
+        template_id: template?.templateId ?? null,
+        template_inputs: template?.templateInputs ?? {},
+      },
     });
   },
 
@@ -300,6 +346,10 @@ export const api = {
     prompt: string;
     idempotencyKey: string;
     inputAssetIds?: string[];
+    rightsConsentConfirmed?: boolean;
+    rightsConsentVersion?: string;
+    templateId?: string | null;
+    templateInputs?: Record<string, unknown>;
   }): Promise<Generation> {
     if (getApiMode() === "mock") {
       return mockApi.createGeneration(input);
@@ -311,6 +361,10 @@ export const api = {
         quote_id: input.quoteId,
         prompt: input.prompt,
         input_asset_ids: input.inputAssetIds ?? [],
+        rights_consent_confirmed: input.rightsConsentConfirmed ?? false,
+        rights_consent_version: input.rightsConsentVersion ?? null,
+        template_id: input.templateId ?? null,
+        template_inputs: input.templateInputs ?? {},
       },
     });
   },

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -25,6 +26,8 @@ class WalletBalanceResponse(BaseModel):
 class QuoteRequest(BaseModel):
     model_slug: str = Field(min_length=1, max_length=64)
     params: dict[str, Any] = Field(default_factory=dict)
+    template_id: UUID | None = None
+    template_inputs: dict[str, object] = Field(default_factory=dict)
 
 
 class QuoteResponse(BaseModel):
@@ -35,6 +38,10 @@ class QuoteResponse(BaseModel):
     params: dict[str, Any]
     expires_at: str
     available: int
+    template_id: str | None
+    template_slug: str | None
+    template_version: int | None
+    template_inputs: dict[str, Any]
 
 
 @router.get("", response_model=WalletBalanceResponse)
@@ -62,6 +69,8 @@ async def create_quote(
         telegram_id=current.telegram_id,
         model_slug=body.model_slug,
         params=body.params,
+        template_id=body.template_id,
+        template_inputs=body.template_inputs,
         ttl=timedelta(seconds=settings.quote_ttl_seconds),
     )
     return QuoteResponse(
@@ -72,4 +81,8 @@ async def create_quote(
         params=quote.params,
         expires_at=quote.expires_at.isoformat(),
         available=quote.available,
+        template_id=str(quote.template_id) if quote.template_id else None,
+        template_slug=quote.template_slug,
+        template_version=quote.template_version,
+        template_inputs=quote.template_inputs,
     )

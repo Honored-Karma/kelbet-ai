@@ -16,7 +16,7 @@ from kelbet.chat.factory import build_chat_provider
 from kelbet.chat.mock import MockChatProvider
 from kelbet.config import cors_origin_list, get_settings
 from kelbet.db.session import build_session_factory
-from kelbet.observability import configure_json_logging
+from kelbet.observability import initialize_observability
 from kelbet.payments.gateway import AiogramStarsGateway, DisabledPaymentGateway, MockPaymentGateway
 from kelbet.queue import ArqGenerationQueue, InlineGenerationQueue
 from kelbet.rate_limit import MemoryRateLimiter, RedisRateLimiter
@@ -26,7 +26,7 @@ from kelbet.storage import MemoryObjectStorage, build_object_storage
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    configure_json_logging(settings.log_level)
+    initialize_observability(settings, component="api")
     if not getattr(app.state, "session_factory", None):
         app.state.session_factory = build_session_factory(settings)
     if getattr(app.state, "object_storage", None) is None:
@@ -77,22 +77,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(*, testing: bool = False) -> FastAPI:
     settings = get_settings()
+    initialize_observability(settings, component="api", force=testing)
     app = FastAPI(
         title="KELBET AI API",
         version="0.3.0",
         lifespan=None if testing else lifespan,
     )
+    app.state.settings = settings
+    app.state.readiness_require_redis = settings.readiness_require_redis and not testing
     if testing:
-        configure_json_logging(settings.log_level)
         app.state.replay_store = MemoryReplayStore()
         app.state.redis = None
         app.state.rate_limiter = MemoryRateLimiter()
         app.state.object_storage = MemoryObjectStorage(
             bucket_name=settings.s3_bucket or "kelbet-assets"
         )
-        app.state.chat_provider = MockChatProvider(
-            model=settings.openrouter_model or "mock-model"
-        )
+        app.state.chat_provider = MockChatProvider(model=settings.openrouter_model or "mock-model")
         app.state.generation_queue = InlineGenerationQueue()
         app.state.payment_gateway = MockPaymentGateway()
 

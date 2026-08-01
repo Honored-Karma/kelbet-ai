@@ -188,10 +188,7 @@ async def reconcile_video_jobs(
             continue
 
         snapshot_price = reservation.quote_snapshot.get("user_credit_price")
-        if (
-            reservation.amount != job.user_credit_price
-            or snapshot_price != job.user_credit_price
-        ):
+        if reservation.amount != job.user_credit_price or snapshot_price != job.user_credit_price:
             issues.append(
                 ReconciliationIssue(
                     code="quoted_price_changed",
@@ -375,9 +372,7 @@ async def _by_generation(
     if not job_ids:
         return {}
     rows = (
-        (await session.execute(select(model).where(generation_column.in_(job_ids))))
-        .scalars()
-        .all()
+        (await session.execute(select(model).where(generation_column.in_(job_ids)))).scalars().all()
     )
     return {row.generation_id: row for row in rows}
 
@@ -392,9 +387,7 @@ async def _group_by_generation(
     if not job_ids:
         return grouped
     rows = (
-        (await session.execute(select(model).where(generation_column.in_(job_ids))))
-        .scalars()
-        .all()
+        (await session.execute(select(model).where(generation_column.in_(job_ids)))).scalars().all()
     )
     for row in rows:
         if row.generation_id is not None:

@@ -63,6 +63,9 @@ async def grant_credits(
     telegram_id: int,
     amount: int,
     reference: str,
+    idempotency_key: str | None = None,
+    source: str = "operator_cli",
+    operator_user_id: UUID | None = None,
 ) -> GrantCreditsResult:
     if amount <= 0 or amount > MAX_SINGLE_GRANT:
         raise ValueError(f"Amount must be between 1 and {MAX_SINGLE_GRANT}")
@@ -75,21 +78,24 @@ async def grant_credits(
             f"User with Telegram ID {telegram_id} was not found. Open the bot and run /start first."
         )
 
-    wallet = await wallets.get_by_user_id(user.id)
+    wallet = await wallets.get_by_user_id_for_update(user.id)
     if wallet is None:
         raise GrantCreditsError(f"Wallet for Telegram ID {telegram_id} was not found")
 
     balance_before = wallet.balance
-    idempotency_key = grant_idempotency_key(telegram_id, reference)
+    effective_key = idempotency_key or grant_idempotency_key(telegram_id, reference)
+    if len(effective_key) > 128:
+        raise ValueError("Idempotency key must not exceed 128 characters")
     result = await WalletService(session).credit(
         wallet.id,
         amount,
         TxReason.ADMIN_ADJUST,
-        idempotency_key,
+        effective_key,
         meta={
-            "source": "operator_cli",
+            "source": source,
             "reference": reference,
             "telegram_id": telegram_id,
+            "operator_user_id": str(operator_user_id) if operator_user_id else None,
         },
     )
     await session.refresh(wallet)
@@ -104,7 +110,7 @@ async def grant_credits(
         reserved=wallet.reserved,
         available_after=wallet.available,
         transaction_id=result.transaction_id,
-        idempotency_key=idempotency_key,
+        idempotency_key=effective_key,
     )
 
 

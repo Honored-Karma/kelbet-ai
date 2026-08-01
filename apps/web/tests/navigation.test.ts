@@ -4,7 +4,7 @@ import test from "node:test";
 import { currentAppPath, resolveBootReturnTo } from "../src/app/navigation.ts";
 
 test("preserves Telegram button destinations through authentication", () => {
-  for (const path of ["/create", "/video", "/trends", "/history", "/plans", "/profile"]) {
+  for (const path of ["/create", "/video", "/trends", "/history", "/plans", "/profile", "/support", "/invite", "/admin"]) {
     assert.equal(resolveBootReturnTo({ returnTo: path }), path);
   }
 });

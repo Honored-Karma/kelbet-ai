@@ -56,6 +56,17 @@ class GenerationJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ForeignKey("price_quotes.id", ondelete="SET NULL"),
         nullable=True,
     )
+    template_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("generation_templates.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    template_slug: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    template_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    template_inputs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    template_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    routing_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     user_credit_price: Mapped[int] = mapped_column(Integer, nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     provider_model_id: Mapped[str] = mapped_column(String(128), nullable=False)

@@ -6,6 +6,7 @@ import asyncio
 import logging
 import signal
 import sys
+from time import monotonic
 from typing import cast
 from uuid import UUID
 
@@ -15,12 +16,17 @@ from arq.connections import RedisSettings
 
 from kelbet.config import Settings, get_settings
 from kelbet.db.session import build_session_factory
-from kelbet.observability import configure_json_logging
+from kelbet.observability import correlation_context, get_metrics, initialize_observability
+from kelbet.payments.gateway import AiogramStarsGateway
+from kelbet.repositories.generation import GenerationRepository
 from kelbet.services.generation_runner import GenerationRunner
 from kelbet.services.notification import (
     NotificationDispatcher,
     TelegramGenerationReadySender,
 )
+from kelbet.services.payment_reconciliation import run_star_reconciliation
+from kelbet.services.payment_refund import process_due_refund
+from kelbet.services.referral import process_due_referral_rewards
 from kelbet.services.stuck_sweeper import StuckSweeper
 from kelbet.storage import build_object_storage
 
@@ -29,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 async def startup(ctx: dict[str, object]) -> None:
     settings = get_settings()
-    configure_json_logging(settings.log_level)
+    initialize_observability(settings, component="worker")
     ctx["session_factory"] = build_session_factory(settings)
     ctx["storage"] = build_object_storage(settings)
     ctx["settings"] = settings
@@ -51,39 +57,66 @@ async def process_generation(ctx: dict[str, object], generation_id: str) -> str:
     session_factory = ctx["session_factory"]
     storage = ctx["storage"]
     settings = ctx.get("settings") or get_settings()
-    async with session_factory() as session, session.begin():  # type: ignore[operator]
-        status = await GenerationRunner(
-            session,
-            storage,  # type: ignore[arg-type]
-            settings=settings,  # type: ignore[arg-type]
-        ).process(UUID(generation_id))
-        return status.value
+    started = monotonic()
+    outcome = "failed"
+    queue = "other"
+    try:
+        async with session_factory() as session, session.begin():  # type: ignore[operator]
+            generation_uuid = UUID(generation_id)
+            job = await GenerationRepository(session).get_by_id(generation_uuid)
+            queue = job.modality if job is not None else "other"
+            correlation_id = str(job.correlation_id) if job is not None else generation_id
+            with correlation_context(correlation_id):
+                result = await GenerationRunner(
+                    session,
+                    storage,  # type: ignore[arg-type]
+                    settings=settings,  # type: ignore[arg-type]
+                ).process(generation_uuid)
+            outcome = "succeeded"
+            return result.value
+    finally:
+        _record_worker_metrics("process_generation", queue, outcome, started)
 
 
 async def poll_due_generations(ctx: dict[str, object]) -> int:
     session_factory = ctx["session_factory"]
     storage = ctx["storage"]
     settings = ctx.get("settings") or get_settings()
-    async with session_factory() as session, session.begin():  # type: ignore[operator]
-        statuses = await GenerationRunner(
-            session,
-            storage,  # type: ignore[arg-type]
-            settings=settings,  # type: ignore[arg-type]
-        ).poll_due(limit=50)
-        return len(statuses)
+    started = monotonic()
+    outcome = "failed"
+    try:
+        async with session_factory() as session, session.begin():  # type: ignore[operator]
+            statuses = await GenerationRunner(
+                session,
+                storage,  # type: ignore[arg-type]
+                settings=settings,  # type: ignore[arg-type]
+            ).poll_due(limit=50)
+            outcome = "succeeded" if statuses else "empty"
+            return len(statuses)
+    finally:
+        _record_worker_metrics("poll_due_generations", "maintain", outcome, started)
 
 
 async def sweep_stuck_generations(ctx: dict[str, object]) -> int:
     session_factory = ctx["session_factory"]
     settings = ctx.get("settings") or get_settings()
-    async with session_factory() as session, session.begin():  # type: ignore[operator]
-        swept = await StuckSweeper(session, settings).sweep(limit=50)  # type: ignore[arg-type]
-        return len(swept)
+    started = monotonic()
+    outcome = "failed"
+    try:
+        async with session_factory() as session, session.begin():  # type: ignore[operator]
+            swept = await StuckSweeper(session, settings).sweep(limit=50)  # type: ignore[arg-type]
+            outcome = "succeeded" if swept else "empty"
+            return len(swept)
+    finally:
+        _record_worker_metrics("sweep_stuck_generations", "maintain", outcome, started)
 
 
 async def dispatch_generation_notifications(ctx: dict[str, object]) -> int:
+    started = monotonic()
+    outcome = "failed"
     bot = ctx.get("bot")
     if not isinstance(bot, Bot):
+        _record_worker_metrics("dispatch_generation_notifications", "maintain", "skipped", started)
         return 0
     session_factory = ctx["session_factory"]
     settings = cast(Settings, ctx.get("settings") or get_settings())
@@ -91,12 +124,79 @@ async def dispatch_generation_notifications(ctx: dict[str, object]) -> int:
         bot,
         settings.mini_app_url,
     )
-    async with session_factory() as session, session.begin():  # type: ignore[operator]
-        return await NotificationDispatcher(
-            session,
-            sender,
-            settings=settings,
-        ).dispatch_due()
+    try:
+        async with session_factory() as session, session.begin():  # type: ignore[operator]
+            count = await NotificationDispatcher(
+                session,
+                sender,
+                settings=settings,
+            ).dispatch_due()
+            outcome = "succeeded" if count else "empty"
+            return count
+    finally:
+        _record_worker_metrics("dispatch_generation_notifications", "maintain", outcome, started)
+
+
+async def process_star_refund(ctx: dict[str, object]) -> int:
+    started = monotonic()
+    outcome = "failed"
+    settings = cast(Settings, ctx.get("settings") or get_settings())
+    bot = ctx.get("bot")
+    if not settings.stars_refunds_enabled or not isinstance(bot, Bot):
+        _record_worker_metrics("process_star_refund", "maintain", "skipped", started)
+        return 0
+    try:
+        count = await process_due_refund(
+            ctx["session_factory"],  # type: ignore[arg-type]
+            AiogramStarsGateway(bot),
+            settings,
+        )
+        outcome = "succeeded" if count else "empty"
+        return count
+    finally:
+        _record_worker_metrics("process_star_refund", "maintain", outcome, started)
+
+
+async def reconcile_star_payments(ctx: dict[str, object]) -> int:
+    started = monotonic()
+    outcome = "failed"
+    settings = cast(Settings, ctx.get("settings") or get_settings())
+    bot = ctx.get("bot")
+    if not settings.stars_reconciliation_enabled or not isinstance(bot, Bot):
+        _record_worker_metrics("reconcile_star_transactions", "maintain", "skipped", started)
+        return 0
+    try:
+        count = await run_star_reconciliation(
+            ctx["session_factory"],  # type: ignore[arg-type]
+            AiogramStarsGateway(bot),
+            settings,
+        )
+        outcome = "succeeded" if count else "empty"
+        return count
+    finally:
+        _record_worker_metrics("reconcile_star_transactions", "maintain", outcome, started)
+
+
+async def process_referral_rewards(ctx: dict[str, object]) -> int:
+    started = monotonic()
+    outcome = "failed"
+    settings = cast(Settings, ctx.get("settings") or get_settings())
+    try:
+        count = await process_due_referral_rewards(
+            ctx["session_factory"],  # type: ignore[arg-type]
+            settings,
+        )
+        outcome = "succeeded" if count else "empty"
+        return count
+    finally:
+        _record_worker_metrics("process_referral_rewards", "maintain", outcome, started)
+
+
+def _record_worker_metrics(job: str, queue: str, outcome: str, started: float) -> None:
+    tags = {"queue": queue, "job": job, "outcome": outcome}
+    metrics = get_metrics()
+    metrics.incr("worker.job", tags=tags)
+    metrics.observe("worker.job_duration_seconds", monotonic() - started, tags=tags)
 
 
 def _redis_settings() -> RedisSettings:
@@ -146,6 +246,9 @@ class MaintainWorkerSettings:
         poll_due_generations,
         sweep_stuck_generations,
         dispatch_generation_notifications,
+        process_star_refund,
+        reconcile_star_payments,
+        process_referral_rewards,
     ]
     cron_jobs = [
         cron(poll_due_generations, second=set(range(0, 60, 5))),
@@ -154,6 +257,13 @@ class MaintainWorkerSettings:
             dispatch_generation_notifications,
             second={5, 15, 25, 35, 45, 55},
         ),
+        cron(process_star_refund, second={8, 18, 28, 38, 48, 58}),
+        cron(
+            reconcile_star_payments,
+            minute={0, 10, 20, 30, 40, 50},
+            second={30},
+        ),
+        cron(process_referral_rewards, minute=set(range(60)), second={40}),
     ]
     on_startup = startup
     on_shutdown = shutdown
@@ -169,7 +279,7 @@ WorkerSettings = ImageWorkerSettings
 
 async def _idle_stub() -> None:
     settings = get_settings()
-    configure_json_logging(settings.log_level)
+    initialize_observability(settings, component="worker")
     logger.info(
         "worker_stub_started env=%s backend=%s",
         settings.app_env,
@@ -194,7 +304,7 @@ async def _idle_stub() -> None:
 def main() -> None:
     settings = get_settings()
     if settings.generation_queue_backend.strip().lower() == "arq":
-        configure_json_logging(settings.log_level)
+        initialize_observability(settings, component="worker")
         logger.error(
             "Start ARQ with ImageWorkerSettings, TextWorkerSettings, "
             "VideoWorkerSettings, and MaintainWorkerSettings"

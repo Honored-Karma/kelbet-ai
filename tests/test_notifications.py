@@ -138,12 +138,7 @@ async def test_notification_failure_is_retried_then_dead(
             now=now,
         )
         sender = RecordingSender(fail=True)
-        assert (
-            await NotificationDispatcher(session, sender, settings).dispatch_due(
-                now=now
-            )
-            == 0
-        )
+        assert await NotificationDispatcher(session, sender, settings).dispatch_due(now=now) == 0
         outbox = (await session.execute(select(NotificationOutbox))).scalar_one()
         assert outbox.status == "dead"
         assert outbox.attempts == 1

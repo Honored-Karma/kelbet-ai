@@ -2,6 +2,9 @@
 
 Статус: рабочий план разработки  
 Дата: 30 июля 2026  
+Фактические implementation-статусы актуализированы 1 августа 2026 года по коду,
+миграциям и тестам; детальный порядок и gates вынесены в
+[`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md).
 Горизонт: Казахстан → Центральная Азия  
 Основной канал: Telegram Bot + Telegram Mini App
 
@@ -616,24 +619,27 @@ Mini App ─────┘       │          │
    - brand kit;
    - team workspace.
 
-### Обязательные таблицы следующего цикла
+### Фактический статус таблиц следующего цикла на 1 августа 2026
 
-- `payment_products`;
-- `payment_orders`;
-- `payment_attempts`;
-- `payment_refunds`;
-- `notification_outbox`;
-- `notification_preferences`;
-- `referral_codes`;
-- `referral_attributions`;
-- `referral_rewards`;
-- `generation_templates`;
-- `moderation_decisions`;
-- `user_consents`;
-- `audit_log`;
-- `favorites`;
-- `saved_presets`;
-- `provider_health_samples`.
+Уже реализованы миграциями:
+
+- `payment_products`, `payment_orders`, `payment_receipts` — migration `0011`;
+- `operator_memberships`, append-only `audit_events` и user block — migration `0012`;
+- `moderation_decisions`, `user_consents` — migration `0013`;
+- `generation_templates` и immutable template snapshots — migration `0014`;
+- `payment_refunds`, Stars observations/reconciliation runs/issues — migration `0015`;
+- immutable image `routing_snapshot` и fallback controls — migration `0016`;
+- `referral_codes`, immutable `referral_attributions`, ledger-backed `referral_rewards` —
+  migration `0017`;
+- `notification_outbox` и настройка уведомлений в `users.notify_generation_ready` —
+  migration `0008`;
+- `feature_flags` и DB-backed catalog — migration `0004`.
+
+Ещё отсутствуют и должны добавляться только additive revisions после `0017`:
+
+- отдельный `payment_attempts`, если reconciliation/refund state machine потребует
+  историю попыток помимо durable receipts;
+- `favorites`, `saved_presets`, `provider_health_samples`.
 
 ### Provider routing
 
@@ -668,6 +674,14 @@ Fallback разрешён только если результат совмес�
 - повтор webhook/job безопасен.
 
 ## 9.2 Контент и злоупотребления
+
+Текущий статус на 1 августа 2026: локальный moderation/anti-abuse minimum реализован.
+Generation/chat/prompt assistant используют provider-independent text moderation;
+generation проверяется до reserve/enqueue. Решения содержат hash/policy/safe codes без
+сырого prompt, default mode — `report`. Image edit и image-to-video требуют versioned
+подтверждение прав/согласия с timestamp. Support/admin имеют metadata-only queue и
+идемпотентный audited review. Встроенный RU/KK baseline является phrase/obfuscation
+filter, а не semantic classifier; image content moderation отсутствует и не заявляется.
 
 Нужны правила и технические проверки для:
 
@@ -784,6 +798,12 @@ Fallback разрешён только если результат совмес�
 
 Без админ-панели продукт нельзя считать финальным.
 
+Текущий статус на 1 августа 2026: технический operator minimum реализован и выключен
+по умолчанию. Есть server-only `/api/v1/admin`, отдельный `/admin`, RBAC `support`/`admin`,
+env bootstrap, ledger-backed grant и generation refund, block/unblock, inspectors/controls
+и append-only audit. CLI `packages/kelbet/ops/grant_credits.py` переиспользуется API, второго
+пути прямого изменения balance нет. Production bootstrap/staging smoke test не подтверждены.
+
 ### Dashboard
 
 - DAU/WAU/MAU;
@@ -836,6 +856,12 @@ Fallback разрешён только если результат совмес�
 ## Этап 0 — стабилизация репозитория
 
 Срок: 3–5 дней.
+
+Статус на 1 августа 2026: локальный baseline воспроизводим частично — CI,
+`.env.example`, deployment manifests и OpenAPI baseline существуют; `143` backend
+tests, Ruff, mypy, frontend typecheck и production build проходят. Чистый Alembic
+upgrade на новой production-like БД и фактический staging deployment этой
+актуализацией не подтверждены.
 
 Работы:
 
@@ -896,9 +922,13 @@ Fallback разрешён только если результат совмес�
 
 Срок: 2 недели.
 
-Статус на 30 июля 2026: функциональный объём реализован, автоматические проверки
-и независимая визуальная оценка пройдены. До production-like staging остаются
-боевые ключи, хранилище/CORS, платежный контур и короткий polish-раунд.
+Статус на 1 августа 2026: image generation/edit/upscale adapters, catalog-driven
+flow и автоматические проверки реализованы локально; UI evidence-артефакты есть.
+Все production image SKU завязаны на Runway. Шесть RU/KK image-шаблонов теперь приходят
+из server catalog; `template_id`/version/inputs/full snapshot сохраняются в quote/job, а
+product-card получает детерминированный text compositor.
+Работа реальных ключей, storage/CORS и полный путь на production-like staging этой
+актуализацией не подтверждены.
 
 Работы:
 
@@ -912,7 +942,9 @@ Fallback разрешён только если результат совмес�
 - [x] повтор/remix/upscale;
 - [x] уведомление в Telegram;
 - [x] автоматический release/refund;
-- [x] 5 локальных шаблонов.
+- [x] 6 server-backed RU/KK image-шаблонов;
+- [x] сохранение template ID/version/inputs/snapshot;
+- [x] детерминированный product-card text compositor.
 
 Готово, когда полный путь payment-ready проходит на production-like staging.
 
@@ -920,13 +952,14 @@ Fallback разрешён только если результат совмес�
 
 Срок: 2–3 недели.
 
-Статус на 30 июля 2026: production-hardening реализован. Runway и прямой Google
-Veo работают как независимые маршруты, временные ошибки получают cost-bounded
-fallback, а цена пользователя не меняется после quote. Google completion
-подтверждается подписанным Standard Webhooks callback, Runway остаётся на
-официальном polling с jitter. Автоматический gate сверяет 100 задач по lifecycle,
-ledger, reservation, provider usage и output. До полного production `GO`
-остаются боевые ключи и успешный прогон этой партии на production-like staging.
+Статус на 1 августа 2026: production-hardening реализован на уровне кода и
+contract/integration tests. Runway и прямой Google Veo представлены независимыми
+маршрутами, временные ошибки получают cost-bounded fallback, а цена пользователя
+не меняется после quote. Google completion использует подписанный callback,
+Runway — polling с jitter. Автоматический тест сверяет 100 задач по lifecycle,
+ledger, reservation, provider usage и output. Это не подтверждает реальные
+provider accounts или production gate: нужны боевые ключи и успешный прогон
+партии на production-like staging.
 
 Работы:
 
@@ -944,7 +977,7 @@ ledger, reservation, provider usage и output. До полного production `G
 - [x] fallback;
 - [x] Telegram delivery;
 - [x] cost ceiling;
-- [x] 5 видео-шаблонов.
+- [x] 5 server-backed видео-шаблонов и deterministic toi-invitation compositor.
 - [x] автоматическая 100-job financial/lifecycle reconciliation.
 
 Готово, когда 100 тестовых задач проходят без финансовых расхождений и
@@ -954,10 +987,11 @@ ledger, reservation, provider usage и output. До полного production `G
 
 Срок: 1–2 недели.
 
-Статус на 30 июля 2026: первый безопасный vertical slice реализован. Цены
+Статус на 1 августа 2026: безопасный технический контур реализован локально. Цены
 фиксируются в order snapshot, pre-checkout проверяет владельца/валюту/сумму,
 `successful_payment` создаёт durable receipt и ровно одно ledger-начисление.
-Платежи по умолчанию выключены до юридической и финансовой проверки.
+Refund/recovery, reverse ledger и reconciliation/chargeback classification покрыты fake-gateway
+тестами. Платежи по умолчанию выключены до юридической, финансовой и live-проверки.
 
 Работы:
 
@@ -966,11 +1000,11 @@ ledger, reservation, provider usage и output. До полного production `G
 - [x] pre-checkout owner/currency/amount/expiry validation;
 - [x] durable successful-payment receipt;
 - [x] идемпотентное ledger-начисление по Telegram charge ID;
-- [ ] operator-only refunds;
+- [x] operator-only refunds с recovery и audit;
 - [x] purchase history;
 - [x] rejected receipt + `/paysupport` flow;
-- [ ] Telegram Star reconciliation job;
-- [ ] chargeback/dispute ingestion и fraud limits;
+- [x] Telegram Star reconciliation job;
+- [x] chargeback/dispute ingestion и fraud limits/review;
 - [x] редактируемые beta-пакеты;
 - [ ] юридически утверждённые правовые тексты RU/KK.
 
@@ -979,6 +1013,12 @@ ledger, reservation, provider usage и output. До полного production `G
 ## Этап 6 — админка, поддержка и модерация
 
 Срок: 2 недели.
+
+Статус на 1 августа 2026: admin/operator minimum и metadata-only moderation queue
+реализованы локально. Support читает очередь, admin фиксирует review outcome через
+idempotent action + append-only audit. Admin/moderation production gates не пройдены до
+реального bootstrap, report-mode staging smoke test и false-positive review. Подробности
+и границы зафиксированы в `IMPLEMENTATION_ROADMAP.md`.
 
 Работы:
 
@@ -1032,9 +1072,14 @@ Gate:
 
 Срок: 1 неделя подготовки + 2 недели наблюдения.
 
+Текущий статус referral: MVP реализован локально и выключен через `referrals=false`.
+`/start ref_<code>`, immutable new-user attribution, reconciliation-confirmed first purchase,
+reward worker/ledger, limits/review, `/invite`, Mini App RU/KK и read-only admin покрыты тестами.
+Production rollout разрешён только после payment live gate и стабильной reconciliation.
+
 Работы:
 
-- referral MVP;
+- [x] referral MVP (локальный technical gate; canary ещё не выполнен);
 - промокоды;
 - landing page;
 - demo gallery с согласиями;
@@ -1092,8 +1137,9 @@ Gate:
 
 ### P1 — первый месяц после запуска
 
-- второй provider для fallback;
-- referral;
+- второй **image-provider** для generation/edit fallback — локально реализован через Google
+  Gemini native image, но не подтверждён live-прогоном; upscale остаётся primary-only;
+- referral — локально реализован, rollout ждёт payment gate и canary;
 - промокоды;
 - favorites;
 - presets;
@@ -1182,19 +1228,24 @@ Gate:
 
 ## 16. Первый практический цикл
 
-Следующую разработку рекомендуется начать строго в таком порядке:
+Следующую разработку вести строго в dependency order из актуального roadmap:
 
-1. Этап 0: привести репозиторий и тесты в воспроизводимое состояние.
-2. Зафиксировать один P0 image provider и один P0 video provider.
-3. Посчитать реальную себестоимость 20 типовых генераций.
-4. Сделать новый UX «задача → материалы → цена → результат».
-5. Довести Telegram notification loop.
-6. Подключить Stars и сверку платежей.
-7. Запустить закрытую beta, прежде чем добавлять аудио, аватары и десятки
-   моделей.
+1. observability;
+2. admin auth, audit и operator minimum;
+3. moderation и consent;
+4. доведение локальных шаблонов до server-backed snapshots и compositor minimum;
+5. production gates Telegram Stars;
+6. второй image-provider и ограниченный fallback;
+7. referral MVP.
 
-Именно этот порядок минимизирует риск построить большой каталог без удобного,
-надёжного и прибыльного продукта.
+Все семь технических этапов dependency order реализованы локально: observability,
+admin/audit, moderation/consent, server templates/compositor, Stars refunds/reconciliation,
+Google image generation/edit fallback и referral MVP. Safe defaults и экономика MVP зафиксированы
+в server config без ожидания подтверждения владельца. Следующая работа — не новый внутренний
+контур, а последовательные внешние gates: Sentry/metrics staging drill, admin bootstrap,
+moderation/template canary, legal/finance/support и Telegram Stars live gate, Google provider
+canary, затем allowlisted referral canary. Внешние проверки нельзя считать выполненными без
+проверяемого evidence; соответствующие flags остаются выключенными.
 
 ---
 

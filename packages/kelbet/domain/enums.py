@@ -10,6 +10,33 @@ class Plan(StrEnum):
     FREE = "free"
 
 
+class OperatorRole(StrEnum):
+    SUPPORT = "support"
+    ADMIN = "admin"
+
+
+class ModerationMode(StrEnum):
+    OFF = "off"
+    REPORT = "report"
+    BLOCK = "block"
+
+
+class ModerationOutcome(StrEnum):
+    ALLOW = "allow"
+    REPORT = "report"
+    BLOCK = "block"
+
+
+class ModerationReviewStatus(StrEnum):
+    OPEN = "open"
+    REVIEWED = "reviewed"
+
+
+class TemplateKind(StrEnum):
+    IMAGE = "image"
+    VIDEO = "video"
+
+
 class TxType(StrEnum):
     CREDIT = "credit"
     DEBIT = "debit"
@@ -25,6 +52,15 @@ class TxReason(StrEnum):
     PLAN_GRANT = "plan_grant"
     PAYMENT_PURCHASE = "payment_purchase"
     PAYMENT_REFUND = "payment_refund"
+    REFERRAL_REWARD = "referral_reward"
+
+
+class ReferralRewardStatus(StrEnum):
+    PENDING = "pending"
+    ELIGIBLE = "eligible"
+    CREDITED = "credited"
+    CANCELLED = "cancelled"
+    NEEDS_REVIEW = "needs_review"
 
 
 class PaymentStatus(StrEnum):
@@ -41,6 +77,25 @@ class PaymentReceiptStatus(StrEnum):
     REJECTED = "rejected"
     REFUNDED = "refunded"
     DISPUTED = "disputed"
+
+
+class PaymentRefundStatus(StrEnum):
+    REQUESTED = "requested"
+    PROCESSING = "processing"
+    REFUNDED = "refunded"
+    FAILED = "failed"
+    NEEDS_REVIEW = "needs_review"
+
+
+class PaymentReconciliationIssueStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    NEEDS_REVIEW = "needs_review"
+
+
+class StarTransactionDirection(StrEnum):
+    INCOMING = "incoming"
+    OUTGOING = "outgoing"
 
 
 class ReservationStatus(StrEnum):

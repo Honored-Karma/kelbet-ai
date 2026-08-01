@@ -19,6 +19,8 @@ from kelbet.domain.exceptions import (
     ChatMessageTooLongError,
     ChatProviderError,
     InsufficientCreditsError,
+    ModerationRateLimitError,
+    ModerationRejectedError,
     UserNotFoundError,
 )
 from kelbet.i18n import Msg, t
@@ -212,6 +214,18 @@ async def on_chat_message(
     except ChatMessageTooLongError:
         await message.answer(
             t(Msg.CHAT_TOO_LONG, lang, max_chars=cfg.chat_max_input_chars),
+            reply_markup=chat_waiting_keyboard(lang),
+        )
+        return
+    except ModerationRateLimitError:
+        await message.answer(
+            t(Msg.MODERATION_RATE_LIMITED, lang),
+            reply_markup=chat_waiting_keyboard(lang),
+        )
+        return
+    except ModerationRejectedError:
+        await message.answer(
+            t(Msg.MODERATION_BLOCKED, lang),
             reply_markup=chat_waiting_keyboard(lang),
         )
         return

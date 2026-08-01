@@ -330,6 +330,8 @@ type MessageKey =
   | "profile.purchasesHelp"
   | "profile.terms"
   | "profile.termsHelp"
+  | "profile.invite"
+  | "profile.inviteHelp"
   | "profile.language"
   | "profile.plan"
   | "profile.balance"
@@ -338,6 +340,22 @@ type MessageKey =
   | "profile.readyNotifications"
   | "profile.readyNotificationsHelp"
   | "profile.notificationUpdateError"
+  | "invite.eyebrow"
+  | "invite.title"
+  | "invite.subtitle"
+  | "invite.disabled"
+  | "invite.personalLink"
+  | "invite.copy"
+  | "invite.copied"
+  | "invite.share"
+  | "invite.shareText"
+  | "invite.stats"
+  | "invite.invited"
+  | "invite.pending"
+  | "invite.credited"
+  | "invite.terms"
+  | "invite.termsBody"
+  | "invite.safety"
   | "common.retry"
   | "common.offline"
   | "common.error"
@@ -679,6 +697,8 @@ const ru: Record<MessageKey, string> = {
   "profile.purchasesHelp": "Пакеты, статусы и история",
   "profile.terms": "Условия покупки",
   "profile.termsHelp": "Оплата, возвраты и поддержка",
+  "profile.invite": "Пригласить друга",
+  "profile.inviteHelp": "Ссылка, статистика и бонусы",
   "profile.language": "Язык",
   "profile.plan": "План",
   "profile.balance": "Баланс",
@@ -687,6 +707,22 @@ const ru: Record<MessageKey, string> = {
   "profile.readyNotifications": "Результат готов",
   "profile.readyNotificationsHelp": "KELBET пришлёт сообщение в Telegram, когда создание завершится.",
   "profile.notificationUpdateError": "Не удалось сохранить настройку. Попробуйте ещё раз.",
+  "invite.eyebrow": "Программа KELBET",
+  "invite.title": "Приглашайте друзей",
+  "invite.subtitle": "Делитесь личной ссылкой и получайте кредиты после подтверждённой покупки друга.",
+  "invite.disabled": "Программа пока закрыта для вашего аккаунта. Мы включим её постепенно после canary-проверки.",
+  "invite.personalLink": "Личная ссылка",
+  "invite.copy": "Копировать",
+  "invite.copied": "Скопировано",
+  "invite.share": "Поделиться",
+  "invite.shareText": "Попробуйте KELBET AI — творческую студию прямо в Telegram.",
+  "invite.stats": "Статистика приглашений",
+  "invite.invited": "Приглашено",
+  "invite.pending": "Ожидают",
+  "invite.credited": "Начислено",
+  "invite.terms": "Как работает бонус",
+  "invite.termsBody": "Вы получите {bonus} кредитов, а друг — {friendBonus}, когда его первая подтверждённая покупка составит не менее {minimum} Stars и пройдёт период ожидания {waiting} ч.",
+  "invite.safety": "Self-referral запрещён. Возврат или спор отменяет неначисленный бонус; уже начисленный спорный бонус не списывается автоматически и уходит на проверку.",
   "common.retry": "Повторить",
   "common.offline": "Нет сети — показаны последние данные",
   "common.error": "Что-то пошло не так",
@@ -1031,6 +1067,8 @@ const kk: Record<MessageKey, string> = {
   "profile.purchasesHelp": "Пакеттер, мәртебелер және тарих",
   "profile.terms": "Сатып алу шарттары",
   "profile.termsHelp": "Төлем, қайтару және қолдау",
+  "profile.invite": "Дос шақыру",
+  "profile.inviteHelp": "Сілтеме, статистика және бонустар",
   "profile.language": "Тіл",
   "profile.plan": "Жоспар",
   "profile.balance": "Баланс",
@@ -1039,6 +1077,22 @@ const kk: Record<MessageKey, string> = {
   "profile.readyNotifications": "Нәтиже дайын",
   "profile.readyNotificationsHelp": "Жасау аяқталғанда KELBET Telegram-ға хабарлама жібереді.",
   "profile.notificationUpdateError": "Баптауды сақтау мүмкін болмады. Қайта көріңіз.",
+  "invite.eyebrow": "KELBET бағдарламасы",
+  "invite.title": "Достарыңызды шақырыңыз",
+  "invite.subtitle": "Жеке сілтемені бөлісіп, досыңыздың расталған сатып алуынан кейін кредит алыңыз.",
+  "invite.disabled": "Бағдарлама аккаунтыңыз үшін әлі жабық. Canary-тексеруден кейін оны біртіндеп қосамыз.",
+  "invite.personalLink": "Жеке сілтеме",
+  "invite.copy": "Көшіру",
+  "invite.copied": "Көшірілді",
+  "invite.share": "Бөлісу",
+  "invite.shareText": "Telegram-дағы шығармашылық студия KELBET AI-ды қолданып көріңіз.",
+  "invite.stats": "Шақыру статистикасы",
+  "invite.invited": "Шақырылды",
+  "invite.pending": "Күтуде",
+  "invite.credited": "Есептелді",
+  "invite.terms": "Бонус қалай жұмыс істейді",
+  "invite.termsBody": "Досыңыздың алғашқы расталған сатып алуы кемінде {minimum} Stars болып, {waiting} сағ. күту мерзімі өткенде, сіз {bonus} кредит, досыңыз {friendBonus} кредит алады.",
+  "invite.safety": "Өзін-өзі шақыруға тыйым салынады. Қайтарым немесе дау есептелмеген бонусты жояды; есептелген күмәнді бонус автоматты түрде алынбайды және тексеруге жіберіледі.",
   "common.retry": "Қайталау",
   "common.offline": "Желі жоқ — соңғы деректер көрсетілді",
   "common.error": "Бірдеңе дұрыс болмады",

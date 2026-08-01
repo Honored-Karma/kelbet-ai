@@ -1,0 +1,81 @@
+groups:
+  - name: kelbet-observability
+    rules:
+      - alert: KelbetReadinessDown
+        expr: probe_success{job="kelbet-ready"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: KELBET readiness has failed for five minutes
+          runbook: docs/architecture/OBSERVABILITY_INCIDENT_RUNBOOK.md#readiness-failure
+
+      - alert: KelbetGenerationFailureRatioHigh
+        expr: |
+          sum(rate(kelbet_generation_terminal_total{status=~"failed|timed_out|dead_letter"}[15m]))
+          /
+          clamp_min(sum(rate(kelbet_generation_terminal_total[15m])), 0.001)
+          > 0.15
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: More than 15% of terminal generations are failing
+          runbook: docs/architecture/OBSERVABILITY_INCIDENT_RUNBOOK.md#generation-or-provider-failures
+
+      - alert: KelbetProviderFailures
+        expr: sum by (provider, classification) (increase(kelbet_provider_failures_total[10m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Provider failures exceed the ten-minute threshold
+          runbook: docs/architecture/OBSERVABILITY_INCIDENT_RUNBOOK.md#generation-or-provider-failures
+
+      - alert: KelbetStuckGenerationsDetected
+        expr: sum(increase(kelbet_stuck_generations_total{action="timed_out"}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: The recovery sweep timed out at least one generation
+          runbook: docs/architecture/OBSERVABILITY_INCIDENT_RUNBOOK.md#stuck-generations
+
+      - alert: KelbetPaymentRejected
+        expr: sum by (reason) (increase(kelbet_payment_rejected_total[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: At least one Stars payment receipt was rejected
+          runbook: docs/architecture/OBSERVABILITY_INCIDENT_RUNBOOK.md#payment-rejection
+
+      - alert: KelbetStarsRefundNeedsReview
+        expr: sum(increase(kelbet_payment_refunds_total{status="needs_review"}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: A Telegram Stars refund requires operator review
+          runbook: docs/architecture/TELEGRAM_STARS_PAYMENTS.md#incident-and-rollback-runbook
+
+      - alert: KelbetStarsReconciliationFailed
+        expr: sum(increase(kelbet_payment_reconciliation_runs_total{outcome="failed"}[15m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: Telegram Stars reconciliation failed
+          runbook: docs/architecture/TELEGRAM_STARS_PAYMENTS.md#incident-and-rollback-runbook
+
+      - alert: KelbetStarsCriticalDiscrepancy
+        expr: sum(increase(kelbet_payment_reconciliation_issues_total{kind=~"telegram_without_receipt|paid_without_ledger|refund_without_reverse_ledger|external_reversal"}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: Telegram Stars reconciliation found a critical discrepancy
+          runbook: docs/architecture/TELEGRAM_STARS_PAYMENTS.md#incident-and-rollback-runbook
+
+      - alert: KelbetWorkerJobFailures
+        expr: sum by (queue, job) (increase(kelbet_worker_jobs_total{outcome="failed"}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: A KELBET worker job failed
+          runbook: docs/architecture/OBSERVABILITY_INCIDENT_RUNBOOK.md#worker-failure

@@ -44,6 +44,9 @@ class Msg:
     SUPPORT_OPEN = "support.open"
     SUPPORT_UNAVAILABLE = "support.unavailable"
     INVITE_COMING_SOON = "invite.coming_soon"
+    INVITE_SUMMARY = "invite.summary"
+    INVITE_SHARE = "invite.share"
+    INVITE_OPEN = "invite.open"
 
     PROFILE_TITLE = "profile.title"
     PROFILE_TELEGRAM_ID = "profile.telegram_id"
@@ -65,6 +68,8 @@ class Msg:
     CHAT_EMPTY = "chat.empty"
     CHAT_NEED_REGISTER = "chat.need_register"
     CHAT_BALANCE_LEFT = "chat.balance_left"
+    MODERATION_BLOCKED = "moderation.blocked"
+    MODERATION_RATE_LIMITED = "moderation.rate_limited"
 
     CMD_START = "command.start"
     CMD_MENU = "command.menu"
@@ -80,6 +85,7 @@ class Msg:
     CMD_PAY_SUPPORT = "command.pay_support"
     CMD_BUY = "command.buy"
     CMD_TERMS = "command.terms"
+    CMD_INVITE = "command.invite"
 
     PAYMENT_UNAVAILABLE = "payment.unavailable"
     PAYMENT_CHOOSE = "payment.choose"

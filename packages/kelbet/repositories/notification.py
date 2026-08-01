@@ -40,9 +40,7 @@ class NotificationRepository:
                 attempts=0,
                 next_attempt_at=now,
             )
-            .on_conflict_do_nothing(
-                constraint="uq_notification_outbox_generation_event"
-            )
+            .on_conflict_do_nothing(constraint="uq_notification_outbox_generation_event")
             .returning(NotificationOutbox.id)
         )
         inserted = await self._session.execute(statement)
@@ -50,8 +48,6 @@ class NotificationRepository:
 
     async def count_for_generation(self, generation_id: UUID) -> int:
         result = await self._session.execute(
-            select(NotificationOutbox.id).where(
-                NotificationOutbox.generation_id == generation_id
-            )
+            select(NotificationOutbox.id).where(NotificationOutbox.generation_id == generation_id)
         )
         return len(list(result.scalars().all()))

@@ -10,6 +10,52 @@ class UserNotFoundError(KelbetError):
     """Raised when a user cannot be found."""
 
 
+class UserBlockedError(KelbetError):
+    """Raised when a blocked user attempts a new paid operation."""
+
+
+class AdminAuthorizationError(KelbetError):
+    """Raised when the current session lacks an operator role or permission."""
+
+
+class AdminActionConflictError(KelbetError):
+    """Raised when an operator action ID is replayed with a different payload."""
+
+
+class ModerationRejectedError(KelbetError):
+    """Raised after a durable moderation decision blocks a request."""
+
+    def __init__(self, *, language: str, reason_codes: tuple[str, ...]) -> None:
+        super().__init__("Moderation policy rejected the request")
+        self.language = language
+        self.reason_codes = reason_codes
+
+
+class ModerationRateLimitError(ModerationRejectedError):
+    """Raised when the moderation-layer request budget is exceeded."""
+
+
+class ConsentRequiredError(KelbetError):
+    """Raised when a photo operation lacks the current rights confirmation."""
+
+    def __init__(self, *, language: str, required_version: str) -> None:
+        super().__init__("Photo rights consent is required")
+        self.language = language
+        self.required_version = required_version
+
+
+class ModerationDecisionNotFoundError(KelbetError):
+    """Raised when an operator moderation decision does not exist."""
+
+
+class GenerationTemplateNotFoundError(KelbetError):
+    """Raised when a generation template is unknown, disabled, or unavailable."""
+
+
+class GenerationTemplateValidationError(KelbetError):
+    """Raised when template/model/input compatibility validation fails."""
+
+
 class WalletNotFoundError(KelbetError):
     """Raised when a wallet cannot be found."""
 
@@ -124,3 +170,15 @@ class PaymentOrderNotFoundError(KelbetError):
 
 class PaymentValidationError(KelbetError):
     """Raised when payment amount, currency, owner, or state does not match."""
+
+
+class PaymentRefundNotFoundError(KelbetError):
+    """Raised when a Stars refund request cannot be found."""
+
+
+class PaymentRefundConflictError(KelbetError):
+    """Raised when a Stars refund request conflicts with durable state."""
+
+
+class PaymentRefundUnavailableError(KelbetError):
+    """Raised when the independent Stars refund gate is closed."""

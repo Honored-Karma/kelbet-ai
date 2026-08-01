@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -78,6 +80,7 @@ def main_menu_keyboard(lang: Language, mini_app_url: str = "") -> ReplyKeyboardM
             ],
             [
                 KeyboardButton(text=t(Msg.MENU_PROFILE, lang)),
+                KeyboardButton(text=t(Msg.MENU_INVITE, lang)),
             ],
         ],
         resize_keyboard=True,
@@ -115,6 +118,32 @@ def support_keyboard(lang: Language, support_username: str) -> InlineKeyboardMar
             ]
         ]
     )
+
+
+def referral_keyboard(
+    lang: Language,
+    *,
+    link: str,
+    mini_app_url: str,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=t(Msg.INVITE_SHARE, lang),
+                url=f"https://t.me/share/url?{urlencode({'url': link})}",
+            )
+        ]
+    ]
+    if mini_app_url.strip():
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=t(Msg.INVITE_OPEN, lang),
+                    web_app=WebAppInfo(url=_mini_app_page_url(mini_app_url, "invite")),
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def chat_waiting_keyboard(lang: Language) -> ReplyKeyboardMarkup:

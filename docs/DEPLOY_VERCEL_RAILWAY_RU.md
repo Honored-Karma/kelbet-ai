@@ -623,6 +623,26 @@ GOOGLE_WEBHOOK_SIGNING_SECRETS=whsec_...
 
 Не включайте fallback до проверки подписей webhook и лимита стоимости.
 
+### Google image fallback
+
+Адаптер использует актуальный Google Gemini Interactions API и стабильный
+`gemini-3.1-flash-image`; Imagen намеренно не используется. Ключ общий с Veo,
+но image-маршрут имеет отдельные настройки:
+
+```text
+GOOGLE_IMAGE_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GOOGLE_IMAGE_TIMEOUT_SECONDS=120
+GOOGLE_IMAGE_MAX_OUTPUT_BYTES=20971520
+```
+
+После миграции `0016_image_fallback` флаги `google_image` и `image_fallback`
+создаются выключенными. Не включайте их одновременно для всех пользователей.
+Сначала задайте одинаковый `payload.telegram_ids` canary allowlist, проверьте
+панель provider health в `/admin` и выполните процедуру из
+`docs/architecture/IMAGE_FALLBACK_RUNBOOK.md`. `upscale` не имеет Google
+fallback. Откат: сначала отключить `image_fallback`, затем при необходимости
+`google_image`. Цена уже созданного quote/job не меняется.
+
 После добавления любого ключа:
 
 1. Redeploy API и worker;
@@ -653,11 +673,22 @@ PAYMENTS_ENABLED=false
 После подготовки:
 
 ```text
-PAYMENTS_ENABLED=true
-PAYMENT_TERMS_URL=https://ваш-домен/terms
-PAYMENT_TERMS_VERSION=YYYY-MM-DD
-SUPPORT_USERNAME=username_без_@
+PAYMENTS_ENABLED=false
+STARS_REFUNDS_ENABLED=false
+STARS_RECONCILIATION_ENABLED=false
+PAYMENT_TERMS_URL=https://your-domain.example/terms
+PAYMENT_REFUND_POLICY_URL=https://your-domain.example/refunds
+PAYMENT_TERMS_VERSION=APPROVED_VERSION
+PAYMENT_SELLER_IDENTITY=VERIFIED_SELLER
+PAYMENT_FINANCE_REVIEW_CONFIRMED=false
+SUPPORT_USERNAME=support_username_without_at
+STARS_CANARY_TELEGRAM_IDS=
 ```
+
+Не меняйте три feature flag на `true`, пока ссылки не опубликованы, version/seller/finance/support
+не подтверждены и canary checklist из `docs/architecture/TELEGRAM_STARS_PAYMENTS.md` не пройден.
+Refund processor и reconciliation включаются независимо; при rollback остановите новые invoices и
+refund initiation, но сохраните durable rows и read-only reconciliation.
 
 Redeploy API и bot. Затем выполните одну минимальную покупку Stars и проверьте:
 
@@ -666,6 +697,33 @@ Redeploy API и bot. Затем выполните одну минимальну
 - credits начисляются один раз;
 - повторная доставка update не начисляет credits повторно;
 - `/paysupport` открывает поддержку.
+
+### Referral MVP
+
+Migration `0017_referral_mvp` создаёт таблицы и DB flag `referrals=false`. Сначала оставьте его
+выключенным и задайте одинаковые server variables для API, bot и worker:
+
+```text
+REFERRAL_BOT_USERNAME=bot_username_without_at
+REFERRAL_INVITER_BONUS_CREDITS=5
+REFERRAL_INVITEE_BONUS_CREDITS=2
+REFERRAL_MINIMUM_PURCHASE_STARS=50
+REFERRAL_WAITING_PERIOD_HOURS=72
+REFERRAL_DAILY_REWARD_LIMIT=20
+REFERRAL_SUSPICIOUS_DAILY_ATTRIBUTION_THRESHOLD=50
+```
+
+Referral нельзя включать до успешного Stars live gate и стабильной reconciliation: именно
+нормализованная входящая Stars transaction является source of truth первой покупки. После этого
+включите `referrals` только через audited admin feature-flag control и только для canary payload.
+Проверьте `/invite`, `/start ref_<code>` через выбор RU/KK, первую покупку, период ожидания, admin
+read-only rows и два ledger-начисления с referral idempotency keys.
+
+Rollback: немедленно поставьте `referrals=false`, но не останавливайте reconciliation и не удаляйте
+attribution/reward/ledger rows. Уже начисленный спорный бонус переводится в `needs_review` без
+автоматического отрицательного clawback. Полная процедура — в
+`docs/architecture/REFERRAL_RUNBOOK.md`, UX-тексты — в
+`docs/architecture/REFERRAL_TERMS_RU_KK.md`.
 
 ## 16. Где смотреть ошибки
 
@@ -792,12 +850,76 @@ python -m kelbet.ops.grant_credits --telegram-id 8201681157 --amount 1000 --refe
 Успешный результат содержит `"applied": true` и новый `balance_after`.
 Повтор уже применённой операции содержит `"applied": false`.
 
-## 19. Финальный production checklist
+## 19. Observability
+
+Observability выключена по умолчанию. Для staging сначала добавьте во все три Railway-сервиса
+`SENTRY_ENABLED=true`, sealed `SENTRY_DSN`, `SENTRY_ENVIRONMENT=staging` и неизменяемый
+`SENTRY_RELEASE` (Git SHA). Оставьте `SENTRY_TRACES_SAMPLE_RATE=0` до проверки redaction.
+
+Prometheus включается через `METRICS_ENABLED=true`. Публичный API endpoint требует одновременно
+`METRICS_ENDPOINT_ENABLED=true` и отдельный случайный `METRICS_BEARER_TOKEN`; без них `/metrics`
+возвращает `404` или `503`. Никогда не переиспользуйте `BOT_TOKEN` или provider key. Проверяйте:
+
+- `/health` — только liveness, без БД и Redis;
+- `/api/v1/ready` — PostgreSQL и обязательный Redis, `503` при деградации;
+- `/metrics` без bearer — `401`, с правильным bearer — Prometheus text format;
+- тестовое исключение во всех трёх процессах — без prompt, initData, токенов, PII, содержимого файлов
+  и provider response.
+
+Имена метрик, dashboard-запросы и ограничения labels описаны в
+`docs/architecture/METRICS.md`. Правила alerts находятся в
+`deploy/observability/prometheus-alerts.yml`, действия при инциденте — в
+`docs/architecture/OBSERVABILITY_INCIDENT_RUNBOOK.md`. До staging drill alerting считается
+сконфигурированным, но не подтверждённым.
+
+### Внутренний operator/admin контур
+
+По умолчанию контур закрыт: `ADMIN_ENABLED=false`. После применения migration `0012` задайте
+`ADMIN_BOOTSTRAP_TELEGRAM_IDS` как sealed comma-separated список положительных Telegram ID,
+выполните redeploy API и только затем включите `ADMIN_ENABLED=true`. Скрытый `/admin` URL не
+является защитой: API проверяет opaque Telegram session и server-side роль на каждом запросе.
+
+Подробный bootstrap, smoke test, правила idempotency/audit и аварийный rollback описаны в
+`docs/architecture/ADMIN_OPERATOR_RUNBOOK.md`. Этот контур возвращает только внутренние credits
+за generation и намеренно не выполняет Telegram Stars refund.
+
+Если токеноподобное значение из прежней версии `.env.example` когда-либо было действующим,
+отзовите его в BotFather и выпустите новый токен до следующего деплоя.
+
+### Moderation и photo consent
+
+После migration `0013_moderation_consent` оставьте `MODERATION_MODE=report`. Локальный RU/KK
+baseline проверяет только текстовые фразы/простые обфускации; это не image moderation и не
+semantic classifier. Image edit и image-to-video независимо требуют актуальный
+`PHOTO_RIGHTS_CONSENT_VERSION`.
+
+Внешний text provider выключен через `MODERATION_EXTERNAL_PROVIDER=none`. Перед включением
+`openai` добавьте sealed `OPENAI_MODERATION_API_KEY`, зафиксируйте `open` или `closed` failure
+policy, выполните privacy/region review и staging smoke test. Ни ключ, ни prompt, ни provider
+response не должны попадать в логи. Rollout, triage и rollback описаны в
+`docs/architecture/MODERATION_RUNBOOK.md`; границы и данные — в
+`docs/architecture/MODERATION_CONSENT_PRIVACY.md`.
+
+### Server templates и compositor
+
+После migration `0014_generation_templates` задайте `SERVER_TEMPLATES_ENABLED=true` и
+`TEMPLATE_COMPOSITOR_ENABLED=true` для API и worker. Worker image должен содержать исполняемый
+FFmpeg из зависимости `imageio-ffmpeg`; системный шрифт не нужен, Noto Sans с RU/KK glyphs и
+OFL-лицензией включён в пакет. До production rollout выполните product-card PNG и toi MP4 smoke
+tests. Порядок включения, метрики и безопасный rollback описаны в
+`docs/architecture/TEMPLATES_RUNBOOK.md`.
+
+## 20. Финальный production checklist
 
 - [ ] GitHub repository не содержит секретов.
 - [ ] PostgreSQL и Redis доступны только через Railway references.
 - [ ] API `/health` возвращает 200.
+- [ ] API `/api/v1/ready` проверяет PostgreSQL и Redis и возвращает 200.
+- [ ] `/metrics` выключен либо защищён отдельным bearer-токеном.
+- [ ] Sentry redaction и доставка alerts проверены на staging.
 - [ ] Alembic migration завершилась.
+- [ ] Moderation работает в `report` либо прошла отдельный block-mode canary; image moderation не заявлена.
+- [ ] Image edit/image-to-video без текущего photo consent отклоняются до reserve.
 - [ ] Vercel SPA-маршруты не дают 404.
 - [ ] CORS содержит точный production origin.
 - [ ] Bot работает в одной реплике.

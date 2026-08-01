@@ -133,9 +133,7 @@ class NotificationDispatcher:
                         3600,
                         60 * (2 ** (outbox.attempts - 1)),
                     )
-                    outbox.next_attempt_at = current + timedelta(
-                        seconds=delay_seconds
-                    )
+                    outbox.next_attempt_at = current + timedelta(seconds=delay_seconds)
                 logger.warning(
                     "notification_send_failed event=%s attempts=%s error=%s",
                     outbox.event_type,

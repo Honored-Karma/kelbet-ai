@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import contactSheet from "../assets/kelbet-contact-sheet.webp";
-import { CREATE_TEMPLATES } from "../features/create/templates";
+import { mockImageTemplates } from "../features/create/templates";
 import { TREND_TEMPLATES } from "../features/trends/templates";
-import { api } from "../shared/api/client";
+import { api, getApiMode } from "../shared/api/client";
 import { useI18n } from "../shared/i18n/runtime";
 import { ErrorState } from "../shared/ui/ErrorState";
 import { Icon } from "../shared/ui/Icon";
@@ -17,6 +17,13 @@ export function HomePage() {
     queryKey: ["history"],
     queryFn: () => api.history(),
     retry: 1,
+  });
+  const templatesQuery = useQuery({
+    queryKey: ["catalog", "templates", language, "image"],
+    queryFn: () =>
+      getApiMode() === "mock"
+        ? Promise.resolve(mockImageTemplates(language))
+        : api.listTemplates(language, "image"),
   });
   const recent = useMemo(() => historyQuery.data?.slice(0, 3) ?? [], [historyQuery.data]);
   const previewIds = useMemo(
@@ -46,6 +53,15 @@ export function HomePage() {
       <ErrorState
         title={tx("common.error")}
         onRetry={() => void meQuery.refetch()}
+        retryLabel={tx("common.retry")}
+      />
+    );
+  }
+  if (templatesQuery.isError) {
+    return (
+      <ErrorState
+        title={language === "ru" ? "Не удалось загрузить каталог шаблонов" : "Үлгілер каталогы жүктелмеді"}
+        onRetry={() => void templatesQuery.refetch()}
         retryLabel={tx("common.retry")}
       />
     );
@@ -139,21 +155,20 @@ export function HomePage() {
             <p className="eyebrow">{tx("home.recipesEyebrow")}</p>
             <h2 id="home-recipes-title">{tx("home.recipesTitle")}</h2>
           </div>
-          <span>03 / 06</span>
+          <span>03 / {String(templatesQuery.data?.length ?? 0).padStart(2, "0")}</span>
         </header>
         <div className="home-recipe-rail">
-          {CREATE_TEMPLATES.slice(0, 3).map((template, index) => (
+          {(templatesQuery.data ?? []).slice(0, 3).map((template, index) => (
             <Link
               key={template.id}
-              to={`/create?recipe=${encodeURIComponent(template.id)}`}
+              to={`/create?recipe=${encodeURIComponent(template.slug)}`}
               className={`home-recipe recipe-${index + 1}`}
             >
               <span className="home-recipe-visual" aria-hidden>
                 <i>{String(index + 1).padStart(2, "0")}</i>
               </span>
-              <strong>{template.title[language]}</strong>
-              <small>{template.description[language]}</small>
-              <b>{template.aspectRatio}</b>
+              <strong>{template.localization.name}</strong>
+              <small>{template.localization.description}</small>
             </Link>
           ))}
         </div>
@@ -186,7 +201,7 @@ export function HomePage() {
                   </span>
                   <span>
                     <strong>{item.modality === "video" ? "MOTION" : "STILL"} / {String(index + 1).padStart(2, "0")}</strong>
-                    <small>{item.user_credit_price} cr · {item.status}</small>
+                    <small>{item.status}</small>
                   </span>
                   <Icon name="arrow" />
                 </Link>

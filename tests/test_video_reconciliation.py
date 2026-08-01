@@ -45,9 +45,7 @@ async def test_reconcile_one_hundred_video_jobs_and_detect_corruption(
         await seed_catalog(session)
         model = (
             await session.execute(
-                select(CatalogModel).where(
-                    CatalogModel.slug == "runway-gemini-omni-video-fast"
-                )
+                select(CatalogModel).where(CatalogModel.slug == "runway-gemini-omni-video-fast")
             )
         ).scalar_one()
         user = User(

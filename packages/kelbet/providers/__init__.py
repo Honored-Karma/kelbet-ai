@@ -5,6 +5,7 @@ from kelbet.providers.base import (
     GenerationRequest,
 )
 from kelbet.providers.factory import resolve_provider
+from kelbet.providers.google_image import GoogleGeminiImageProvider
 from kelbet.providers.google_veo import GoogleVeoProvider
 from kelbet.providers.mock import MockImageProvider, MockTextProvider
 from kelbet.providers.openrouter import OpenRouterTextProvider
@@ -16,6 +17,7 @@ __all__ = [
     "GenerationProviderResult",
     "GenerationRequest",
     "GoogleVeoProvider",
+    "GoogleGeminiImageProvider",
     "MockImageProvider",
     "MockTextProvider",
     "OpenRouterTextProvider",

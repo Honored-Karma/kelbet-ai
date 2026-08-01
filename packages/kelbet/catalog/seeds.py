@@ -26,12 +26,15 @@ def feature_flag_rows() -> list[dict[str, Any]]:
     return [
         {"key": "runway_media", "enabled": True, "payload": {}},
         {"key": "google_video", "enabled": True, "payload": {}},
+        {"key": "google_image", "enabled": False, "payload": {}},
+        {"key": "image_fallback", "enabled": False, "payload": {}},
+        {"key": "referrals", "enabled": False, "payload": {}},
         {"key": "experimental_upscale", "enabled": False, "payload": {}},
     ]
 
 
 def catalog_model_rows() -> list[dict[str, Any]]:
-    return [
+    rows = [
         {
             "id": MOCK_TEXT_ID,
             "slug": "mock-text",
@@ -703,3 +706,41 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "pricing_rules": None,
         },
     ]
+    # Gemini native image generation/editing is an independent, opt-in fallback.
+    # Google does not document deterministic upscale semantics, so the upscale SKU
+    # intentionally receives no fallback route.
+    image_fallback_slugs = {
+        "runway-seedream5-lite-image",
+        "runway-seedream5-pro-image",
+        "runway-seedream5-lite-edit",
+        "runway-seedream5-pro-edit",
+        "runway-gen4-image",
+    }
+    fallback = {
+        "provider": "google",
+        "provider_model_id": "gemini-3.1-flash-image",
+        "supported_modalities": ["image", "image_edit"],
+        "provider_feature_flag": "google_image",
+        "feature_flag": "image_fallback",
+        "provider_cost_units_by_resolution": {
+            "512": 450,
+            "0.5k": 450,
+            "720p": 670,
+            "1080p": 670,
+            "1k": 670,
+            "2k": 1010,
+            "3k": 1010,
+            "4k": 1510,
+        },
+        "max_attempts": 1,
+    }
+    for row in rows:
+        if row["slug"] not in image_fallback_slugs:
+            continue
+        capabilities = row["capabilities"]
+        assert isinstance(capabilities, dict)
+        capabilities["fallback"] = dict(fallback)
+        ui = capabilities.get("ui")
+        assert isinstance(ui, dict)
+        ui["provider_cost_ceiling_units"] = 1100
+    return rows

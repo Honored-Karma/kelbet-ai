@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,15 +25,70 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     welcome_credits: int = 5
 
+    # Observability is opt-in. Production secrets belong in the deployment environment.
+    sentry_enabled: bool = False
+    sentry_dsn: str = ""
+    sentry_environment: str = ""
+    sentry_release: str = ""
+    sentry_error_sample_rate: float = 1.0
+    sentry_traces_sample_rate: float = 0.0
+    metrics_enabled: bool = False
+    metrics_endpoint_enabled: bool = False
+    metrics_bearer_token: str = ""
+    readiness_require_redis: bool = True
+
+    # Internal operator surface. Bootstrap IDs are server-only and disabled by default.
+    admin_enabled: bool = False
+    admin_bootstrap_telegram_ids: str = ""
+    admin_rate_limit_per_minute: int = 60
+
+    # Moderation starts in report-only mode. External text moderation is opt-in.
+    moderation_mode: Literal["off", "report", "block"] = "report"
+    moderation_policy_version: str = "2026-08-01-v1"
+    moderation_external_provider: Literal["none", "openai"] = "none"
+    moderation_external_failure_policy: Literal["open", "closed"] = "open"
+    moderation_max_requests_per_minute: int = 30
+    moderation_repeat_violation_threshold: int = 3
+    moderation_violation_window_hours: int = 24
+    photo_rights_consent_version: str = "2026-08-01-v1"
+    openai_moderation_api_key: str = ""
+    openai_moderation_model: str = "omni-moderation-latest"
+    openai_moderation_base_url: str = "https://api.openai.com/v1"
+    openai_moderation_timeout_seconds: float = 10.0
+
+    # Server-owned generation templates and deterministic post-processing.
+    server_templates_enabled: bool = True
+    template_compositor_enabled: bool = True
+
     bot_token: str = ""
     mini_app_url: str = ""
     support_username: str = ""
 
-    # Telegram Stars payments (Stage 5; disabled until economics/legal review)
+    # Telegram Stars. Every mutating/reconciliation capability is independently gated.
     payments_enabled: bool = False
     payment_terms_url: str = ""
     payment_terms_version: str = "2026-07-30"
+    payment_refund_policy_url: str = ""
+    payment_seller_identity: str = ""
+    payment_finance_review_confirmed: bool = False
     payment_order_ttl_minutes: int = 30
+    stars_refunds_enabled: bool = False
+    stars_reconciliation_enabled: bool = False
+    stars_canary_telegram_ids: str = ""
+    stars_refund_user_daily_limit: int = 2
+    stars_refund_operator_daily_limit: int = 20
+    stars_refund_retry_limit: int = 3
+    stars_refund_processing_timeout_seconds: int = 300
+    stars_reconciliation_page_limit: int = 100
+
+    # Referral MVP. The DB feature flag `referrals` is the rollout/kill switch.
+    referral_bot_username: str = ""
+    referral_inviter_bonus_credits: int = 5
+    referral_invitee_bonus_credits: int = 2
+    referral_minimum_purchase_stars: int = 50
+    referral_waiting_period_hours: int = 72
+    referral_daily_reward_limit: int = 20
+    referral_suspicious_daily_attribution_threshold: int = 50
 
     database_url: str = "postgresql+asyncpg://kelbet:kelbet@localhost:5433/kelbet"
     redis_url: str = "redis://localhost:6379/0"
@@ -96,6 +152,11 @@ class Settings(BaseSettings):
     google_video_output_host_allowlist: str = (
         "googleapis.com,googleusercontent.com,storage.googleapis.com"
     )
+    # Google Gemini native image fallback. Runtime enablement is controlled by
+    # the google_image + image_fallback DB feature flags, both off by default.
+    google_image_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    google_image_timeout_seconds: int = 120
+    google_image_max_output_bytes: int = 20_971_520  # 20 MiB
     google_webhook_signing_secrets: str = ""
     google_webhook_max_age_seconds: int = 300
     video_output_max_bytes: int = 104_857_600  # 100 MiB
@@ -120,6 +181,13 @@ class Settings(BaseSettings):
             return normalize_async_database_url(value)
         return value
 
+    @field_validator("sentry_error_sample_rate", "sentry_traces_sample_rate")
+    @classmethod
+    def validate_sample_rate(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("Sentry sample rates must be between 0 and 1")
+        return value
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -129,7 +197,31 @@ def get_settings() -> Settings:
 def cors_origin_list(settings: Settings | None = None) -> list[str]:
     cfg = settings or get_settings()
     return [
-        part.strip().rstrip("/")
-        for part in cfg.cors_origins.split(",")
-        if part.strip().rstrip("/")
+        part.strip().rstrip("/") for part in cfg.cors_origins.split(",") if part.strip().rstrip("/")
     ]
+
+
+def admin_bootstrap_id_set(settings: Settings | None = None) -> frozenset[int]:
+    cfg = settings or get_settings()
+    values: set[int] = set()
+    for raw in cfg.admin_bootstrap_telegram_ids.split(","):
+        candidate = raw.strip()
+        if not candidate:
+            continue
+        if not candidate.isascii() or not candidate.isdigit() or int(candidate) <= 0:
+            raise ValueError("ADMIN_BOOTSTRAP_TELEGRAM_IDS must contain positive numeric IDs")
+        values.add(int(candidate))
+    return frozenset(values)
+
+
+def stars_canary_id_set(settings: Settings | None = None) -> frozenset[int]:
+    cfg = settings or get_settings()
+    values: set[int] = set()
+    for raw in cfg.stars_canary_telegram_ids.split(","):
+        candidate = raw.strip()
+        if not candidate:
+            continue
+        if not candidate.isascii() or not candidate.isdigit() or int(candidate) <= 0:
+            raise ValueError("STARS_CANARY_TELEGRAM_IDS must contain positive numeric IDs")
+        values.add(int(candidate))
+    return frozenset(values)

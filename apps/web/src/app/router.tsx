@@ -6,6 +6,9 @@ import { AppShell } from "./layout/AppShell";
 const BootPage = lazy(async () => ({
   default: (await import("../pages/BootPage")).BootPage,
 }));
+const AdminPage = lazy(async () => ({
+  default: (await import("../pages/AdminPage")).AdminPage,
+}));
 const CreatePage = lazy(async () => ({
   default: (await import("../pages/CreatePage")).CreatePage,
 }));
@@ -15,6 +18,9 @@ const GenerationPage = lazy(async () => ({
 const HistoryPage = lazy(async () => ({
   default: (await import("../pages/HistoryPage")).HistoryPage,
 }));
+const InvitePage = lazy(async () => ({
+  default: (await import("../pages/InvitePage")).InvitePage,
+}));
 const HomePage = lazy(async () => ({
   default: (await import("../pages/HomePage")).HomePage,
 }));
@@ -23,6 +29,9 @@ const PlansPage = lazy(async () => ({
 }));
 const ProfilePage = lazy(async () => ({
   default: (await import("../pages/ProfilePage")).ProfilePage,
+}));
+const SupportPage = lazy(async () => ({
+  default: (await import("../pages/SupportPage")).SupportPage,
 }));
 const TrendsPage = lazy(async () => ({
   default: (await import("../pages/TrendsPage")).TrendsPage,
@@ -53,6 +62,14 @@ export function AppRouter() {
         element={
           <LazyPage>
             <BootPage />
+          </LazyPage>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <LazyPage>
+            <AdminPage />
           </LazyPage>
         }
       />
@@ -106,6 +123,14 @@ export function AppRouter() {
           }
         />
         <Route
+          path="invite"
+          element={
+            <LazyPage>
+              <InvitePage />
+            </LazyPage>
+          }
+        />
+        <Route
           path="plans"
           element={
             <LazyPage>
@@ -118,6 +143,14 @@ export function AppRouter() {
           element={
             <LazyPage>
               <ProfilePage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="support"
+          element={
+            <LazyPage>
+              <SupportPage />
             </LazyPage>
           }
         />

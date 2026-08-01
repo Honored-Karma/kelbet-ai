@@ -16,6 +16,9 @@ const STATIC_APP_PATHS = new Set([
   "/history",
   "/plans",
   "/profile",
+  "/support",
+  "/invite",
+  "/admin",
 ]);
 
 const GENERATION_PATH = /^\/generations\/[0-9a-f-]+$/i;

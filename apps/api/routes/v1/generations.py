@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,10 @@ class CreateGenerationRequest(BaseModel):
     quote_id: UUID
     prompt: str = Field(default="", max_length=8000)
     input_asset_ids: list[UUID] = Field(default_factory=list)
+    rights_consent_confirmed: bool = False
+    rights_consent_version: str | None = Field(default=None, max_length=64)
+    template_id: UUID | None = None
+    template_inputs: dict[str, object] = Field(default_factory=dict)
 
 
 class GenerationResponse(BaseModel):
@@ -44,6 +48,8 @@ class GenerationResponse(BaseModel):
     created_at: str
     eta_seconds: int | None
     estimated_remaining_seconds: int | None
+    template_slug: str | None
+    template_version: int | None
 
 
 class GenerationDraftResponse(BaseModel):
@@ -58,6 +64,10 @@ class GenerationDraftResponse(BaseModel):
     missing_input_assets: int
     model_available: bool
     replacement_slug: str | None
+    template_id: str | None
+    template_slug: str | None
+    template_version: int | None
+    template_inputs: dict[str, object]
 
 
 def _to_response(dto: object) -> GenerationResponse:
@@ -79,12 +89,15 @@ def _to_response(dto: object) -> GenerationResponse:
         created_at=dto.created_at.isoformat(),
         eta_seconds=dto.eta_seconds,
         estimated_remaining_seconds=dto.estimated_remaining_seconds,
+        template_slug=dto.template_slug,
+        template_version=dto.template_version,
     )
 
 
 @router.post("", response_model=GenerationResponse, status_code=201)
 async def create_generation(
     body: CreateGenerationRequest,
+    request: Request,
     current: SessionUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
     queue: GenerationQueue = Depends(get_generation_queue),
@@ -99,6 +112,11 @@ async def create_generation(
         quote_id=body.quote_id,
         prompt=body.prompt,
         input_asset_ids=body.input_asset_ids,
+        rights_consent_confirmed=body.rights_consent_confirmed,
+        rights_consent_version=body.rights_consent_version,
+        template_id=body.template_id,
+        template_inputs=body.template_inputs,
+        correlation_id=UUID(request.state.correlation_id),
     )
     return _to_response(dto)
 
@@ -130,6 +148,10 @@ async def get_generation_draft(
         missing_input_assets=draft.missing_input_assets,
         model_available=draft.model_available,
         replacement_slug=draft.replacement_slug,
+        template_id=str(draft.template_id) if draft.template_id else None,
+        template_slug=draft.template_slug,
+        template_version=draft.template_version,
+        template_inputs=draft.template_inputs,
     )
 
 

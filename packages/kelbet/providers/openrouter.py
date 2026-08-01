@@ -132,8 +132,7 @@ class OpenRouterTextProvider:
                 tokens_in = usage.get("prompt_tokens")
                 tokens_out = usage.get("completion_tokens")
             logger.info(
-                "generation_complete provider=%s model=%s latency_ms=%s "
-                "status=ok generation_id=%s",
+                "generation_complete provider=%s model=%s latency_ms=%s status=ok generation_id=%s",
                 self.name,
                 model,
                 latency_ms,

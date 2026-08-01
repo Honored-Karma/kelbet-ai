@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -9,15 +8,16 @@ from redis.asyncio import Redis
 
 from apps.bot.commands import configure_bot_commands
 from apps.bot.handlers import build_root_router
-from apps.bot.middlewares import DbSessionMiddleware
+from apps.bot.middlewares import CorrelationIdMiddleware, DbSessionMiddleware
 from kelbet.chat.factory import build_chat_provider
 from kelbet.config import get_settings
 from kelbet.db.session import build_session_factory
+from kelbet.observability import initialize_observability
 
 
 async def run_bot() -> None:
     settings = get_settings()
-    logging.basicConfig(level=settings.log_level)
+    initialize_observability(settings, component="bot")
 
     if not settings.bot_token:
         msg = "BOT_TOKEN is not set"
@@ -36,6 +36,7 @@ async def run_bot() -> None:
 
     dp["settings"] = settings
     dp["chat_provider"] = chat_provider
+    dp.update.outer_middleware(CorrelationIdMiddleware())
     dp.update.middleware(DbSessionMiddleware(session_factory))
     dp.include_router(build_root_router())
 

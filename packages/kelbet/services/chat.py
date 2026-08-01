@@ -13,11 +13,13 @@ from kelbet.domain.exceptions import (
     ChatMessageTooLongError,
     ChatProviderError,
     InsufficientCreditsError,
+    UserBlockedError,
     UserNotFoundError,
     WalletNotFoundError,
 )
 from kelbet.repositories.user import UserRepository
 from kelbet.repositories.wallet import WalletRepository
+from kelbet.services.moderation import ModerationService
 from kelbet.services.wallet import CreditResult, WalletService
 
 logger = logging.getLogger(__name__)
@@ -68,9 +70,19 @@ class ChatService:
         if len(text) > max_chars:
             raise ChatMessageTooLongError(f"Message length {len(text)} exceeds limit {max_chars}")
 
-        user = await self._users.get_by_telegram_id(telegram_id)
+        user = await self._users.get_by_telegram_id_for_update(telegram_id)
         if user is None:
             raise UserNotFoundError(f"User telegram_id={telegram_id} not found")
+        if user.is_blocked:
+            raise UserBlockedError(f"User {user.id} is blocked")
+
+        await ModerationService(self._session, self._settings).evaluate_text(
+            user_id=user.id,
+            text=text,
+            context="chat",
+            idempotency_key=request_id,
+            language=user.language,
+        )
 
         language = Language(user.language)
         wallet = await self._wallets.get_by_user_id(user.id)

@@ -16,16 +16,19 @@ from kelbet.db.models.catalog import CatalogModel
 from kelbet.domain.enums import Language, Modality
 from kelbet.domain.exceptions import (
     CatalogModelNotFoundError,
+    GenerationTemplateValidationError,
     ModelUnavailableError,
     QuoteNotFoundError,
     WalletNotFoundError,
 )
+from kelbet.observability import get_metrics
 from kelbet.repositories.catalog import (
     CatalogRepository,
     FeatureFlagRepository,
     PriceQuoteRepository,
 )
 from kelbet.repositories.wallet import WalletRepository
+from kelbet.services.templates import GenerationTemplateService
 
 DEFAULT_QUOTE_TTL = timedelta(minutes=10)
 
@@ -63,6 +66,12 @@ class QuoteDTO:
     params: dict[str, Any]
     expires_at: datetime
     available: int
+    template_id: UUID | None
+    template_slug: str | None
+    template_version: int | None
+    template_inputs: dict[str, Any]
+    template_snapshot: dict[str, Any]
+    routing_snapshot: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +79,38 @@ class WalletBalanceDTO:
     balance: int
     reserved: int
     available: int
+
+
+def _routing_snapshot(model: CatalogModel, *, params: dict[str, Any]) -> dict[str, Any]:
+    capabilities = dict(model.capabilities or {})
+    fallback_raw = capabilities.get("fallback")
+    fallback = dict(fallback_raw) if isinstance(fallback_raw, dict) else None
+    ui = capabilities.get("ui")
+    ui = ui if isinstance(ui, dict) else {}
+    if fallback is not None:
+        for key in (
+            "provider_cost_ceiling_units",
+            "provider_cost_ceiling_units_per_second",
+        ):
+            value = ui.get(key)
+            if isinstance(value, int) and value > 0:
+                fallback[key] = value
+    primary_cost = 0
+    if model.provider_cost_units > 0:
+        primary_cost = compute_user_credit_price(
+            model.provider_cost_units,
+            params=params,
+            pricing_rules=model.pricing_rules,
+        )
+    return {
+        "version": 1,
+        "primary": {
+            "provider": model.provider,
+            "provider_model_id": model.provider_model_id,
+            "provider_cost_units": primary_cost,
+        },
+        "fallback": fallback,
+    }
 
 
 class FeatureFlagService:
@@ -191,6 +232,7 @@ class QuoteService:
         self._catalog = CatalogService(session)
         self._quotes = PriceQuoteRepository(session)
         self._wallets = WalletRepository(session)
+        self._templates = GenerationTemplateService(session, self._settings)
 
     async def create_quote(
         self,
@@ -199,14 +241,34 @@ class QuoteService:
         telegram_id: int,
         model_slug: str,
         params: dict[str, Any] | None = None,
+        template_id: UUID | None = None,
+        template_inputs: dict[str, object] | None = None,
         now: datetime | None = None,
         ttl: timedelta = DEFAULT_QUOTE_TTL,
     ) -> QuoteDTO:
         current = now or datetime.now(UTC)
-        model = await self._catalog.get_model_entity_for_quote(
-            model_slug, telegram_id=telegram_id
-        )
+        model = await self._catalog.get_model_entity_for_quote(model_slug, telegram_id=telegram_id)
         cleaned = validate_params_against_capabilities(params or {}, model.capabilities or {})
+        selection = None
+        if template_id is not None:
+            selection = await self._templates.select_for_quote(
+                template_id=template_id,
+                template_inputs=template_inputs,
+                model_modality=model.modality,
+            )
+            template = selection.entity
+            if cleaned.get("aspect_ratio") != template.aspect_ratio:
+                raise GenerationTemplateValidationError(
+                    "Quote aspect ratio does not match the generation template"
+                )
+            if template.duration_sec is not None and (
+                cleaned.get("duration_sec") != template.duration_sec
+            ):
+                raise GenerationTemplateValidationError(
+                    "Quote duration does not match the generation template"
+                )
+        elif template_inputs:
+            raise GenerationTemplateValidationError("Template inputs require a generation template")
         price = compute_user_credit_price(
             model.user_credit_price,
             params=cleaned,
@@ -217,6 +279,7 @@ class QuoteService:
             raise WalletNotFoundError(f"Wallet for user {user_id} not found")
 
         expires_at = current + ttl
+        routing_snapshot = _routing_snapshot(model, params=cleaned)
         snapshot = {
             "model_id": str(model.id),
             "model_slug": model.slug,
@@ -228,6 +291,9 @@ class QuoteService:
             "pricing_rules": model.pricing_rules,
             "params": cleaned,
             "user_credit_price": price,
+            "template": selection.snapshot if selection else None,
+            "template_inputs": selection.inputs if selection else {},
+            "routing": routing_snapshot,
         }
         row = await self._quotes.create(
             user_id=user_id,
@@ -236,8 +302,18 @@ class QuoteService:
             user_credit_price=price,
             params=cleaned,
             snapshot=snapshot,
+            template_id=selection.entity.id if selection else None,
+            template_slug=selection.entity.slug if selection else None,
+            template_version=selection.entity.version if selection else None,
+            template_inputs=selection.inputs if selection else {},
+            template_snapshot=selection.snapshot if selection else {},
             expires_at=expires_at,
         )
+        if selection is not None:
+            get_metrics().incr(
+                "template.selected",
+                tags={"template": selection.entity.slug, "kind": selection.entity.kind},
+            )
         return QuoteDTO(
             quote_id=row.id,
             model_slug=model.slug,
@@ -246,6 +322,12 @@ class QuoteService:
             params=cleaned,
             expires_at=expires_at,
             available=wallet.balance - wallet.reserved,
+            template_id=row.template_id,
+            template_slug=row.template_slug,
+            template_version=row.template_version,
+            template_inputs=dict(row.template_inputs),
+            template_snapshot=dict(row.template_snapshot),
+            routing_snapshot=dict(routing_snapshot),
         )
 
     async def get_valid_quote(
@@ -272,6 +354,24 @@ class QuoteService:
             params=dict(row.params or {}),
             expires_at=row.expires_at,
             available=wallet.balance - wallet.reserved,
+            template_id=row.template_id,
+            template_slug=row.template_slug,
+            template_version=row.template_version,
+            template_inputs=dict(row.template_inputs),
+            template_snapshot=dict(row.template_snapshot),
+            routing_snapshot=(
+                dict(row.snapshot["routing"])
+                if isinstance((row.snapshot or {}).get("routing"), dict)
+                else {
+                    "version": 0,
+                    "primary": {
+                        "provider": row.snapshot.get("provider"),
+                        "provider_model_id": row.snapshot.get("provider_model_id"),
+                        "provider_cost_units": row.snapshot.get("provider_cost_units", 0),
+                    },
+                    "fallback": None,
+                }
+            ),
         )
 
 

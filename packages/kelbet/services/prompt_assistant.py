@@ -23,6 +23,7 @@ from kelbet.domain.exceptions import (
 )
 from kelbet.repositories.user import UserRepository
 from kelbet.repositories.wallet import WalletRepository
+from kelbet.services.moderation import ModerationService
 from kelbet.services.wallet import WalletService
 
 PromptIntent = Literal[
@@ -113,6 +114,16 @@ class PromptAssistantService:
         existing = await self._existing(user_id, request_id)
         if existing is not None:
             return await self._replay(existing, input_hash=input_hash)
+
+        await self._users.assert_paid_operations_allowed(user_id)
+
+        await ModerationService(self._session, self._settings).evaluate_text(
+            user_id=user_id,
+            text=text,
+            context="prompt_assistant",
+            idempotency_key=request_id,
+            language=language.value,
+        )
 
         wallet = await self._wallets.get_by_user_id(user_id)
         if wallet is None:

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kelbet.config import Settings, get_settings
 from kelbet.domain.enums import GenerationStatus
+from kelbet.observability import get_metrics
 from kelbet.providers.factory import resolve_provider
 from kelbet.repositories.generation import GenerationRepository
 from kelbet.services.generation_sm import apply_transition
@@ -66,6 +67,14 @@ class StuckSweeper:
                 try:
                     await provider.cancel(job.provider_job_id)
                 except Exception:  # noqa: BLE001 — best-effort cancel
+                    get_metrics().incr(
+                        "stuck_generation.total",
+                        tags={
+                            "action": "cancel_failed",
+                            "modality": job.modality,
+                            "previous_status": status.value,
+                        },
+                    )
                     logger.warning(
                         "stuck_sweeper_cancel_failed generation_id=%s",
                         job.id,
@@ -83,6 +92,30 @@ class StuckSweeper:
                 await self._wallet.release(job.reservation_id, now=current)
             job.next_poll_at = None
             swept.append(job.id)
+            get_metrics().incr(
+                "stuck_generation.total",
+                tags={
+                    "action": "timed_out",
+                    "modality": job.modality,
+                    "previous_status": status.value,
+                },
+            )
+            get_metrics().incr(
+                "generation.terminal",
+                tags={"status": GenerationStatus.TIMED_OUT.value, "modality": job.modality},
+            )
+            created_at = job.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=UTC)
+            get_metrics().observe(
+                "generation.duration_seconds",
+                max(0.0, (current - created_at).total_seconds()),
+                tags={
+                    "status": GenerationStatus.TIMED_OUT.value,
+                    "modality": job.modality,
+                    "provider": job.provider,
+                },
+            )
             logger.info(
                 "stuck_sweeper_timed_out generation_id=%s modality=%s status_was=%s",
                 job.id,

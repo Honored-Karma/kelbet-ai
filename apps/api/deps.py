@@ -11,11 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kelbet.auth import MemoryReplayStore, ReplayStore
 from kelbet.chat import ChatProvider
 from kelbet.chat.factory import build_chat_provider
-from kelbet.config import Settings, get_settings
-from kelbet.domain.exceptions import InvalidSessionError, RateLimitExceededError
+from kelbet.config import Settings, admin_bootstrap_id_set, get_settings
+from kelbet.domain.enums import OperatorRole
+from kelbet.domain.exceptions import (
+    AdminAuthorizationError,
+    InvalidSessionError,
+    ModerationRateLimitError,
+    ModerationRejectedError,
+    RateLimitExceededError,
+)
 from kelbet.payments.gateway import DisabledPaymentGateway, PaymentInvoiceGateway
 from kelbet.queue import GenerationQueue, InlineGenerationQueue
 from kelbet.rate_limit import MemoryRateLimiter, RateLimiter
+from kelbet.repositories.admin import AdminRepository
+from kelbet.services.admin import OperatorContext
 from kelbet.services.auth import AuthService, SessionUser
 from kelbet.storage import MemoryObjectStorage, ObjectStorage
 
@@ -32,6 +41,9 @@ async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
         try:
             yield session
             await session.commit()
+        except (ModerationRejectedError, ModerationRateLimitError):
+            await session.commit()
+            raise
         except Exception:
             await session.rollback()
             raise
@@ -106,6 +118,52 @@ async def get_current_user(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> SessionUser:
     return await auth_service.resolve_session(access_token)
+
+
+async def get_operator(
+    request: Request,
+    current: SessionUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_settings_dep),
+    limiter: RateLimiter = Depends(get_rate_limiter),
+) -> OperatorContext:
+    if not settings.admin_enabled:
+        raise AdminAuthorizationError("Operator surface is disabled")
+
+    bootstrap = current.telegram_id in admin_bootstrap_id_set(settings)
+    if bootstrap:
+        role = OperatorRole.ADMIN
+    else:
+        membership = await AdminRepository(session).get_membership(current.user_id)
+        if membership is None:
+            raise AdminAuthorizationError("Operator role required")
+        try:
+            role = OperatorRole(membership.role)
+        except ValueError as exc:
+            raise AdminAuthorizationError("Invalid operator role") from exc
+
+    allowed = await limiter.hit(
+        f"admin:{current.user_id}:{request.url.path}",
+        limit=settings.admin_rate_limit_per_minute,
+        window_seconds=60,
+    )
+    if not allowed:
+        raise RateLimitExceededError("Admin rate limit exceeded")
+    return OperatorContext(
+        user_id=current.user_id,
+        telegram_id=current.telegram_id,
+        username=current.username,
+        role=role,
+        bootstrap=bootstrap,
+    )
+
+
+async def require_admin(
+    operator: OperatorContext = Depends(get_operator),
+) -> OperatorContext:
+    if not operator.can_write:
+        raise AdminAuthorizationError("Admin role required")
+    return operator
 
 
 def _client_ip(request: Request) -> str:

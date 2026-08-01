@@ -54,6 +54,25 @@ class GenerationRepository:
         )
         return list(result.scalars().all())
 
+    async def list_for_operator(
+        self, user_id: UUID, *, limit: int = 50, offset: int = 0
+    ) -> list[GenerationJob]:
+        return await self.list_for_user(user_id, limit=limit, offset=offset)
+
+    async def list_recent_usage(
+        self,
+        *,
+        since: datetime,
+        limit: int = 500,
+    ) -> list[ProviderUsage]:
+        result = await self._session.execute(
+            select(ProviderUsage)
+            .where(ProviderUsage.created_at >= since)
+            .order_by(ProviderUsage.created_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     async def create(self, **kwargs: Any) -> GenerationJob:
         job = GenerationJob(**kwargs)
         self._session.add(job)

@@ -10,14 +10,19 @@ from fastapi.responses import JSONResponse
 
 from kelbet.domain.exceptions import (
     ActiveGenerationLimitError,
+    AdminActionConflictError,
+    AdminAuthorizationError,
     AssetNotFoundError,
     AuthError,
     CatalogModelNotFoundError,
     ChatMessageTooLongError,
     ChatProviderError,
+    ConsentRequiredError,
     ExpiredInitDataError,
     GenerationConflictError,
     GenerationNotFoundError,
+    GenerationTemplateNotFoundError,
+    GenerationTemplateValidationError,
     IdempotencyConflictError,
     InsufficientCreditsError,
     InvalidGenerationTransitionError,
@@ -26,8 +31,14 @@ from kelbet.domain.exceptions import (
     InvalidSessionError,
     KelbetError,
     ModelUnavailableError,
+    ModerationDecisionNotFoundError,
+    ModerationRateLimitError,
+    ModerationRejectedError,
     PaymentOrderNotFoundError,
     PaymentProductNotFoundError,
+    PaymentRefundConflictError,
+    PaymentRefundNotFoundError,
+    PaymentRefundUnavailableError,
     PaymentUnavailableError,
     PaymentValidationError,
     QuoteNotFoundError,
@@ -35,6 +46,7 @@ from kelbet.domain.exceptions import (
     ReplayInitDataError,
     StorageError,
     UploadValidationError,
+    UserBlockedError,
     UserNotFoundError,
     WebhookVerificationError,
 )
@@ -64,6 +76,131 @@ def error_body(
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(GenerationTemplateNotFoundError)
+    async def _generation_template_not_found(
+        request: Request, exc: GenerationTemplateNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_body(
+                code="generation_template_not_found",
+                message="Generation template is unavailable",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(GenerationTemplateValidationError)
+    async def _generation_template_invalid(
+        request: Request, exc: GenerationTemplateValidationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content=error_body(
+                code="generation_template_invalid",
+                message=str(exc),
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(ModerationDecisionNotFoundError)
+    async def _moderation_decision_not_found(
+        request: Request, exc: ModerationDecisionNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_body(
+                code="moderation_decision_not_found",
+                message="Moderation decision not found",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(ModerationRateLimitError)
+    async def _moderation_rate_limited(
+        request: Request, exc: ModerationRateLimitError
+    ) -> JSONResponse:
+        message = (
+            "Қысқа уақытта тым көп сұрау жіберілді. Кредит шегерілмеді."
+            if exc.language == "kk"
+            else "Слишком много запросов за короткое время. Кредит не списан."
+        )
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": "60"},
+            content=error_body(
+                code="moderation_rate_limited",
+                message=message,
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(ModerationRejectedError)
+    async def _moderation_rejected(request: Request, exc: ModerationRejectedError) -> JSONResponse:
+        message = (
+            "Сұрау қауіпсіздік ережелері бойынша тоқтатылды. Кредит шегерілмеді."
+            if exc.language == "kk"
+            else "Запрос остановлен правилами безопасности. Кредит не списан."
+        )
+        return JSONResponse(
+            status_code=422,
+            content=error_body(
+                code="moderation_blocked",
+                message=message,
+                correlation_id=_correlation_id(request),
+                details={"support_route": "/support"},
+            ),
+        )
+
+    @app.exception_handler(ConsentRequiredError)
+    async def _consent_required(request: Request, exc: ConsentRequiredError) -> JSONResponse:
+        message = (
+            "Фотодағы адамдардың құқықтары мен келісімін растаңыз."
+            if exc.language == "kk"
+            else "Подтвердите права на фото и согласие изображённых людей."
+        )
+        return JSONResponse(
+            status_code=422,
+            content=error_body(
+                code="photo_rights_consent_required",
+                message=message,
+                correlation_id=_correlation_id(request),
+                details={"required_version": exc.required_version, "support_route": "/support"},
+            ),
+        )
+
+    @app.exception_handler(AdminAuthorizationError)
+    async def _admin_forbidden(request: Request, exc: AdminAuthorizationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content=error_body(
+                code="admin_forbidden",
+                message="Operator permission required",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(AdminActionConflictError)
+    async def _admin_conflict(request: Request, exc: AdminActionConflictError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_body(
+                code="admin_action_conflict",
+                message="Operator action conflicts with current state",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(UserBlockedError)
+    async def _user_blocked(request: Request, exc: UserBlockedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content=error_body(
+                code="user_blocked",
+                message="Paid operations are blocked for this account",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
     @app.exception_handler(InvalidInitDataError)
     async def _invalid_init(request: Request, exc: InvalidInitDataError) -> JSONResponse:
         return JSONResponse(
@@ -231,9 +368,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ActiveGenerationLimitError)
-    async def _active_gen_limit(
-        request: Request, exc: ActiveGenerationLimitError
-    ) -> JSONResponse:
+    async def _active_gen_limit(request: Request, exc: ActiveGenerationLimitError) -> JSONResponse:
         return JSONResponse(
             status_code=429,
             content=error_body(
@@ -268,9 +403,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ChatMessageTooLongError)
-    async def _chat_too_long(
-        request: Request, exc: ChatMessageTooLongError
-    ) -> JSONResponse:
+    async def _chat_too_long(request: Request, exc: ChatMessageTooLongError) -> JSONResponse:
         return JSONResponse(
             status_code=422,
             content=error_body(
@@ -281,9 +414,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ChatProviderError)
-    async def _chat_provider(
-        request: Request, exc: ChatProviderError
-    ) -> JSONResponse:
+    async def _chat_provider(request: Request, exc: ChatProviderError) -> JSONResponse:
         return JSONResponse(
             status_code=502,
             content=error_body(
@@ -331,9 +462,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(PaymentUnavailableError)
-    async def _payment_unavailable(
-        request: Request, exc: PaymentUnavailableError
-    ) -> JSONResponse:
+    async def _payment_unavailable(request: Request, exc: PaymentUnavailableError) -> JSONResponse:
         return JSONResponse(
             status_code=503,
             content=error_body(
@@ -370,14 +499,51 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(PaymentValidationError)
-    async def _payment_validation(
-        request: Request, exc: PaymentValidationError
-    ) -> JSONResponse:
+    async def _payment_validation(request: Request, exc: PaymentValidationError) -> JSONResponse:
         return JSONResponse(
             status_code=422,
             content=error_body(
                 code="payment_validation_error",
                 message="Payment request could not be validated",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(PaymentRefundNotFoundError)
+    async def _payment_refund_not_found(
+        request: Request, exc: PaymentRefundNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_body(
+                code="payment_refund_not_found",
+                message="Payment refund not found",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(PaymentRefundConflictError)
+    async def _payment_refund_conflict(
+        request: Request, exc: PaymentRefundConflictError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_body(
+                code="payment_refund_conflict",
+                message="Payment refund conflicts with current state",
+                correlation_id=_correlation_id(request),
+            ),
+        )
+
+    @app.exception_handler(PaymentRefundUnavailableError)
+    async def _payment_refund_unavailable(
+        request: Request, exc: PaymentRefundUnavailableError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content=error_body(
+                code="payment_refunds_unavailable",
+                message="Payment refunds are unavailable",
                 correlation_id=_correlation_id(request),
             ),
         )

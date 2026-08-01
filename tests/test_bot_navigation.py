@@ -26,7 +26,7 @@ async def _register(
     )
 
 
-def _message(*, telegram_id: int, text: str) -> MagicMock:
+def _message(*, telegram_id: int, text: str | None) -> MagicMock:
     message = MagicMock()
     message.from_user = MagicMock(id=telegram_id, username="navigation_user")
     message.text = text
@@ -100,6 +100,7 @@ def test_bot_commands_are_localized() -> None:
         "trends",
         "chat",
         "history",
+        "invite",
         "balance",
         "buy",
         "profile",
@@ -108,6 +109,8 @@ def test_bot_commands_are_localized() -> None:
     ]
     assert russian[2].description == t(Msg.CMD_CREATE, Language.RU)
     assert kazakh[2].description == t(Msg.CMD_CREATE, Language.KK)
+    assert russian[7].description == t(Msg.CMD_INVITE, Language.RU)
+    assert kazakh[7].description == t(Msg.CMD_INVITE, Language.KK)
     assert "paysupport" not in [command.command for command in russian]
     assert "terms" not in [command.command for command in russian]
 

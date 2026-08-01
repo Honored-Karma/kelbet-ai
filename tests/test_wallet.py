@@ -210,9 +210,7 @@ async def test_concurrent_reserves_do_not_oversell(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as setup, setup.begin():
-        user, wallet, service, _wallets = await _seed_wallet(
-            setup, telegram_id=3001, credits=5
-        )
+        user, wallet, service, _wallets = await _seed_wallet(setup, telegram_id=3001, credits=5)
         user_id = user.id
         wallet_id = wallet.id
 

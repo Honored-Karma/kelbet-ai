@@ -10,7 +10,7 @@ import time
 from types import FrameType
 
 from kelbet.config import get_settings
-from kelbet.observability import configure_json_logging
+from kelbet.observability import initialize_observability
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def _stop_processes(processes: list[subprocess.Popen[bytes]]) -> None:
 
 def run_bundle() -> int:
     settings = get_settings()
-    configure_json_logging(settings.log_level)
+    initialize_observability(settings, component="worker")
     arq_executable = shutil.which("arq")
     if not arq_executable:
         logger.error("worker_bundle_arq_executable_missing")
