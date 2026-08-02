@@ -186,10 +186,19 @@ METRIC_SPECS: dict[str, MetricSpec] = {
                     "order_not_payable",
                     "order_expired",
                     "order_already_paid",
+                    "pre_checkout_already_claimed",
+                    "duplicate_order_charge_refund_required",
                     "other",
                 }
             )
         },
+    ),
+    "payment.pre_checkout_duration_seconds": MetricSpec(
+        "kelbet_payment_pre_checkout_duration_seconds",
+        "Telegram Stars pre-checkout handling duration in seconds.",
+        "histogram",
+        {"outcome": frozenset({"approved", "rejected", "timeout", "error", "other"})},
+        (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 4, 6, 8),
     ),
     "payment.refund": MetricSpec(
         "kelbet_payment_refunds_total",

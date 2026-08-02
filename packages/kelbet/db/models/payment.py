@@ -9,9 +9,11 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -60,7 +62,16 @@ class PaymentOrder(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     pre_checkout_query_id: Mapped[str | None] = mapped_column(
         String(128),
         nullable=True,
+        unique=True,
     )
+    pre_checkout_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    pre_checkout_telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    last_invoice_opened_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    invoice_open_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ledger_transaction_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("credit_transactions.id", ondelete="RESTRICT"),
@@ -74,7 +85,14 @@ class PaymentOrder(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class PaymentReceipt(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "payment_receipts"
-    __table_args__ = (UniqueConstraint("order_id", name="uq_payment_receipts_order_id"),)
+    __table_args__ = (
+        Index(
+            "uq_payment_receipts_processed_order",
+            "order_id",
+            unique=True,
+            postgresql_where=text("status = 'processed'"),
+        ),
+    )
 
     order_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -163,6 +181,8 @@ class StarTransactionObservation(Base, UUIDPrimaryKeyMixin):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     partner_type: Mapped[str] = mapped_column(String(32), nullable=False)
     transaction_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    invoice_payload: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -172,6 +192,8 @@ class PaymentReconciliationRun(Base, UUIDPrimaryKeyMixin):
     status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     fetched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     issue_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    coverage_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    next_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -170,6 +170,11 @@ export function GenerationPage() {
         : generation.progress_stage === "finalizing" || generation.status === "finalizing"
           ? "generation.stageFinalizing"
           : "generation.stageRunning";
+  const workflowStage = generation.workflow
+    ? tx("generation.extendingScene")
+        .replace("{current}", String(generation.workflow.current_step))
+        .replace("{total}", String(generation.workflow.total_steps))
+    : null;
   const routeLabel =
     generation.modality === "video"
       ? tx("generation.routeVideo")
@@ -268,7 +273,9 @@ export function GenerationPage() {
           aria-valuetext={`${tx(stageKey)}: ${progress}%`}
         >
           <div>
-            <span>{isVideo ? tx(stageKey) : `${generation.progress_pct}%`}</span>
+            <span>
+              {isVideo ? workflowStage ?? tx(stageKey) : `${generation.progress_pct}%`}
+            </span>
             <span>
               {isVideo && remainingEta
                 ? `${tx("generation.etaRemaining")} ${Math.ceil(remainingEta / 60)} min`
@@ -279,11 +286,17 @@ export function GenerationPage() {
             <div className="progress-fill" style={{ width: `${generation.progress_pct}%` }} />
           </div>
           <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
-            {tx(stageKey)}
+            {workflowStage ?? tx(stageKey)}
           </p>
           {isVideo ? (
             <div className="result-film-rail" aria-hidden>
-              {[18, 42, 68, 92].map((threshold, index) => (
+              {(generation.workflow
+                ? Array.from(
+                    { length: generation.workflow.total_steps },
+                    (_, index) => Math.round(((index + 1) / generation.workflow!.total_steps) * 79),
+                  )
+                : [18, 42, 68, 92]
+              ).map((threshold, index) => (
                 <span
                   key={threshold}
                   className={generation.progress_pct >= threshold ? "is-ready" : ""}

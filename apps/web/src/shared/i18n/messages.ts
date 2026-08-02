@@ -220,7 +220,16 @@ type MessageKey =
   | "video.minutes"
   | "video.advanced"
   | "video.advancedHelp"
+  | "video.settingsEdit"
+  | "video.settingsOpen"
   | "video.model"
+  | "video.providerRunway"
+  | "video.providerGoogle"
+  | "video.providerStudio"
+  | "video.modelEta"
+  | "video.durationAdjusted"
+  | "video.extendedContinuity"
+  | "video.approxThirty"
   | "video.resolution"
   | "video.seed"
   | "video.submit"
@@ -276,6 +285,7 @@ type MessageKey =
   | "generation.stageSubmitting"
   | "generation.stageRunning"
   | "generation.stageFinalizing"
+  | "generation.extendingScene"
   | "generation.etaRemaining"
   | "generation.progressLabel"
   | "recovery.quoteTitle"
@@ -325,6 +335,15 @@ type MessageKey =
   | "plans.pending"
   | "plans.paid"
   | "plans.cancelled"
+  | "plans.refunded"
+  | "plans.disputed"
+  | "plans.expired"
+  | "plans.confirmation"
+  | "plans.support"
+  | "plans.refundPolicy"
+  | "plans.reference"
+  | "plans.resume"
+  | "plans.checking"
   | "plans.invoiceFailed"
   | "profile.title"
   | "profile.eyebrow"
@@ -601,8 +620,17 @@ const ru: Record<MessageKey, string> = {
   "video.seconds": "сек",
   "video.minutes": "мин",
   "video.advanced": "Точные настройки",
-  "video.advancedHelp": "Модель, 720p и воспроизводимый seed",
+  "video.advancedHelp": "Выберите маршрут и оставьте только нужные параметры",
+  "video.settingsEdit": "НАСТРОИТЬ",
+  "video.settingsOpen": "СВЕРНУТЬ",
   "video.model": "Модель",
+  "video.providerRunway": "Runway",
+  "video.providerGoogle": "Google",
+  "video.providerStudio": "KELBET",
+  "video.modelEta": "Обычно",
+  "video.durationAdjusted": "Длительность приведена к возможностям выбранной модели.",
+  "video.extendedContinuity": "Одна непрерывная сцена. Каждый следующий отрезок бережно продолжает предыдущий.",
+  "video.approxThirty": "≈30 сек",
   "video.resolution": "Разрешение",
   "video.seed": "Seed",
   "video.submit": "Создать видео",
@@ -658,6 +686,7 @@ const ru: Record<MessageKey, string> = {
   "generation.stageSubmitting": "Передаём режиссёрский бриф",
   "generation.stageRunning": "Строим движение по кадрам",
   "generation.stageFinalizing": "Собираем финальный ролик",
+  "generation.extendingScene": "Продолжаем сцену {current} из {total}",
   "generation.etaRemaining": "Осталось примерно",
   "generation.progressLabel": "Ход генерации",
   "recovery.quoteTitle": "Не удалось обновить стоимость",
@@ -707,6 +736,15 @@ const ru: Record<MessageKey, string> = {
   "plans.pending": "Ожидает оплаты",
   "plans.paid": "Оплачено",
   "plans.cancelled": "Отменено",
+  "plans.refunded": "Возвращено",
+  "plans.disputed": "Требует проверки",
+  "plans.expired": "Срок истёк",
+  "plans.confirmation": "Кредиты поступят после подтверждения платежа Telegram.",
+  "plans.support": "Поддержка по оплате",
+  "plans.refundPolicy": "Правила возврата",
+  "plans.reference": "Номер для поддержки",
+  "plans.resume": "Открыть счёт снова",
+  "plans.checking": "Проверяем подтверждение Telegram…",
   "plans.invoiceFailed": "Не удалось открыть счёт. Попробуйте ещё раз.",
   "profile.title": "Профиль",
   "profile.eyebrow": "Аккаунт студии",
@@ -986,8 +1024,17 @@ const kk: Record<MessageKey, string> = {
   "video.seconds": "сек",
   "video.minutes": "мин",
   "video.advanced": "Дәл баптаулар",
-  "video.advancedHelp": "Модель, 720p және қайталанатын seed",
+  "video.advancedHelp": "Бағытты таңдап, тек қажет параметрлерді қалдырыңыз",
+  "video.settingsEdit": "БАПТАУ",
+  "video.settingsOpen": "ЖИНАУ",
   "video.model": "Модель",
+  "video.providerRunway": "Runway",
+  "video.providerGoogle": "Google",
+  "video.providerStudio": "KELBET",
+  "video.modelEta": "Әдетте",
+  "video.durationAdjusted": "Ұзақтық таңдалған модельдің мүмкіндіктеріне сай өзгертілді.",
+  "video.extendedContinuity": "Біртұтас көрініс. Әр келесі бөлік алдыңғысын ұқыпты жалғастырады.",
+  "video.approxThirty": "≈30 сек",
   "video.resolution": "Ажыратымдылық",
   "video.seed": "Seed",
   "video.submit": "Бейне жасау",
@@ -1043,6 +1090,7 @@ const kk: Record<MessageKey, string> = {
   "generation.stageSubmitting": "Режиссерлік бриф жіберілуде",
   "generation.stageRunning": "Кадрлар бойынша қозғалыс құрылуда",
   "generation.stageFinalizing": "Финалдық ролик жиналуда",
+  "generation.extendingScene": "Көрініс жалғасуда: {current} / {total}",
   "generation.etaRemaining": "Шамамен қалды",
   "generation.progressLabel": "Жасау барысы",
   "recovery.quoteTitle": "Бағаны жаңарту мүмкін болмады",
@@ -1092,6 +1140,15 @@ const kk: Record<MessageKey, string> = {
   "plans.pending": "Төлем күтілуде",
   "plans.paid": "Төленді",
   "plans.cancelled": "Болдырылмады",
+  "plans.refunded": "Қайтарылды",
+  "plans.disputed": "Тексеруді қажет етеді",
+  "plans.expired": "Мерзімі аяқталды",
+  "plans.confirmation": "Кредиттер Telegram төлемді растағаннан кейін түседі.",
+  "plans.support": "Төлем бойынша қолдау",
+  "plans.refundPolicy": "Қайтару ережелері",
+  "plans.reference": "Қолдау нөмірі",
+  "plans.resume": "Шотты қайта ашу",
+  "plans.checking": "Telegram растауын тексеріп жатырмыз…",
   "plans.invoiceFailed": "Шотты ашу мүмкін болмады. Қайта көріңіз.",
   "profile.title": "Жеке кабинет",
   "profile.eyebrow": "KELBET кеңістігі",

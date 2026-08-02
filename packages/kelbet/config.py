@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     server_templates_enabled: bool = True
     template_compositor_enabled: bool = True
 
+    # Multi-operation Veo route. Rollout remains controlled by the DB feature flag.
+    veo_extended_step_timeout_seconds: int = 900
+    veo_extended_total_timeout_seconds: int = 3600
+    veo_extended_step_max_attempts: int = 2
+
     bot_token: str = ""
     mini_app_url: str = ""
     support_username: str = ""

@@ -188,6 +188,15 @@ export const generationSchema = z.object({
   created_at: z.string(),
   eta_seconds: z.number().int().positive().nullable().optional(),
   estimated_remaining_seconds: z.number().int().nonnegative().nullable().optional(),
+  workflow: z
+    .object({
+      current_step: z.number().int().positive(),
+      total_steps: z.number().int().positive(),
+      completed_duration_sec: z.number().int().nonnegative(),
+      target_duration_sec: z.number().int().positive(),
+    })
+    .nullable()
+    .optional(),
 });
 export type Generation = z.infer<typeof generationSchema>;
 
@@ -252,6 +261,10 @@ export const paymentProductsSchema = z.object({
   items: z.array(paymentProductSchema),
   payments_enabled: z.boolean(),
   terms_url: z.string(),
+  terms_version: z.string(),
+  refund_policy_url: z.string(),
+  support_url: z.string(),
+  confirmation_note: z.string(),
 });
 export type PaymentProducts = z.infer<typeof paymentProductsSchema>;
 
@@ -267,6 +280,10 @@ export const paymentOrderSchema = z.object({
   expires_at: z.string(),
   created_at: z.string(),
   paid_at: z.string().nullable(),
+  refunded_at: z.string().nullable(),
+  refund_policy_url: z.string(),
+  support_url: z.string(),
+  support_reference: z.string(),
 });
 export type PaymentOrder = z.infer<typeof paymentOrderSchema>;
 

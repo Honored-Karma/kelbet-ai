@@ -1991,6 +1991,54 @@
         }
       }
     },
+    "/api/v1/payments/orders/{order_id}/invoice": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Reopen Payment Order",
+        "operationId": "reopen_payment_order_api_v1_payments_orders__order_id__invoice_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/payments/history": {
       "get": {
         "tags": [
@@ -3177,6 +3225,19 @@
           "terms_accepted": {
             "type": "boolean",
             "title": "Terms Accepted"
+          },
+          "terms_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version"
           }
         },
         "type": "object",
@@ -3440,6 +3501,20 @@
               }
             ],
             "title": "Template Version"
+          },
+          "workflow": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow"
           }
         },
         "type": "object",
@@ -3459,7 +3534,8 @@
           "eta_seconds",
           "estimated_remaining_seconds",
           "template_slug",
-          "template_version"
+          "template_version",
+          "workflow"
         ],
         "title": "GenerationResponse"
       },
@@ -4124,6 +4200,29 @@
               }
             ],
             "title": "Paid At"
+          },
+          "refunded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refunded At"
+          },
+          "refund_policy_url": {
+            "type": "string",
+            "title": "Refund Policy Url"
+          },
+          "support_url": {
+            "type": "string",
+            "title": "Support Url"
+          },
+          "support_reference": {
+            "type": "string",
+            "title": "Support Reference"
           }
         },
         "type": "object",
@@ -4137,7 +4236,11 @@
           "total_amount",
           "expires_at",
           "created_at",
-          "paid_at"
+          "paid_at",
+          "refunded_at",
+          "refund_policy_url",
+          "support_url",
+          "support_reference"
         ],
         "title": "PaymentOrderResponse"
       },
@@ -4190,13 +4293,33 @@
           "terms_url": {
             "type": "string",
             "title": "Terms Url"
+          },
+          "terms_version": {
+            "type": "string",
+            "title": "Terms Version"
+          },
+          "refund_policy_url": {
+            "type": "string",
+            "title": "Refund Policy Url"
+          },
+          "support_url": {
+            "type": "string",
+            "title": "Support Url"
+          },
+          "confirmation_note": {
+            "type": "string",
+            "title": "Confirmation Note"
           }
         },
         "type": "object",
         "required": [
           "items",
           "payments_enabled",
-          "terms_url"
+          "terms_url",
+          "terms_version",
+          "refund_policy_url",
+          "support_url",
+          "confirmation_note"
         ],
         "title": "PaymentProductsResponse"
       },

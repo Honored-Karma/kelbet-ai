@@ -62,6 +62,12 @@ class MemoryObjectStorage:
             raise StorageError(f"Object not found: {object_key}")
         return obj.data[:nbytes]
 
+    async def get_object(self, *, object_key: str) -> bytes:
+        obj = self.objects.get(object_key)
+        if obj is None:
+            raise StorageError(f"Object not found: {object_key}")
+        return obj.data
+
     async def create_presigned_get(
         self,
         *,

@@ -106,13 +106,15 @@ def test_bot_commands_are_localized() -> None:
         "profile",
         "settings",
         "support",
+        "paysupport",
+        "terms",
     ]
     assert russian[2].description == t(Msg.CMD_CREATE, Language.RU)
     assert kazakh[2].description == t(Msg.CMD_CREATE, Language.KK)
     assert russian[7].description == t(Msg.CMD_INVITE, Language.RU)
     assert kazakh[7].description == t(Msg.CMD_INVITE, Language.KK)
-    assert "paysupport" not in [command.command for command in russian]
-    assert "terms" not in [command.command for command in russian]
+    assert russian[-2].description == t(Msg.CMD_PAY_SUPPORT, Language.RU)
+    assert kazakh[-1].description == t(Msg.CMD_TERMS, Language.KK)
 
 
 @pytest.mark.asyncio

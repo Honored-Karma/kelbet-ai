@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../shared/api/client";
 import type { PaymentOrder } from "../shared/api/types";
 import { useI18n } from "../shared/i18n/runtime";
@@ -7,16 +7,23 @@ import { getTelegramWebApp } from "../shared/telegram/webapp";
 import { ErrorState } from "../shared/ui/ErrorState";
 import { SkeletonBlock } from "../shared/ui/Skeleton";
 
-type OrderStatusKey = "plans.pending" | "plans.paid" | "plans.cancelled";
+type OrderStatusKey =
+  | "plans.pending"
+  | "plans.paid"
+  | "plans.cancelled"
+  | "plans.refunded"
+  | "plans.disputed"
+  | "plans.expired";
 
 function orderStatus(
   order: PaymentOrder,
   tx: (key: OrderStatusKey) => string,
-): { label: string; tone: "paid" | "pending" | "cancelled" } {
+): { label: string; tone: "paid" | "pending" | "cancelled" | "refunded" | "disputed" } {
   if (order.status === "paid") return { label: tx("plans.paid"), tone: "paid" };
-  if (order.status === "cancelled" || order.status === "expired") {
-    return { label: tx("plans.cancelled"), tone: "cancelled" };
-  }
+  if (order.status === "refunded") return { label: tx("plans.refunded"), tone: "refunded" };
+  if (order.status === "disputed") return { label: tx("plans.disputed"), tone: "disputed" };
+  if (order.status === "expired") return { label: tx("plans.expired"), tone: "cancelled" };
+  if (order.status === "cancelled") return { label: tx("plans.cancelled"), tone: "cancelled" };
   return { label: tx("plans.pending"), tone: "pending" };
 }
 
@@ -26,6 +33,7 @@ export function PlansPage() {
   const [accepted, setAccepted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingProductSlug, setPendingProductSlug] = useState<string | null>(null);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const productsQuery = useQuery({
     queryKey: ["payment-products"],
     queryFn: () => api.listPaymentProducts(),
@@ -33,12 +41,27 @@ export function PlansPage() {
   const historyQuery = useQuery({
     queryKey: ["payment-history"],
     queryFn: () => api.paymentHistory(),
+    refetchInterval: activeOrderId ? 2_000 : false,
   });
+  useEffect(() => {
+    if (!activeOrderId) return;
+    const order = historyQuery.data?.find((item) => item.id === activeOrderId);
+    if (order && order.status !== "pending") {
+      setActiveOrderId(null);
+      if (order.status === "paid") void queryClient.invalidateQueries({ queryKey: ["me"] });
+    }
+  }, [activeOrderId, historyQuery.data, queryClient]);
+  useEffect(() => {
+    if (!activeOrderId) return;
+    const timeout = window.setTimeout(() => setActiveOrderId(null), 45_000);
+    return () => window.clearTimeout(timeout);
+  }, [activeOrderId]);
   const orderMutation = useMutation({
     mutationFn: (productSlug: string) =>
       api.createPaymentOrder({
         productSlug,
         termsAccepted: accepted,
+        termsVersion: productsQuery.data?.terms_version ?? "",
         idempotencyKey: crypto.randomUUID(),
       }),
     onSuccess: (order) => {
@@ -48,9 +71,12 @@ export function PlansPage() {
         setNotice(tx("plans.invoiceFailed"));
         return;
       }
+      setActiveOrderId(order.id);
       const webApp = getTelegramWebApp();
       if (webApp?.openInvoice) {
         webApp.openInvoice(order.invoice_url, (status) => {
+          setActiveOrderId(order.id);
+          void queryClient.invalidateQueries({ queryKey: ["payment-history"] });
           if (status === "paid") {
             void queryClient.invalidateQueries({ queryKey: ["payment-history"] });
             void queryClient.invalidateQueries({ queryKey: ["me"] });
@@ -62,6 +88,22 @@ export function PlansPage() {
     },
     onError: () => setNotice(tx("plans.invoiceFailed")),
     onSettled: () => setPendingProductSlug(null),
+  });
+  const reopenMutation = useMutation({
+    mutationFn: (orderId: string) => api.reopenPaymentOrder(orderId),
+    onSuccess: (order) => {
+      if (!order.invoice_url) return;
+      setActiveOrderId(order.id);
+      const webApp = getTelegramWebApp();
+      if (webApp?.openInvoice) {
+        webApp.openInvoice(order.invoice_url, () => {
+          void queryClient.invalidateQueries({ queryKey: ["payment-history"] });
+        });
+      } else {
+        window.open(order.invoice_url, "_blank", "noopener,noreferrer");
+      }
+    },
+    onError: () => setNotice(tx("plans.invoiceFailed")),
   });
 
   if (productsQuery.isLoading) return <SkeletonBlock rows={6} />;
@@ -177,10 +219,18 @@ export function PlansPage() {
           {tx("plans.openTerms")}
           <span aria-hidden="true">↗</span>
         </a>
+        <a className="payment-terms-link" href={data.refund_policy_url} target="_blank" rel="noreferrer">
+          {tx("plans.refundPolicy")} <span aria-hidden="true">↗</span>
+        </a>
         <p className="payment-terms-hint" id="payment-terms-hint">
           {accepted ? tx("plans.termsAccepted") : tx("plans.termsRequired")}
         </p>
       </section>
+
+      <p className="payment-confirmation-note" role="note">
+        <span aria-hidden="true">✓</span> {tx("plans.confirmation")}
+        {activeOrderId ? <strong>{tx("plans.checking")}</strong> : null}
+      </p>
 
       {notice ? (
         <div className="payment-error" role="alert">
@@ -222,6 +272,7 @@ export function PlansPage() {
                   <div className="payment-history-product">
                     <strong>{order.product_name}</strong>
                     <span>{order.credits} {tx("plans.credits")}</span>
+                    <small>{tx("plans.reference")}: {order.support_reference}</small>
                   </div>
                   <div className="payment-history-payment">
                     <strong><span aria-hidden="true">★</span> {order.total_amount}</strong>
@@ -229,6 +280,16 @@ export function PlansPage() {
                       <span aria-hidden="true" />
                       {status.label}
                     </span>
+                    {order.status === "pending" ? (
+                      <button
+                        className="payment-history-retry"
+                        type="button"
+                        disabled={reopenMutation.isPending}
+                        onClick={() => reopenMutation.mutate(order.id)}
+                      >
+                        {tx("plans.resume")}
+                      </button>
+                    ) : null}
                   </div>
                 </li>
               );
@@ -244,6 +305,10 @@ export function PlansPage() {
           </div>
         )}
       </section>
+      <nav className="payment-help-links" aria-label={tx("plans.support")}>
+        <a href={data.support_url} target="_blank" rel="noreferrer">{tx("plans.support")}</a>
+        <a href={data.refund_policy_url} target="_blank" rel="noreferrer">{tx("plans.refundPolicy")}</a>
+      </nav>
     </section>
   );
 }

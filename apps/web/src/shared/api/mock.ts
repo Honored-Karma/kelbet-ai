@@ -469,16 +469,16 @@ const models: CatalogModel[] = [
     capabilities: {
       aspect_ratios: ["16:9", "9:16"],
       resolutions: ["720p"],
-      durations_sec: [4, 8],
+      durations_sec: [4, 6, 8],
       max_prompt_chars: 1000,
       supports_seed: false,
       max_outputs: 1,
       ui: {
         operation: "video",
-        studio_tier: "fallback",
+        studio_tier: "alternative",
         smart_candidate: false,
         simple_default: false,
-        hidden_in_production: true,
+        hidden_in_production: false,
         eta_seconds: 360,
       },
     },
@@ -490,12 +490,13 @@ const models: CatalogModel[] = [
       max_input_assets: 1,
     },
     localization: {
-      name: "KELBET Motion Reserve",
-      description: "Резервный маршрут для восстановления сервиса",
+      name: "Google Veo 3.1 Lite",
+      description: "Спокойные короткие сцены через Google Veo",
     },
     pricing_rules: {
       duration_multipliers: {
         "4": { num: 1, den: 1 },
+        "6": { num: 3, den: 2 },
         "8": { num: 2, den: 1 },
       },
     },
@@ -883,6 +884,10 @@ export const mockApi = {
     return {
       payments_enabled: true,
       terms_url: "https://kelbet.ai/terms",
+      terms_version: "2026-08-02-v1",
+      refund_policy_url: "https://kelbet.ai/refunds",
+      support_url: "https://t.me/kelbet_support",
+      confirmation_note: "Credits arrive after Telegram confirms payment.",
       items: [
         {
           slug: "starter",
@@ -912,6 +917,7 @@ export const mockApi = {
   async createPaymentOrder(input: {
     productSlug: string;
     termsAccepted: boolean;
+    termsVersion: string;
     idempotencyKey: string;
   }): Promise<PaymentOrder> {
     if (!input.termsAccepted) {
@@ -937,10 +943,25 @@ export const mockApi = {
       expires_at: new Date(Date.now() + 30 * 60_000).toISOString(),
       created_at: nowIso(),
       paid_at: null,
+      refunded_at: null,
+      refund_policy_url: products.refund_policy_url,
+      support_url: products.support_url,
+      support_reference: `KLB-${id.replaceAll("-", "").slice(0, 12).toUpperCase()}`,
     };
     paymentOrders.unshift(order);
     paymentOrderRequests.set(input.idempotencyKey, order);
     return order;
+  },
+
+  async reopenPaymentOrder(orderId: string): Promise<PaymentOrder> {
+    const order = paymentOrders.find((item) => item.id === orderId);
+    if (!order || order.status !== "pending") {
+      throw new ApiError("payment_validation_error", "Order cannot be reopened", 422);
+    }
+    return {
+      ...order,
+      invoice_url: `https://t.me/$kelbet_${order.id.replaceAll("-", "")}`,
+    };
   },
 
   async paymentHistory(): Promise<PaymentOrder[]> {

@@ -91,6 +91,8 @@ class Msg:
     PAYMENT_CHOOSE = "payment.choose"
     PAYMENT_PRODUCT_BUTTON = "payment.product_button"
     PAYMENT_TERMS_OPEN = "payment.terms_open"
+    PAYMENT_TERMS_ACCEPT = "payment.terms_accept"
+    PAYMENT_TERMS_ACCEPTED = "payment.terms_accepted"
     PAYMENT_TERMS_TEXT = "payment.terms_text"
     PAYMENT_CREDITS_LABEL = "payment.credits_label"
     PAYMENT_CHECKOUT_REJECTED = "payment.checkout_rejected"

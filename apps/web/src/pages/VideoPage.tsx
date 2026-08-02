@@ -202,6 +202,12 @@ function studioTier(model: CatalogModel): string {
   return typeof value === "string" ? value : "";
 }
 
+function providerFamily(model: CatalogModel): "runway" | "google" | "other" {
+  if (model.provider === "runway") return "runway";
+  if (model.provider === "google") return "google";
+  return "other";
+}
+
 function compatibleParams(
   model: CatalogModel,
   current: Record<string, unknown>,
@@ -248,6 +254,7 @@ export function VideoPage() {
   const photoRef = useRef<SourcePhoto | null>(null);
   const submissionRef = useRef<SubmissionAttempt | null>(null);
   const hydratedRef = useRef(false);
+  const selectedModelRef = useRef<string | null>(null);
 
   const sourceGenerationId = searchParams.get("from")?.trim() ?? "";
   const sourceAssetId = searchParams.get("asset")?.trim() ?? "";
@@ -274,6 +281,7 @@ export function VideoPage() {
   const [clock, setClock] = useState(Date.now());
   const [rightsConsent, setRightsConsent] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [durationAdjusted, setDurationAdjusted] = useState(false);
 
   useEffect(() => {
     photoRef.current = photo;
@@ -330,7 +338,6 @@ export function VideoPage() {
             model.enabled &&
             !model.deprecated &&
             uiValue(model, "operation") === "video" &&
-            studioTier(model) !== "fallback" &&
             (getApiMode() === "mock" || !uiValue(model, "hidden_in_production")),
         )
         .sort((a, b) => a.display_order - b.display_order),
@@ -387,7 +394,18 @@ export function VideoPage() {
 
   useEffect(() => {
     if (!selected) return;
-    setParams((current) => compatibleParams(selected, current));
+    setParams((current) => {
+      const next = compatibleParams(selected, current);
+      if (
+        selectedModelRef.current &&
+        selectedModelRef.current !== selected.slug &&
+        current.duration_sec !== next.duration_sec
+      ) {
+        setDurationAdjusted(true);
+      }
+      return next;
+    });
+    selectedModelRef.current = selected.slug;
   }, [selected]);
 
   useEffect(() => {
@@ -464,6 +482,13 @@ export function VideoPage() {
   const durations = numberOptions(selected?.capabilities.durations_sec);
   const resolutions = stringOptions(selected?.capabilities.resolutions);
   const etaSeconds = selected ? numericCapability(uiValue(selected, "eta_seconds"), 0) : 0;
+  const extendedWorkflow = recordValue(selected?.capabilities.workflow).type === "veo_extend";
+  const providerLabel =
+    selected?.provider === "google"
+      ? tx("video.providerGoogle")
+      : selected?.provider === "runway"
+        ? tx("video.providerRunway")
+        : tx("video.providerStudio");
 
   const quoteEnabled = Boolean(selected) && templateValid && !templatesQuery.isLoading;
   const quoteQuery = useQuery({
@@ -1040,15 +1065,32 @@ export function VideoPage() {
                     className={params.duration_sec === duration ? "selected" : ""}
                     aria-pressed={params.duration_sec === duration}
                     onClick={() =>
-                      setParams((current) => ({ ...current, duration_sec: duration }))
+                      {
+                        setDurationAdjusted(false);
+                        setParams((current) => ({ ...current, duration_sec: duration }));
+                      }
                     }
                   >
                     <span>{String(duration).padStart(2, "0")}</span>
-                    {tx("video.seconds")}
+                    {duration === 29 && extendedWorkflow
+                      ? tx("video.approxThirty")
+                      : tx("video.seconds")}
                   </button>
                 ))}
               </div>
             </fieldset>
+            {durationAdjusted ? (
+              <p className="video-compatibility-note" aria-live="polite">
+                <span aria-hidden />
+                {tx("video.durationAdjusted")}
+              </p>
+            ) : null}
+            {extendedWorkflow ? (
+              <p className="video-continuity-note">
+                <span aria-hidden>LONG</span>
+                {tx("video.extendedContinuity")}
+              </p>
+            ) : null}
           </section>
 
           <details
@@ -1063,37 +1105,101 @@ export function VideoPage() {
               <span className="pro-toggle-light" aria-hidden />
               <span>
                 <strong>{tx("video.advanced")}</strong>
-                <small>{tx("video.advancedHelp")}</small>
+                <small>
+                  {selected
+                    ? `${selected.localization.name} · ${providerLabel}`
+                    : tx("video.advancedHelp")}
+                </small>
               </span>
-              <span>{advanced ? "ON" : "OFF"}</span>
+              <span>{advanced ? tx("video.settingsOpen") : tx("video.settingsEdit")}</span>
             </summary>
             <div className="video-advanced-body">
+              {selected ? (
+                <article className="video-selected-model">
+                  <div>
+                    <span className={`video-provider-badge is-${providerFamily(selected)}`}>
+                      {providerLabel}
+                    </span>
+                    {extendedWorkflow ? <span className="video-long-badge">LONG</span> : null}
+                    <strong>{selected.localization.name}</strong>
+                    <p>{selected.localization.description}</p>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>{tx("video.modelEta")}</dt>
+                      <dd>{etaSeconds ? `~${Math.ceil(etaSeconds / 60)} ${tx("video.minutes")}` : "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>{tx("video.resolution")}</dt>
+                      <dd>{String(params.resolution ?? resolutions[0] ?? "720p")}</dd>
+                    </div>
+                  </dl>
+                </article>
+              ) : null}
               <fieldset>
                 <legend>{tx("video.model")}</legend>
                 <div className="video-model-list">
-                  {videoModels.map((model) => (
-                    <button
-                      key={model.slug}
-                      type="button"
-                      className={selected?.slug === model.slug ? "selected" : ""}
-                      onClick={() => {
-                        setExplicitSlug(model.slug);
-                        setParams((current) => compatibleParams(model, current));
-                      }}
-                    >
-                      <span>
-                        <strong>{model.localization.name}</strong>
-                        <small>{model.slug}</small>
-                      </span>
-                      <b>{studioTier(model)}</b>
-                    </button>
-                  ))}
+                  {(["runway", "google", "other"] as const).map((family) => {
+                    const familyModels = videoModels.filter(
+                      (model) => providerFamily(model) === family,
+                    );
+                    if (!familyModels.length) return null;
+                    const label =
+                      family === "google"
+                        ? tx("video.providerGoogle")
+                        : family === "runway"
+                          ? tx("video.providerRunway")
+                          : tx("video.providerStudio");
+                    return (
+                      <section className="video-model-family" key={family}>
+                        <h3>{label}</h3>
+                        {familyModels.map((model) => (
+                          <button
+                            key={model.slug}
+                            type="button"
+                            className={selected?.slug === model.slug ? "selected" : ""}
+                            onClick={() => {
+                              setExplicitSlug(model.slug);
+                              setParams((current) => compatibleParams(model, current));
+                            }}
+                          >
+                            <span>
+                              <strong>
+                                {model.localization.name}
+                                {recordValue(model.capabilities.workflow).type === "veo_extend" ? (
+                                  <em className="video-model-long">LONG</em>
+                                ) : null}
+                              </strong>
+                              <small>{model.localization.description}</small>
+                            </span>
+                            <b>{numericCapability(uiValue(model, "eta_seconds"), 0) ? `~${Math.ceil(numericCapability(uiValue(model, "eta_seconds"), 0) / 60)} ${tx("video.minutes")}` : ""}</b>
+                          </button>
+                        ))}
+                      </section>
+                    );
+                  })}
                 </div>
               </fieldset>
-              <div className="video-contract-line">
-                <span>{tx("video.resolution")}</span>
-                <strong>{resolutions[0] ?? "720p"}</strong>
-              </div>
+              {resolutions.length > 1 ? (
+                <fieldset className="video-resolution-field">
+                  <legend>{tx("video.resolution")}</legend>
+                  <div className="video-option-row is-inline">
+                    {resolutions.map((resolution) => (
+                      <button
+                        key={resolution}
+                        type="button"
+                        className={params.resolution === resolution ? "selected" : ""}
+                        aria-pressed={params.resolution === resolution}
+                        onClick={() =>
+                          setParams((current) => ({ ...current, resolution }))
+                        }
+                      >
+                        {resolution}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
               {selected?.capabilities.supports_seed ? (
                 <label className="video-seed-field">
                   <span>{tx("video.seed")}</span>

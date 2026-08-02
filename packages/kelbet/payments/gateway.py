@@ -15,7 +15,7 @@ from aiogram.exceptions import (
     TelegramServerError,
     TelegramUnauthorizedError,
 )
-from aiogram.types import LabeledPrice
+from aiogram.types import LabeledPrice, TransactionPartnerUser
 
 from kelbet.domain.exceptions import PaymentUnavailableError
 from kelbet.services.payment import PaymentOrderDTO
@@ -33,6 +33,8 @@ class StarTransactionRecord:
     direction: Literal["incoming", "outgoing"]
     partner_type: str
     transaction_type: str | None
+    telegram_user_id: int | None = None
+    invoice_payload: str | None = None
 
 
 class StarsGatewayError(RuntimeError):
@@ -105,6 +107,16 @@ class AiogramStarsGateway:
                     transaction_type=(
                         str(value)[:64]
                         if (value := getattr(partner, "transaction_type", None)) is not None
+                        else None
+                    ),
+                    telegram_user_id=(
+                        int(partner.user.id)
+                        if isinstance(partner, TransactionPartnerUser)
+                        else None
+                    ),
+                    invoice_payload=(
+                        str(value)[:128]
+                        if (value := getattr(partner, "invoice_payload", None))
                         else None
                     ),
                 )

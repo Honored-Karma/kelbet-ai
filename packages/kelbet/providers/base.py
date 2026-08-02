@@ -16,6 +16,9 @@ class GenerationRequest:
     params: dict[str, Any] = field(default_factory=dict)
     input_object_keys: list[str] = field(default_factory=list)
     input_urls: list[str] = field(default_factory=list)
+    # Complete MP4 returned by a previous Veo operation. Providers must treat
+    # this as mutually exclusive with image inputs.
+    extension_video: GenerationOutput | None = None
 
 
 @dataclass(frozen=True, slots=True)

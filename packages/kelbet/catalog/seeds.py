@@ -19,6 +19,7 @@ RUNWAY_UPSCALE_ID = UUID("11111111-1111-1111-1111-111111111110")
 RUNWAY_FAST_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111111")
 RUNWAY_QUALITY_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111112")
 GOOGLE_FALLBACK_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111113")
+GOOGLE_EXTENDED_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111116")
 OPENAI_IMAGE_FAST_ID = UUID("11111111-1111-1111-1111-111111111114")
 OPENAI_IMAGE_QUALITY_ID = UUID("11111111-1111-1111-1111-111111111115")
 LEGACY_DISABLED_ID = UUID("11111111-1111-1111-1111-111111111199")
@@ -28,6 +29,7 @@ def feature_flag_rows() -> list[dict[str, Any]]:
     return [
         {"key": "runway_media", "enabled": True, "payload": {}},
         {"key": "google_video", "enabled": True, "payload": {}},
+        {"key": "veo_extended", "enabled": False, "payload": {}},
         {"key": "google_image", "enabled": False, "payload": {}},
         {"key": "image_fallback", "enabled": False, "payload": {}},
         {"key": "openai_image", "enabled": False, "payload": {}},
@@ -593,7 +595,7 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                 "resolutions": ["720p"],
                 "durations_sec": [4, 8],
                 "max_prompt_chars": 1000,
-                "supports_seed": True,
+                "supports_seed": False,
                 "max_outputs": 1,
                 "ui": {
                     "operation": "video",
@@ -652,16 +654,16 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "capabilities": {
                 "aspect_ratios": ["16:9", "9:16"],
                 "resolutions": ["720p"],
-                "durations_sec": [4, 8],
+                "durations_sec": [4, 6, 8],
                 "max_prompt_chars": 1000,
                 "supports_seed": False,
                 "max_outputs": 1,
                 "ui": {
                     "operation": "video",
-                    "studio_tier": "fallback",
+                    "studio_tier": "alternative",
                     "smart_candidate": False,
                     "simple_default": False,
-                    "hidden_in_production": True,
+                    "hidden_in_production": False,
                     "eta_seconds": 360,
                     "provider_cost_ceiling_units_per_second": 500,
                 },
@@ -676,17 +678,85 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "localization": {
                 "ru": {
                     "name": "Google Veo 3.1 Lite",
-                    "description": "Резервный независимый видеомаршрут",
+                    "description": "Спокойные короткие сцены через Google Veo",
                 },
                 "kk": {
                     "name": "Google Veo 3.1 Lite",
-                    "description": "Тәуелсіз резервтік бейне бағыты",
+                    "description": "Google Veo арқылы қысқа әрі тыныш көріністер",
                 },
             },
             "pricing_rules": {
                 "duration_multipliers": {
                     "4": {"num": 1, "den": 1},
+                    "6": {"num": 3, "den": 2},
                     "8": {"num": 2, "den": 1},
+                }
+            },
+        },
+        {
+            "id": GOOGLE_EXTENDED_VIDEO_ID,
+            "slug": "google-veo31-fast-extended-video",
+            "modality": "video",
+            "provider": "google",
+            "provider_model_id": "veo-3.1-fast-generate-preview",
+            "display_order": 54,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "veo_extended",
+            "user_credit_price": 100,
+            "provider_cost_units": 8000,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16"],
+                "resolutions": ["720p"],
+                "durations_sec": [8, 15, 22, 29],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "workflow": {
+                    "type": "veo_extend",
+                    "initial_duration_sec": 8,
+                    "extension_duration_sec": 7,
+                    "cumulative_durations_sec": [8, 15, 22, 29],
+                    "final_output_only": True,
+                    "fallback": False,
+                },
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "premium",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 960,
+                    "badge": "LONG",
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png", "image/webp"],
+                "max_input_bytes": 10485760,
+                "max_input_assets": 1,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Veo 3.1 Fast Extended",
+                    "description": (
+                        "Непрерывная сцена до ≈30 секунд с последовательным продолжением"
+                    ),
+                },
+                "kk": {
+                    "name": "Veo 3.1 Fast Extended",
+                    "description": "Кезең-кезеңімен жалғасатын ≈30 секундқа дейінгі тұтас көрініс",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "8": {"num": 1, "den": 1},
+                    "15": {"num": 2, "den": 1},
+                    "22": {"num": 3, "den": 1},
+                    "29": {"num": 4, "den": 1},
                 }
             },
         },

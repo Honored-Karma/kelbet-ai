@@ -45,6 +45,8 @@ class ObjectStorage(Protocol):
 
     async def get_object_prefix(self, *, object_key: str, nbytes: int) -> bytes: ...
 
+    async def get_object(self, *, object_key: str) -> bytes: ...
+
     async def create_presigned_get(
         self,
         *,

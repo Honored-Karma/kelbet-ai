@@ -111,9 +111,39 @@ class GoogleVeoProvider:
                 error_code="invalid_input_count",
                 error_message_safe="Google Veo accepts one starting image",
             )
+        if request.extension_video is not None and request.input_urls:
+            return GenerationProviderResult(
+                status="failed",
+                error_code="invalid_input_combination",
+                error_message_safe="A starting image and extension video cannot be used together",
+            )
+        if request.extension_video is not None:
+            if request.provider_model_id == "veo-3.1-lite-generate-preview":
+                return GenerationProviderResult(
+                    status="failed",
+                    error_code="unsupported_video_extension",
+                    error_message_safe="This Veo model does not support video extension",
+                )
+            if (
+                request.extension_video.content_type != "video/mp4"
+                or not request.extension_video.data
+                or b"ftyp" not in request.extension_video.data[:32]
+            ):
+                return GenerationProviderResult(
+                    status="failed",
+                    error_code="invalid_extension_video",
+                    error_message_safe="The extension input must be a valid MP4 video",
+                )
 
         duration = int(request.params.get("duration_sec") or 4)
         instance: dict[str, Any] = {"prompt": request.prompt}
+        if request.extension_video is not None:
+            instance["video"] = {
+                "inlineData": {
+                    "mimeType": "video/mp4",
+                    "data": base64.b64encode(request.extension_video.data).decode("ascii"),
+                }
+            }
         if request.input_urls:
             try:
                 content_type, image_bytes = await self._load_input_image(request.input_urls[0])
@@ -137,6 +167,10 @@ class GoogleVeoProvider:
             "resolution": str(request.params.get("resolution") or "720p"),
             "numberOfVideos": 1,
         }
+        if request.extension_video is not None:
+            duration = 8
+            parameters["durationSeconds"] = 8
+            parameters["resolution"] = "720p"
         if "seed" in request.params:
             parameters["seed"] = int(request.params["seed"])
 

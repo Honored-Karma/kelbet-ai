@@ -9,7 +9,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from kelbet.providers.base import GenerationRequest
+from kelbet.providers.base import GenerationOutput, GenerationRequest
 from kelbet.providers.google_veo import GoogleVeoProvider
 
 _PNG_1X1 = (
@@ -124,6 +124,107 @@ async def test_google_veo_image_to_video_uses_inline_data() -> None:
         )
     assert result.status == "accepted"
     assert result.provider_cost_units == 4000
+
+
+@pytest.mark.asyncio
+async def test_google_veo_forwards_catalog_backed_six_second_duration() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["parameters"]["durationSeconds"] == 6
+        return httpx.Response(200, json={"name": "operations/six-second-001"})
+
+    provider, client = _provider(handler)
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-lite-generate-preview",
+                modality="video",
+                prompt="A quiet product shot turns towards the camera",
+                params={"duration_sec": 6},
+            )
+        )
+    assert result.status == "accepted"
+    assert result.provider_cost_units == 3000
+
+
+@pytest.mark.asyncio
+async def test_google_veo_extension_uses_official_inline_mp4_contract() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body == {
+            "instances": [
+                {
+                    "prompt": "Continue the camera move into the sunlit room",
+                    "video": {
+                        "inlineData": {
+                            "mimeType": "video/mp4",
+                            "data": base64.b64encode(_MP4).decode("ascii"),
+                        }
+                    },
+                }
+            ],
+            "parameters": {
+                "aspectRatio": "9:16",
+                "durationSeconds": 8,
+                "resolution": "720p",
+                "numberOfVideos": 1,
+            },
+        }
+        assert request.url.path.endswith(
+            "/models/veo-3.1-fast-generate-preview:predictLongRunning"
+        )
+        return httpx.Response(200, json={"name": "operations/extend-001"})
+
+    provider, client = _provider(handler)
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-fast-generate-preview",
+                modality="video",
+                prompt="Continue the camera move into the sunlit room",
+                params={"aspect_ratio": "9:16", "duration_sec": 29, "resolution": "1080p"},
+                extension_video=GenerationOutput(content_type="video/mp4", data=_MP4),
+            )
+        )
+    assert result.status == "accepted"
+    assert result.provider_cost_units == 8000
+
+
+@pytest.mark.asyncio
+async def test_google_veo_extension_rejects_image_and_video_together() -> None:
+    provider, client = _provider(lambda _request: httpx.Response(500))
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-fast-generate-preview",
+                modality="video",
+                prompt="Continue",
+                input_urls=["data:image/png;base64,unused"],
+                extension_video=GenerationOutput(content_type="video/mp4", data=_MP4),
+            )
+        )
+    assert result.status == "failed"
+    assert result.error_code == "invalid_input_combination"
+
+
+@pytest.mark.asyncio
+async def test_google_veo_lite_cannot_extend_video() -> None:
+    provider, client = _provider(lambda _request: httpx.Response(500))
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-lite-generate-preview",
+                modality="video",
+                prompt="Continue",
+                extension_video=GenerationOutput(content_type="video/mp4", data=_MP4),
+            )
+        )
+    assert result.status == "failed"
+    assert result.error_code == "unsupported_video_extension"
 
 
 @pytest.mark.asyncio

@@ -95,6 +95,16 @@ class S3ObjectStorage:
         except ClientError as exc:
             raise StorageError(f"get_object failed for {object_key}") from exc
 
+    async def get_object(self, *, object_key: str) -> bytes:
+        def _get() -> bytes:
+            response = self._client.get_object(Bucket=self._bucket, Key=object_key)
+            return bytes(response["Body"].read())
+
+        try:
+            return await asyncio.to_thread(_get)
+        except ClientError as exc:
+            raise StorageError(f"get_object failed for {object_key}") from exc
+
     async def create_presigned_get(
         self,
         *,

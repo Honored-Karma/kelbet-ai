@@ -130,6 +130,10 @@ async def test_catalog_lists_enabled_localized_models(api_client: AsyncClient) -
     assert video["capabilities"]["durations_sec"] == [4, 8]
     assert video["capabilities"]["fallback"]["provider"] == "google"
     assert video["input_requirements"]["source_image"] == "optional"
+    veo = next(item for item in items if item["slug"] == "google-veo31-lite-video-fallback")
+    assert veo["localization"]["name"] == "Google Veo 3.1 Lite"
+    assert veo["capabilities"]["durations_sec"] == [4, 6, 8]
+    assert veo["capabilities"]["ui"]["hidden_in_production"] is False
 
 
 @pytest.mark.asyncio
@@ -231,6 +235,31 @@ async def test_quote_uses_db_price_and_multipliers(
     )
     assert video.status_code == 200, video.text
     assert video.json()["user_credit_price"] == 200
+
+    veo = await api_client.post(
+        "/api/v1/wallet/quote",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "model_slug": "google-veo31-lite-video-fallback",
+            "params": {
+                "resolution": "720p",
+                "aspect_ratio": "9:16",
+                "duration_sec": 6,
+            },
+        },
+    )
+    assert veo.status_code == 200, veo.text
+    assert veo.json()["user_credit_price"] == 75
+
+    unsupported_video_seed = await api_client.post(
+        "/api/v1/wallet/quote",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "model_slug": "runway-gen45-video-quality",
+            "params": {"seed": 42},
+        },
+    )
+    assert unsupported_video_seed.status_code == 422
 
 
 @pytest.mark.asyncio

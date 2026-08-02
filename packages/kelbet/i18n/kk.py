@@ -141,6 +141,8 @@ TEXTS: dict[str, str] = {
     ),
     Msg.PAYMENT_PRODUCT_BUTTON: "{name} · {credits} 💎 · {stars} ⭐",
     Msg.PAYMENT_TERMS_OPEN: "📄 Сатып алу шарттары",
+    Msg.PAYMENT_TERMS_ACCEPT: "✓ Қолданыстағы шарттарды қабылдаймын",
+    Msg.PAYMENT_TERMS_ACCEPTED: "Шарттар қабылданды. Кредит пакетін таңдаңыз:",
     Msg.PAYMENT_TERMS_TEXT: "📄 Сатып алу және қайтару шарттары: {url}",
     Msg.PAYMENT_CREDITS_LABEL: "{credits} KELBET кредиті",
     Msg.PAYMENT_CHECKOUT_REJECTED: (

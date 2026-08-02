@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kelbet.catalog.pricing import compute_user_credit_price
 from kelbet.config import Settings, get_settings
 from kelbet.db.models.asset import GenerationAsset
-from kelbet.db.models.generation import GenerationAttempt, GenerationJob
+from kelbet.db.models.generation import GenerationAttempt, GenerationJob, GenerationWorkflowStep
 from kelbet.domain.enums import (
     AssetRole,
     AssetStatus,
@@ -23,7 +23,12 @@ from kelbet.domain.enums import (
 )
 from kelbet.domain.exceptions import GenerationNotFoundError
 from kelbet.observability import classify_provider_failure, get_metrics
-from kelbet.providers.base import GenerationProvider, GenerationProviderResult, GenerationRequest
+from kelbet.providers.base import (
+    GenerationOutput,
+    GenerationProvider,
+    GenerationProviderResult,
+    GenerationRequest,
+)
 from kelbet.providers.factory import resolve_provider
 from kelbet.repositories.asset import AssetRepository
 from kelbet.repositories.catalog import CatalogRepository
@@ -34,7 +39,12 @@ from kelbet.services.catalog import FeatureFlagService
 from kelbet.services.generation_sm import apply_transition
 from kelbet.services.template_compositor import TemplateCompositor, TemplateCompositorError
 from kelbet.services.wallet import WalletService
-from kelbet.storage import ObjectStorage, build_output_object_key, image_dimensions
+from kelbet.storage import (
+    ObjectStorage,
+    build_output_object_key,
+    build_workflow_step_object_key,
+    image_dimensions,
+)
 from kelbet.storage.memory import MemoryObjectStorage
 from kelbet.storage.s3 import S3ObjectStorage
 
@@ -221,6 +231,9 @@ class GenerationRunner:
         }:
             return await self._cancel_held(job, now=current)
 
+        if self._is_extended_workflow(job):
+            return await self._process_extended(job, now=current)
+
         if status is GenerationStatus.QUEUED:
             apply_transition(
                 job,
@@ -351,6 +364,9 @@ class GenerationRunner:
         if status is not GenerationStatus.RUNNING:
             return status
 
+        if self._is_extended_workflow(job):
+            return await self._poll_extended(job, now=current, result_override=result_override)
+
         if job.cancel_requested_at is not None:
             provider = self._provider_for(job)
             if job.provider_job_id:
@@ -462,6 +478,451 @@ class GenerationRunner:
             return await self._fail(job, attempt, result, now=current)
 
         return await self._finalize_success(job, attempt, result, now=current)
+
+    @staticmethod
+    def _extended_workflow(job: GenerationJob) -> dict[str, object] | None:
+        workflow = (job.routing_snapshot or {}).get("workflow")
+        if isinstance(workflow, dict) and workflow.get("type") == "veo_extend":
+            return workflow
+        return None
+
+    @classmethod
+    def _is_extended_workflow(cls, job: GenerationJob) -> bool:
+        return cls._extended_workflow(job) is not None
+
+    @staticmethod
+    def _extended_durations(job: GenerationJob) -> list[int]:
+        target = int((job.params or {}).get("duration_sec") or 8)
+        allowed = [8, 15, 22, 29]
+        if target not in allowed:
+            return []
+        return [duration for duration in allowed if duration <= target]
+
+    async def _process_extended(
+        self,
+        job: GenerationJob,
+        *,
+        now: datetime,
+    ) -> GenerationStatus:
+        if GenerationStatus(job.status) is GenerationStatus.QUEUED:
+            apply_transition(
+                job,
+                GenerationStatus.SUBMITTING,
+                now=now,
+                progress_pct=5,
+                progress_stage="workflow_preparing",
+            )
+        durations = self._extended_durations(job)
+        if not durations or job.provider_model_id != "veo-3.1-fast-generate-preview":
+            attempt = await self._jobs.add_attempt(
+                generation_id=job.id,
+                attempt_no=job.attempt_count + 1,
+                now=now,
+            )
+            job.attempt_count += 1
+            return await self._fail(
+                job,
+                attempt,
+                GenerationProviderResult(
+                    status="failed",
+                    error_code="invalid_extended_workflow",
+                    error_message_safe="Extended video configuration is invalid",
+                ),
+                now=now,
+                error_class="configuration",
+            )
+        steps = await self._jobs.ensure_workflow_steps(
+            generation_id=job.id,
+            cumulative_durations=durations,
+            now=now,
+        )
+        if job.cancel_requested_at is not None:
+            await self._cleanup_workflow_steps(steps)
+            return await self._cancel_held(job, now=now)
+        pending = next((step for step in steps if step.status != "succeeded"), None)
+        if pending is None:
+            return await self._resume_extended_finalization(job, steps, now=now)
+        return await self._start_extended_step(job, steps, pending, now=now)
+
+    async def _start_extended_step(
+        self,
+        job: GenerationJob,
+        steps: list[GenerationWorkflowStep],
+        step: GenerationWorkflowStep,
+        *,
+        now: datetime,
+    ) -> GenerationStatus:
+        extension_video: GenerationOutput | None = None
+        input_keys: list[str] = []
+        input_urls: list[str] = []
+        if step.step_index == 0:
+            prepared = await self._prepare_input_materials(job, now=now)
+            if prepared is None:
+                attempt = await self._jobs.add_attempt(
+                    generation_id=job.id,
+                    attempt_no=job.attempt_count + 1,
+                    now=now,
+                )
+                job.attempt_count += 1
+                return await self._fail(
+                    job,
+                    attempt,
+                    GenerationProviderResult(
+                        status="failed",
+                        error_code="input_asset_unavailable",
+                        error_message_safe="A reference image is no longer available",
+                    ),
+                    now=now,
+                )
+            input_keys, input_urls = prepared
+        else:
+            previous = steps[step.step_index - 1]
+            if not previous.intermediate_object_key:
+                return await self._fail_extended_step(
+                    job,
+                    step,
+                    GenerationProviderResult(
+                        status="failed",
+                        error_code="workflow_intermediate_missing",
+                        error_message_safe="The previous video step is unavailable",
+                    ),
+                    now=now,
+                )
+            try:
+                previous_bytes = await self._storage.get_object(
+                    object_key=previous.intermediate_object_key
+                )
+            except Exception:
+                logger.exception(
+                    "workflow_intermediate_read_failed",
+                    extra={"generation_id": str(job.id), "step_index": step.step_index},
+                )
+                return await self._fail_extended_step(
+                    job,
+                    step,
+                    GenerationProviderResult(
+                        status="failed",
+                        error_code="workflow_intermediate_missing",
+                        error_message_safe="The previous video step is unavailable",
+                    ),
+                    now=now,
+                )
+            extension_video = GenerationOutput(content_type="video/mp4", data=previous_bytes)
+
+        job.attempt_count += 1
+        attempt = await self._jobs.add_attempt(
+            generation_id=job.id,
+            attempt_no=job.attempt_count,
+            now=now,
+        )
+        step.status = "submitting"
+        step.attempt_count += 1
+        step.started_at = now
+        step.finished_at = None
+        step.error_code = None
+        step.updated_at = now
+        total_steps = len(steps)
+        job.progress_stage = f"veo_extend_{step.step_index + 1}_of_{total_steps}"
+        job.progress_pct = max(10, int(step.step_index / total_steps * 75))
+        result = await self._provider_for(job).generate(
+            GenerationRequest(
+                generation_id=job.id,
+                provider_model_id=job.provider_model_id,
+                modality=job.modality,
+                prompt=job.prompt or "",
+                params={
+                    **dict(job.params or {}),
+                    "duration_sec": 8,
+                    "resolution": "720p",
+                },
+                input_object_keys=input_keys,
+                input_urls=input_urls,
+                extension_video=extension_video,
+            )
+        )
+        attempt.latency_ms = result.latency_ms
+        attempt.provider_job_id = result.provider_job_id
+        attempt.raw_response_meta = {
+            "status": result.status,
+            "provider": job.provider,
+            "provider_model_id": job.provider_model_id,
+            "workflow_step": step.step_index,
+            **_attempt_diagnostics(result.meta),
+        }
+        if result.status == "failed":
+            if (
+                self._is_retryable_provider_failure(result)
+                and step.attempt_count < self._settings.veo_extended_step_max_attempts
+            ):
+                attempt.status = AttemptStatus.FAILED.value
+                attempt.error_code = result.error_code
+                attempt.error_message_safe = result.error_message_safe
+                attempt.finished_at = now
+                step.status = "pending"
+                step.error_code = result.error_code
+                step.updated_at = now
+                return await self._start_extended_step(job, steps, step, now=now)
+            return await self._fail_extended_step(job, step, result, now=now, attempt=attempt)
+        if result.status == "accepted":
+            step.status = "running"
+            step.provider_job_id = result.provider_job_id
+            step.updated_at = now
+            job.provider_job_id = result.provider_job_id
+            if GenerationStatus(job.status) is GenerationStatus.SUBMITTING:
+                apply_transition(job, GenerationStatus.RUNNING, now=now)
+            job.next_poll_at = now + self._poll_interval(job)
+            await self._session.flush()
+            return GenerationStatus.RUNNING
+        return await self._complete_extended_step(job, steps, step, attempt, result, now=now)
+
+    async def _poll_extended(
+        self,
+        job: GenerationJob,
+        *,
+        now: datetime,
+        result_override: GenerationProviderResult | None = None,
+    ) -> GenerationStatus:
+        steps = await self._jobs.list_workflow_steps(job.id, for_update=True)
+        active = next((step for step in steps if step.status == "running"), None)
+        if active is None:
+            pending = next((step for step in steps if step.status != "succeeded"), None)
+            if pending is None:
+                return await self._resume_extended_finalization(job, steps, now=now)
+            return await self._start_extended_step(job, steps, pending, now=now)
+        if job.cancel_requested_at is not None:
+            if active.provider_job_id:
+                await self._provider_for(job).cancel(active.provider_job_id)
+            active.status = "cancelled"
+            active.finished_at = now
+            active.updated_at = now
+            await self._cleanup_workflow_steps(steps)
+            return await self._cancel_held(job, now=now)
+
+        total_started = job.started_at or job.queued_at or job.created_at
+        total_expired = now >= total_started + timedelta(
+            seconds=self._settings.veo_extended_total_timeout_seconds
+        )
+        step_started = active.started_at or total_started
+        step_expired = now >= step_started + timedelta(
+            seconds=self._settings.veo_extended_step_timeout_seconds
+        )
+        if total_expired or step_expired:
+            if active.provider_job_id:
+                await self._provider_for(job).cancel(active.provider_job_id)
+            timeout_result = GenerationProviderResult(
+                status="failed",
+                provider_job_id=active.provider_job_id,
+                error_code="workflow_total_timeout" if total_expired else "workflow_step_timeout",
+                error_message_safe="Extended video generation timed out",
+            )
+            if (
+                not total_expired
+                and active.attempt_count < self._settings.veo_extended_step_max_attempts
+            ):
+                active.status = "pending"
+                active.provider_job_id = None
+                active.error_code = timeout_result.error_code
+                active.updated_at = now
+                return await self._start_extended_step(job, steps, active, now=now)
+            return await self._fail_extended_step(job, active, timeout_result, now=now)
+
+        if result_override is not None:
+            result = result_override
+        elif active.provider_job_id:
+            result = await self._provider_for(job).get_status(active.provider_job_id)
+        else:
+            result = GenerationProviderResult(
+                status="failed",
+                error_code="missing_provider_job_id",
+                error_message_safe="Missing provider job id",
+            )
+        if result.status == "accepted":
+            job.next_poll_at = now + self._poll_interval(job)
+            await self._session.flush()
+            return GenerationStatus.RUNNING
+
+        job.attempt_count += 1
+        attempt = await self._jobs.add_attempt(
+            generation_id=job.id,
+            attempt_no=job.attempt_count,
+            now=now,
+        )
+        attempt.provider_job_id = result.provider_job_id or active.provider_job_id
+        attempt.latency_ms = result.latency_ms
+        attempt.raw_response_meta = {
+            "status": result.status,
+            "provider": job.provider,
+            "provider_model_id": job.provider_model_id,
+            "workflow_step": active.step_index,
+            **_attempt_diagnostics(result.meta),
+        }
+        if result.status == "failed":
+            if (
+                self._is_retryable_provider_failure(result)
+                and active.attempt_count < self._settings.veo_extended_step_max_attempts
+            ):
+                attempt.status = AttemptStatus.FAILED.value
+                attempt.error_code = result.error_code
+                attempt.error_message_safe = result.error_message_safe
+                attempt.finished_at = now
+                active.status = "pending"
+                active.provider_job_id = None
+                active.error_code = result.error_code
+                active.updated_at = now
+                return await self._start_extended_step(job, steps, active, now=now)
+            return await self._fail_extended_step(
+                job, active, result, now=now, attempt=attempt
+            )
+        return await self._complete_extended_step(
+            job, steps, active, attempt, result, now=now
+        )
+
+    async def _resume_extended_finalization(
+        self,
+        job: GenerationJob,
+        steps: list[GenerationWorkflowStep],
+        *,
+        now: datetime,
+    ) -> GenerationStatus:
+        final_step = steps[-1]
+        if not final_step.intermediate_object_key:
+            return await self._fail_extended_step(
+                job,
+                final_step,
+                GenerationProviderResult(
+                    status="failed",
+                    error_code="workflow_intermediate_missing",
+                    error_message_safe="The final video step is unavailable",
+                ),
+                now=now,
+            )
+        try:
+            data = await self._storage.get_object(
+                object_key=final_step.intermediate_object_key
+            )
+        except Exception:
+            logger.exception(
+                "workflow_finalization_resume_failed",
+                extra={"generation_id": str(job.id)},
+            )
+            return await self._fail_extended_step(
+                job,
+                final_step,
+                GenerationProviderResult(
+                    status="failed",
+                    error_code="workflow_intermediate_missing",
+                    error_message_safe="The final video step is unavailable",
+                ),
+                now=now,
+            )
+        job.attempt_count += 1
+        attempt = await self._jobs.add_attempt(
+            generation_id=job.id,
+            attempt_no=job.attempt_count,
+            now=now,
+        )
+        result = GenerationProviderResult(
+            status="succeeded",
+            provider_job_id=final_step.provider_job_id,
+            outputs=[GenerationOutput(content_type="video/mp4", data=data)],
+            meta={"workflow_recovered": True},
+        )
+        status = await self._finalize_success(job, attempt, result, now=now)
+        await self._cleanup_workflow_steps(steps)
+        return status
+
+    async def _complete_extended_step(
+        self,
+        job: GenerationJob,
+        steps: list[GenerationWorkflowStep],
+        step: GenerationWorkflowStep,
+        attempt: GenerationAttempt,
+        result: GenerationProviderResult,
+        *,
+        now: datetime,
+    ) -> GenerationStatus:
+        if len(result.outputs) != 1 or result.outputs[0].content_type != "video/mp4":
+            return await self._fail_extended_step(
+                job,
+                step,
+                replace(
+                    result,
+                    status="failed",
+                    outputs=[],
+                    error_code="workflow_invalid_output",
+                    error_message_safe="Extended workflow returned an invalid video",
+                ),
+                now=now,
+                attempt=attempt,
+            )
+        object_key = build_workflow_step_object_key(
+            user_id=job.user_id,
+            generation_id=job.id,
+            step_index=step.step_index,
+        )
+        await self._store_output_bytes(
+            object_key=object_key,
+            data=result.outputs[0].data,
+            content_type="video/mp4",
+        )
+        step.status = "succeeded"
+        step.provider_job_id = result.provider_job_id or step.provider_job_id
+        step.intermediate_object_key = object_key
+        step.finished_at = now
+        step.updated_at = now
+        attempt.status = AttemptStatus.SUCCEEDED.value
+        attempt.finished_at = now
+        completed = step.step_index + 1
+        total = len(steps)
+        job.progress_pct = min(79, 10 + int(completed / total * 69))
+        job.progress_stage = f"veo_extend_{completed}_of_{total}"
+        if completed < total:
+            job.provider_job_id = None
+            return await self._start_extended_step(job, steps, steps[completed], now=now)
+
+        final_status = await self._finalize_success(job, attempt, result, now=now)
+        await self._cleanup_workflow_steps(steps)
+        return final_status
+
+    async def _fail_extended_step(
+        self,
+        job: GenerationJob,
+        step: GenerationWorkflowStep,
+        result: GenerationProviderResult,
+        *,
+        now: datetime,
+        attempt: GenerationAttempt | None = None,
+    ) -> GenerationStatus:
+        if attempt is None:
+            job.attempt_count += 1
+            attempt = await self._jobs.add_attempt(
+                generation_id=job.id,
+                attempt_no=job.attempt_count,
+                now=now,
+            )
+        step.status = "failed"
+        step.error_code = result.error_code
+        step.finished_at = now
+        step.updated_at = now
+        steps = await self._jobs.list_workflow_steps(job.id, for_update=True)
+        status = await self._fail(job, attempt, result, now=now)
+        await self._cleanup_workflow_steps(steps)
+        return status
+
+    async def _cleanup_workflow_steps(
+        self, steps: list[GenerationWorkflowStep]
+    ) -> None:
+        for step in steps:
+            if not step.intermediate_object_key:
+                continue
+            try:
+                await self._storage.delete_object(object_key=step.intermediate_object_key)
+            except Exception:
+                logger.warning(
+                    "workflow_intermediate_cleanup_failed generation_id=%s step_index=%s",
+                    step.generation_id,
+                    step.step_index,
+                )
 
     async def poll_due(self, *, now: datetime | None = None, limit: int = 20) -> list[str]:
         current = now or datetime.now(UTC)

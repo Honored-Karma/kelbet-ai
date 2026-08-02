@@ -12,6 +12,7 @@ from kelbet.db.models.credit_transaction import CreditTransaction
 from kelbet.db.models.generation import (
     GenerationAttempt,
     GenerationJob,
+    GenerationWorkflowStep,
     ProviderUsage,
     WebhookReceipt,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "GenerationJob",
     "GenerationTemplate",
     "GenerationAttempt",
+    "GenerationWorkflowStep",
     "ProviderUsage",
     "WebhookReceipt",
     "NotificationOutbox",

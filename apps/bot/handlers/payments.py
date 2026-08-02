@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
+from hashlib import sha256
+from time import monotonic
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import (
@@ -16,19 +21,24 @@ from kelbet.config import Settings
 from kelbet.domain.enums import Language
 from kelbet.domain.exceptions import KelbetError
 from kelbet.i18n import Msg, t
-from kelbet.services.payment import PaymentService
+from kelbet.observability import get_metrics
+from kelbet.services.payment import PaymentService, payment_new_purchase_allowed
 from kelbet.services.profile import ProfileService
 from kelbet.services.registration import RegistrationService
 
 router = Router(name="payments")
 
 
-def _payments_ready(settings: Settings) -> bool:
-    return bool(
-        settings.payments_enabled
-        and settings.payment_terms_url.strip()
-        and settings.support_username.strip().lstrip("@")
-    )
+def _payments_ready(settings: Settings, telegram_id: int) -> bool:
+    return bool(settings.bot_token and payment_new_purchase_allowed(settings, telegram_id))
+
+
+def _terms_token(settings: Settings) -> str:
+    return sha256(settings.payment_terms_version.encode("utf-8")).hexdigest()[:12]
+
+
+def _telegram_language(language_code: str | None) -> Language:
+    return Language.RU if (language_code or "").lower().startswith("ru") else Language.KK
 
 
 async def _language(session: AsyncSession, telegram_id: int) -> Language:
@@ -54,10 +64,48 @@ async def on_buy(
         await message.answer(t(Msg.NEED_REGISTER, Language.KK))
         return
     language = registration.user.language
-    if not _payments_ready(settings):
+    if not _payments_ready(settings, message.from_user.id):
         await message.answer(t(Msg.PAYMENT_UNAVAILABLE, language))
         return
-    products = await PaymentService(session, settings).list_products(language)
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text=t(Msg.PAYMENT_TERMS_OPEN, language),
+                url=settings.payment_terms_url,
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=t(Msg.PAYMENT_TERMS_ACCEPT, language),
+                callback_data=f"pay_terms_accept:{_terms_token(settings)}",
+            )
+        ],
+    ]
+    await message.answer(
+        t(Msg.PAYMENT_CHOOSE, language),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+
+
+@router.callback_query(F.data.startswith("pay_terms_accept:"))
+async def on_terms_accept(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    settings: Settings,
+) -> None:
+    if callback.from_user is None or callback.data is None or callback.message is None:
+        return
+    language = await _language(session, callback.from_user.id)
+    if (
+        not _payments_ready(settings, callback.from_user.id)
+        or callback.data.removeprefix("pay_terms_accept:") != _terms_token(settings)
+    ):
+        await callback.answer(t(Msg.PAYMENT_UNAVAILABLE, language), show_alert=True)
+        return
+    products = await PaymentService(session, settings).list_products(
+        language, telegram_id=callback.from_user.id
+    )
+    token = _terms_token(settings)
     buttons = [
         [
             InlineKeyboardButton(
@@ -68,23 +116,16 @@ async def on_buy(
                     credits=product.credits,
                     stars=product.stars,
                 ),
-                callback_data=f"pay_confirm:{product.slug}",
+                callback_data=f"pay_confirm:{token}:{product.slug}",
             )
         ]
         for product in products
     ]
-    buttons.append(
-        [
-            InlineKeyboardButton(
-                text=t(Msg.PAYMENT_TERMS_OPEN, language),
-                url=settings.payment_terms_url,
-            )
-        ]
-    )
-    await message.answer(
-        t(Msg.PAYMENT_CHOOSE, language),
+    await callback.message.answer(
+        t(Msg.PAYMENT_TERMS_ACCEPTED, language),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
     )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("pay_confirm:"))
@@ -96,10 +137,17 @@ async def on_payment_confirm(
     if callback.from_user is None or callback.data is None or callback.message is None:
         return
     language = await _language(session, callback.from_user.id)
-    if not _payments_ready(settings):
+    if not _payments_ready(settings, callback.from_user.id):
         await callback.answer(t(Msg.PAYMENT_UNAVAILABLE, language), show_alert=True)
         return
-    product_slug = callback.data.removeprefix("pay_confirm:")
+    try:
+        token, product_slug = callback.data.removeprefix("pay_confirm:").split(":", 1)
+    except ValueError:
+        await callback.answer(t(Msg.PAYMENT_UNAVAILABLE, language), show_alert=True)
+        return
+    if token != _terms_token(settings):
+        await callback.answer(t(Msg.PAYMENT_UNAVAILABLE, language), show_alert=True)
+        return
     registration = await RegistrationService(session).handle_start(
         callback.from_user.id,
         callback.from_user.username,
@@ -114,6 +162,7 @@ async def on_payment_confirm(
             idempotency_key=f"bot:{callback.id}",
             terms_accepted=True,
             language=language,
+            accepted_terms_version=settings.payment_terms_version,
         )
     except KelbetError:
         await callback.answer(t(Msg.PAYMENT_UNAVAILABLE, language), show_alert=True)
@@ -140,20 +189,47 @@ async def on_pre_checkout(
     session: AsyncSession,
     settings: Settings,
 ) -> None:
-    language = await _language(session, query.from_user.id)
-    result = await PaymentService(session, settings).validate_pre_checkout(
-        telegram_id=query.from_user.id,
-        query_id=query.id,
-        invoice_payload=query.invoice_payload,
-        currency=query.currency,
-        total_amount=query.total_amount,
-    )
-    if result.ok:
-        await query.answer(ok=True)
-    else:
-        await query.answer(
-            ok=False,
-            error_message=t(Msg.PAYMENT_CHECKOUT_REJECTED, language),
+    started = monotonic()
+    outcome = "error"
+    language = _telegram_language(query.from_user.language_code)
+    try:
+        result = await asyncio.wait_for(
+            PaymentService(session, settings).validate_pre_checkout(
+                telegram_id=query.from_user.id,
+                query_id=query.id,
+                invoice_payload=query.invoice_payload,
+                currency=query.currency,
+                total_amount=query.total_amount,
+            ),
+            timeout=6.5,
+        )
+        if result.ok:
+            await asyncio.wait_for(query.answer(ok=True), timeout=1.25)
+            outcome = "approved"
+        else:
+            await asyncio.wait_for(
+                query.answer(
+                    ok=False,
+                    error_message=t(Msg.PAYMENT_CHECKOUT_REJECTED, language),
+                ),
+                timeout=1.25,
+            )
+            outcome = "rejected"
+    except TimeoutError:
+        outcome = "timeout"
+        with suppress(Exception):
+            await asyncio.wait_for(
+                query.answer(
+                    ok=False,
+                    error_message=t(Msg.PAYMENT_CHECKOUT_REJECTED, language),
+                ),
+                timeout=1.0,
+            )
+    finally:
+        get_metrics().observe(
+            "payment.pre_checkout_duration_seconds",
+            monotonic() - started,
+            tags={"outcome": outcome},
         )
 
 

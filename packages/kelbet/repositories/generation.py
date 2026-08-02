@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kelbet.db.models.generation import (
     GenerationAttempt,
     GenerationJob,
+    GenerationWorkflowStep,
     ProviderUsage,
     WebhookReceipt,
 )
@@ -130,6 +131,53 @@ class GenerationRepository:
         self._session.add(row)
         await self._session.flush()
         return row
+
+    async def ensure_workflow_steps(
+        self,
+        *,
+        generation_id: UUID,
+        cumulative_durations: list[int],
+        now: datetime | None = None,
+    ) -> list[GenerationWorkflowStep]:
+        current = now or datetime.now(UTC)
+        for step_index, cumulative_duration in enumerate(cumulative_durations):
+            statement = (
+                pg_insert(GenerationWorkflowStep)
+                .values(
+                    id=uuid4(),
+                    generation_id=generation_id,
+                    step_index=step_index,
+                    status="pending",
+                    attempt_count=0,
+                    cumulative_duration_sec=cumulative_duration,
+                    created_at=current,
+                    updated_at=current,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        GenerationWorkflowStep.generation_id,
+                        GenerationWorkflowStep.step_index,
+                    ]
+                )
+            )
+            await self._session.execute(statement)
+        return await self.list_workflow_steps(generation_id, for_update=True)
+
+    async def list_workflow_steps(
+        self,
+        generation_id: UUID,
+        *,
+        for_update: bool = False,
+    ) -> list[GenerationWorkflowStep]:
+        statement = (
+            select(GenerationWorkflowStep)
+            .where(GenerationWorkflowStep.generation_id == generation_id)
+            .order_by(GenerationWorkflowStep.step_index.asc())
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        result = await self._session.execute(statement)
+        return list(result.scalars().all())
 
     async def try_insert_webhook_receipt(
         self,

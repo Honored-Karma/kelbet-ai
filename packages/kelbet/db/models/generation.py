@@ -4,7 +4,16 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -122,6 +131,43 @@ class GenerationAttempt(Base, UUIDPrimaryKeyMixin):
     raw_response_meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class GenerationWorkflowStep(Base, UUIDPrimaryKeyMixin):
+    """Durable state for one native provider operation in a multi-step generation."""
+
+    __tablename__ = "generation_workflow_steps"
+    __table_args__ = (
+        UniqueConstraint(
+            "generation_id",
+            "step_index",
+            name="uq_generation_workflow_steps_generation_step",
+        ),
+        CheckConstraint("step_index >= 0", name="generation_workflow_step_index_nonnegative"),
+        CheckConstraint("attempt_count >= 0", name="generation_workflow_attempt_count_nonnegative"),
+        CheckConstraint(
+            "cumulative_duration_sec > 0",
+            name="generation_workflow_duration_positive",
+        ),
+    )
+
+    generation_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("generation_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True)
+    provider_job_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cumulative_duration_sec: Mapped[int] = mapped_column(Integer, nullable=False)
+    intermediate_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ProviderUsage(Base, UUIDPrimaryKeyMixin):

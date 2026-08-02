@@ -20,6 +20,8 @@ def bot_commands(lang: Language) -> list[BotCommand]:
         BotCommand(command="profile", description=t(Msg.CMD_PROFILE, lang)),
         BotCommand(command="settings", description=t(Msg.CMD_SETTINGS, lang)),
         BotCommand(command="support", description=t(Msg.CMD_SUPPORT, lang)),
+        BotCommand(command="paysupport", description=t(Msg.CMD_PAY_SUPPORT, lang)),
+        BotCommand(command="terms", description=t(Msg.CMD_TERMS, lang)),
     ]
 
 

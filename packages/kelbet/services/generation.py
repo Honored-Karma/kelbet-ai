@@ -16,7 +16,7 @@ from kelbet.config import Settings, get_settings
 from kelbet.db.models.asset import GenerationAsset
 from kelbet.db.models.catalog import CatalogModel
 from kelbet.db.models.credit_reservation import CreditReservation
-from kelbet.db.models.generation import GenerationJob
+from kelbet.db.models.generation import GenerationJob, GenerationWorkflowStep
 from kelbet.domain.enums import AssetRole, AssetStatus, GenerationStatus
 from kelbet.domain.exceptions import (
     ActiveGenerationLimitError,
@@ -62,6 +62,7 @@ class GenerationDTO:
     estimated_remaining_seconds: int | None = None
     template_slug: str | None = None
     template_version: int | None = None
+    workflow: dict[str, int] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -668,6 +669,25 @@ class GenerationService:
             )
         )
         output_ids = list(assets.scalars().all())
+        workflow: dict[str, int] | None = None
+        workflow_rows = await self._session.execute(
+            select(GenerationWorkflowStep)
+            .where(GenerationWorkflowStep.generation_id == job.id)
+            .order_by(GenerationWorkflowStep.step_index.asc())
+        )
+        steps = list(workflow_rows.scalars().all())
+        if steps:
+            completed = [step for step in steps if step.status == "succeeded"]
+            current = next((step for step in steps if step.status != "succeeded"), steps[-1])
+            workflow = {
+                "current_step": min(current.step_index + 1, len(steps)),
+                "total_steps": len(steps),
+                "completed_duration_sec": max(
+                    (step.cumulative_duration_sec for step in completed),
+                    default=0,
+                ),
+                "target_duration_sec": steps[-1].cumulative_duration_sec,
+            }
         status = GenerationStatus(job.status)
         cancelable = (
             status
@@ -696,4 +716,5 @@ class GenerationService:
             estimated_remaining_seconds=estimated_remaining_seconds,
             template_slug=job.template_slug,
             template_version=job.template_version,
+            workflow=workflow,
         )

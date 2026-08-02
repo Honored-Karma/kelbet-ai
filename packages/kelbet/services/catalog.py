@@ -110,6 +110,7 @@ def _routing_snapshot(model: CatalogModel, *, params: dict[str, Any]) -> dict[st
             "provider_cost_units": primary_cost,
         },
         "fallback": fallback,
+        "workflow": capabilities.get("workflow"),
     }
 
 

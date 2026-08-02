@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +15,12 @@ from apps.api.deps import (
 from kelbet.config import Settings
 from kelbet.payments.gateway import PaymentInvoiceGateway
 from kelbet.services.auth import SessionUser
-from kelbet.services.payment import PaymentOrderDTO, PaymentService
+from kelbet.services.payment import (
+    PaymentOrderDTO,
+    PaymentService,
+    payment_new_purchase_allowed,
+    payment_support_url,
+)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -30,11 +37,16 @@ class PaymentProductsResponse(BaseModel):
     items: list[PaymentProductResponse]
     payments_enabled: bool
     terms_url: str
+    terms_version: str
+    refund_policy_url: str
+    support_url: str
+    confirmation_note: str
 
 
 class CreatePaymentOrderRequest(BaseModel):
     product_slug: str = Field(min_length=1, max_length=64)
     terms_accepted: bool
+    terms_version: str | None = Field(default=None, min_length=1, max_length=32)
 
 
 class PaymentOrderResponse(BaseModel):
@@ -49,6 +61,10 @@ class PaymentOrderResponse(BaseModel):
     expires_at: str
     created_at: str
     paid_at: str | None
+    refunded_at: str | None
+    refund_policy_url: str
+    support_url: str
+    support_reference: str
 
 
 class PaymentHistoryResponse(BaseModel):
@@ -72,6 +88,10 @@ def _order_response(
         expires_at=order.expires_at.isoformat(),
         created_at=order.created_at.isoformat(),
         paid_at=order.paid_at.isoformat() if order.paid_at else None,
+        refunded_at=order.refunded_at.isoformat() if order.refunded_at else None,
+        refund_policy_url=order.refund_policy_url,
+        support_url=order.support_url,
+        support_reference=order.support_reference,
     )
 
 
@@ -81,12 +101,11 @@ async def list_payment_products(
     session: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_settings_dep),
 ) -> PaymentProductsResponse:
-    products = await PaymentService(session, settings).list_products(current.language)
+    products = await PaymentService(session, settings).list_products(
+        current.language, telegram_id=current.telegram_id
+    )
     enabled = bool(
-        settings.payments_enabled
-        and settings.bot_token
-        and settings.payment_terms_url.strip()
-        and settings.support_username.strip().lstrip("@")
+        settings.bot_token and payment_new_purchase_allowed(settings, current.telegram_id)
     )
     return PaymentProductsResponse(
         items=[
@@ -101,6 +120,10 @@ async def list_payment_products(
         ],
         payments_enabled=enabled,
         terms_url=settings.payment_terms_url,
+        terms_version=settings.payment_terms_version,
+        refund_policy_url=settings.payment_refund_policy_url,
+        support_url=payment_support_url(settings),
+        confirmation_note="Credits are delivered after Telegram confirms the payment.",
     )
 
 
@@ -118,6 +141,24 @@ async def create_payment_order(
         product_slug=body.product_slug,
         idempotency_key=idempotency_key,
         terms_accepted=body.terms_accepted,
+        language=current.language,
+        accepted_terms_version=body.terms_version,
+    )
+    invoice_url = await gateway.create_invoice_link(order)
+    return _order_response(order, invoice_url=invoice_url)
+
+
+@router.post("/orders/{order_id}/invoice", response_model=PaymentOrderResponse)
+async def reopen_payment_order(
+    order_id: UUID,
+    current: SessionUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_settings_dep),
+    gateway: PaymentInvoiceGateway = Depends(get_payment_gateway),
+) -> PaymentOrderResponse:
+    order = await PaymentService(session, settings).reopen_order(
+        order_id=order_id,
+        user_id=current.user_id,
         language=current.language,
     )
     invoice_url = await gateway.create_invoice_link(order)

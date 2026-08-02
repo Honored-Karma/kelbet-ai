@@ -81,7 +81,13 @@ class PaymentRepository:
 
     async def get_receipt_by_order_id(self, order_id: UUID) -> PaymentReceipt | None:
         row = await self._session.execute(
-            select(PaymentReceipt).where(PaymentReceipt.order_id == order_id)
+            select(PaymentReceipt)
+            .where(
+                PaymentReceipt.order_id == order_id,
+                PaymentReceipt.status == "processed",
+            )
+            .order_by(PaymentReceipt.processed_at.asc().nulls_last(), PaymentReceipt.id)
+            .limit(1)
         )
         return row.scalar_one_or_none()
 

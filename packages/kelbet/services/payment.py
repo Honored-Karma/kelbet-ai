@@ -9,11 +9,17 @@ from uuid import UUID, uuid4
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kelbet.config import Settings
-from kelbet.db.models import PaymentOrder, PaymentProduct, PaymentReceipt
+from kelbet.config import Settings, stars_canary_id_set
+from kelbet.db.models import (
+    PaymentOrder,
+    PaymentProduct,
+    PaymentReceipt,
+    PaymentReconciliationIssue,
+)
 from kelbet.domain.enums import (
     Language,
     PaymentReceiptStatus,
+    PaymentReconciliationIssueStatus,
     PaymentStatus,
     TxReason,
 )
@@ -61,6 +67,24 @@ def payment_production_gate_failures(settings: Settings) -> tuple[str, ...]:
     return tuple(failures)
 
 
+def payment_new_purchase_allowed(settings: Settings, telegram_id: int) -> bool:
+    """Authoritative product/order/pre-checkout gate for new purchases."""
+
+    if not settings.payments_enabled or payment_production_gate_failures(settings):
+        return False
+    canary_ids = stars_canary_id_set(settings)
+    return not canary_ids or telegram_id in canary_ids
+
+
+def payment_support_url(settings: Settings) -> str:
+    username = settings.support_username.strip().lstrip("@")
+    return f"https://t.me/{username}" if username else ""
+
+
+def payment_support_reference(order_id: UUID) -> str:
+    return f"KLB-{order_id.hex[:12].upper()}"
+
+
 @dataclass(frozen=True, slots=True)
 class PaymentProductDTO:
     slug: str
@@ -82,9 +106,13 @@ class PaymentOrderDTO:
     product_name: str
     product_description: str
     terms_url: str
+    refund_policy_url: str
+    support_url: str
+    support_reference: str
     expires_at: datetime
     created_at: datetime
     paid_at: datetime | None
+    refunded_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +144,13 @@ class PaymentService:
         if not self._settings.payments_enabled or payment_production_gate_failures(self._settings):
             raise PaymentUnavailableError("Telegram Stars payments are not configured")
 
-    async def list_products(self, language: Language) -> list[PaymentProductDTO]:
+    async def list_products(
+        self, language: Language, *, telegram_id: int | None = None
+    ) -> list[PaymentProductDTO]:
+        if telegram_id is not None and not payment_new_purchase_allowed(
+            self._settings, telegram_id
+        ):
+            return []
         products = await self._payments.list_products()
         return [self._product_dto(product, language) for product in products]
 
@@ -128,6 +162,7 @@ class PaymentService:
         idempotency_key: str,
         terms_accepted: bool,
         language: Language,
+        accepted_terms_version: str | None = None,
         now: datetime | None = None,
     ) -> PaymentOrderDTO:
         self._assert_available()
@@ -135,6 +170,18 @@ class PaymentService:
             raise PaymentValidationError("Terms must be accepted before creating an invoice")
         if not idempotency_key or len(idempotency_key) > 128:
             raise PaymentValidationError("Invalid payment idempotency key")
+
+        user = await self._users.get_by_id(user_id)
+        if user is None:
+            raise UserNotFoundError(f"User {user_id} not found")
+        if not payment_new_purchase_allowed(self._settings, user.telegram_id):
+            raise PaymentUnavailableError("Telegram Stars payments are not available for this user")
+        if accepted_terms_version is not None and (
+            accepted_terms_version.strip() != self._settings.payment_terms_version.strip()
+        ):
+            raise PaymentValidationError("Accepted payment terms are no longer current")
+        if accepted_terms_version is None and self._settings.app_env.lower() == "production":
+            raise PaymentValidationError("Current payment terms version is required")
 
         product = await self._payments.get_product_by_slug(product_slug)
         if product is None:
@@ -146,10 +193,6 @@ class PaymentService:
             return self._order_dto(existing, language)
 
         await self._users.assert_paid_operations_allowed(user_id)
-
-        user = await self._users.get_by_id(user_id)
-        if user is None:
-            raise UserNotFoundError(f"User {user_id} not found")
 
         current = now or datetime.now(UTC)
         order_id = uuid4()
@@ -196,9 +239,7 @@ class PaymentService:
         total_amount: int,
         now: datetime | None = None,
     ) -> PreCheckoutResult:
-        try:
-            self._assert_available()
-        except PaymentUnavailableError:
+        if not payment_new_purchase_allowed(self._settings, telegram_id):
             _record_payment_rejection("payments_unavailable")
             return PreCheckoutResult(ok=False, error_code="payments_unavailable")
         current = now or datetime.now(UTC)
@@ -213,12 +254,22 @@ class PaymentService:
             _record_payment_rejection(error)
             return PreCheckoutResult(ok=False, error_code=error)
         assert order is not None
+        if order.status == PaymentStatus.PAID.value:
+            _record_payment_rejection("order_already_paid")
+            return PreCheckoutResult(ok=False, error_code="order_already_paid")
+        if order.pre_checkout_query_id == query_id[:128]:
+            return PreCheckoutResult(ok=True)
+        if order.pre_checkout_query_id is not None:
+            _record_payment_rejection("pre_checkout_already_claimed")
+            return PreCheckoutResult(ok=False, error_code="pre_checkout_already_claimed")
         if order.expires_at <= current:
             order.status = PaymentStatus.EXPIRED.value
             await self._session.flush()
             _record_payment_rejection("order_expired")
             return PreCheckoutResult(ok=False, error_code="order_expired")
         order.pre_checkout_query_id = query_id[:128]
+        order.pre_checkout_claimed_at = current
+        order.pre_checkout_telegram_id = telegram_id
         await self._session.flush()
         return PreCheckoutResult(ok=True)
 
@@ -269,11 +320,19 @@ class PaymentService:
             currency=currency,
             total_amount=total_amount,
         )
+        if order is not None:
+            receipt.order_id = order.id
         if error is None and order is not None and order.status == PaymentStatus.PAID.value:
-            error = "order_already_paid"
+            error = "duplicate_order_charge_refund_required"
         if error is not None or order is None:
             receipt.error_code = error or "order_not_found"
             receipt.processed_at = current
+            if order is not None and error == "duplicate_order_charge_refund_required":
+                await self._mark_charge_for_recovery(
+                    order=order,
+                    charge_id=telegram_payment_charge_id,
+                    current=current,
+                )
             await self._session.flush()
             get_metrics().incr("payment.receipt", tags={"status": "rejected"})
             _record_payment_rejection(receipt.error_code or "other")
@@ -288,11 +347,17 @@ class PaymentService:
 
         existing_order_receipt = await self._payments.get_receipt_by_order_id(order.id)
         if existing_order_receipt is not None and existing_order_receipt.id != receipt.id:
-            receipt.error_code = "order_already_paid"
+            receipt.order_id = order.id
+            receipt.error_code = "duplicate_order_charge_refund_required"
             receipt.processed_at = current
+            await self._mark_charge_for_recovery(
+                order=order,
+                charge_id=telegram_payment_charge_id,
+                current=current,
+            )
             await self._session.flush()
             get_metrics().incr("payment.receipt", tags={"status": "rejected"})
-            _record_payment_rejection("order_already_paid")
+            _record_payment_rejection("duplicate_order_charge_refund_required")
             return PaymentCompletionResult(
                 processed=False,
                 applied=False,
@@ -349,6 +414,33 @@ class PaymentService:
         )
         return [self._order_dto(row, language) for row in rows]
 
+    async def reopen_order(
+        self,
+        *,
+        order_id: UUID,
+        user_id: UUID,
+        language: Language,
+        now: datetime | None = None,
+    ) -> PaymentOrderDTO:
+        current = now or datetime.now(UTC)
+        order = await self._payments.get_order_by_id(order_id, for_update=True)
+        if order is None or order.user_id != user_id:
+            raise PaymentValidationError("Payment order was not found")
+        user = await self._users.get_by_id(user_id)
+        if user is None or not payment_new_purchase_allowed(self._settings, user.telegram_id):
+            raise PaymentUnavailableError("Telegram Stars payments are not available for this user")
+        if order.terms_version != self._settings.payment_terms_version:
+            raise PaymentValidationError("Payment terms changed; create a new order")
+        if order.status != PaymentStatus.PENDING.value or order.expires_at <= current:
+            if order.status == PaymentStatus.PENDING.value and order.expires_at <= current:
+                order.status = PaymentStatus.EXPIRED.value
+            await self._session.flush()
+            raise PaymentValidationError("Payment order cannot be reopened")
+        order.last_invoice_opened_at = current
+        order.invoice_open_count += 1
+        await self._session.flush()
+        return self._order_dto(order, language)
+
     async def _validate_order(
         self,
         *,
@@ -402,6 +494,43 @@ class PaymentService:
             balance=wallet.balance if wallet is not None else None,
         )
 
+    async def _mark_charge_for_recovery(
+        self,
+        *,
+        order: PaymentOrder,
+        charge_id: str,
+        current: datetime,
+    ) -> None:
+        key = f"second_charge_for_order:{charge_id}"
+        issue = await self._payments.get_issue(key)
+        details = {
+            "classification": "charged_order_already_fulfilled",
+            "support_reference": payment_support_reference(order.id),
+        }
+        if issue is None:
+            self._session.add(
+                PaymentReconciliationIssue(
+                    issue_key=key,
+                    kind="duplicate_charge_id",
+                    status=PaymentReconciliationIssueStatus.NEEDS_REVIEW.value,
+                    severity="critical",
+                    order_id=order.id,
+                    refund_id=None,
+                    telegram_transaction_id=charge_id,
+                    details=details,
+                    first_seen_at=current,
+                    last_seen_at=current,
+                    resolved_at=None,
+                )
+            )
+        else:
+            issue.status = PaymentReconciliationIssueStatus.NEEDS_REVIEW.value
+            issue.severity = "critical"
+            issue.order_id = order.id
+            issue.details = details
+            issue.last_seen_at = current
+            issue.resolved_at = None
+
     def _product_dto(
         self,
         product: PaymentProduct,
@@ -430,9 +559,13 @@ class PaymentService:
             product_name=str(localized.get("name") or order.product_snapshot.get("slug") or ""),
             product_description=str(localized.get("description") or ""),
             terms_url=self._settings.payment_terms_url,
+            refund_policy_url=self._settings.payment_refund_policy_url,
+            support_url=payment_support_url(self._settings),
+            support_reference=payment_support_reference(order.id),
             expires_at=order.expires_at,
             created_at=order.created_at,
             paid_at=order.paid_at,
+            refunded_at=order.refunded_at,
         )
 
 

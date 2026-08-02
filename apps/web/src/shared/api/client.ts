@@ -218,6 +218,7 @@ export const api = {
   async createPaymentOrder(input: {
     productSlug: string;
     termsAccepted: boolean;
+    termsVersion: string;
     idempotencyKey: string;
   }): Promise<PaymentOrder> {
     if (getApiMode() === "mock") {
@@ -229,8 +230,20 @@ export const api = {
       json: {
         product_slug: input.productSlug,
         terms_accepted: input.termsAccepted,
+        terms_version: input.termsVersion,
       },
     });
+  },
+
+  async reopenPaymentOrder(orderId: string): Promise<PaymentOrder> {
+    if (getApiMode() === "mock") {
+      return mockApi.reopenPaymentOrder(orderId);
+    }
+    return liveRequest(
+      `/api/v1/payments/orders/${encodeURIComponent(orderId)}/invoice`,
+      paymentOrderSchema,
+      { method: "POST" },
+    );
   },
 
   async paymentHistory(): Promise<PaymentOrder[]> {

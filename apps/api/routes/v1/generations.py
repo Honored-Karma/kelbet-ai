@@ -50,6 +50,7 @@ class GenerationResponse(BaseModel):
     estimated_remaining_seconds: int | None
     template_slug: str | None
     template_version: int | None
+    workflow: dict[str, int] | None
 
 
 class GenerationDraftResponse(BaseModel):
@@ -91,6 +92,7 @@ def _to_response(dto: object) -> GenerationResponse:
         estimated_remaining_seconds=dto.estimated_remaining_seconds,
         template_slug=dto.template_slug,
         template_version=dto.template_version,
+        workflow=dto.workflow,
     )
 
 
