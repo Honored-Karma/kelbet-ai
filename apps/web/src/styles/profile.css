@@ -1,0 +1,364 @@
+/*
+ * Profile screen blocks.
+ *
+ * Kept out of global.css deliberately: that file is past 180 KB and every edit
+ * to it is a whole-file rewrite. New surfaces get their own stylesheet, keyed
+ * to the same Steppe Editorial Atelier tokens. Fallback values are inlined so
+ * the sheet still renders correctly if a token is renamed upstream.
+ *
+ * Namespace: .pf-*  (the older .profile-* rules in global.css still style the
+ * identity, preferences and trust blocks, which this redesign reuses as-is).
+ */
+
+.pf-wallet,
+.pf-activity,
+.pf-referral {
+  background: var(--kelbet-surface, #102723);
+  border: 1px solid rgba(242, 244, 237, 0.1);
+  border-radius: var(--kelbet-radius-md, 16px);
+  padding: 18px 16px;
+  margin-block-start: 14px;
+}
+
+.pf-wallet {
+  background: linear-gradient(
+    155deg,
+    rgba(88, 226, 189, 0.09),
+    var(--kelbet-surface, #102723) 58%
+  );
+  border-color: rgba(88, 226, 189, 0.22);
+}
+
+.pf-wallet > header,
+.pf-activity > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pf-wallet-active {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--kelbet-gold, #c7a666);
+  border: 1px solid rgba(199, 166, 102, 0.3);
+  background: rgba(199, 166, 102, 0.1);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+/* ── Balance ─────────────────────────────────────────── */
+
+.pf-wallet-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.pf-wallet-figure strong {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-wallet-figure span {
+  font-size: 13px;
+  color: rgba(242, 244, 237, 0.58);
+}
+
+.pf-meter {
+  display: flex;
+  height: 6px;
+  margin: 14px 0 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(242, 244, 237, 0.09);
+}
+
+.pf-meter i {
+  display: block;
+  height: 100%;
+  transition: width 0.28s ease;
+}
+
+.pf-meter i.is-available,
+.pf-wallet-legend dt i.is-available {
+  background: var(--kelbet-accent, #58e2bd);
+}
+
+.pf-meter i.is-reserved,
+.pf-wallet-legend dt i.is-reserved {
+  background: var(--kelbet-gold, #c7a666);
+}
+
+.pf-wallet-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.pf-wallet-legend > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pf-wallet-legend dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: rgba(242, 244, 237, 0.58);
+}
+
+.pf-wallet-legend dt i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(242, 244, 237, 0.2);
+}
+
+.pf-wallet-legend dd {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-wallet-hint {
+  margin: 12px 0 0;
+  padding-block-start: 11px;
+  border-block-start: 1px dashed rgba(242, 244, 237, 0.16);
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(242, 244, 237, 0.58);
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+
+.pf-wallet-actions {
+  display: flex;
+  gap: 8px;
+  margin-block-start: 14px;
+}
+
+.pf-btn {
+  flex: 1;
+  padding: 11px 10px;
+  border: 1px solid rgba(242, 244, 237, 0.16);
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  color: var(--kelbet-paper, #f2f4ed);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.pf-btn:hover {
+  border-color: rgba(242, 244, 237, 0.3);
+}
+
+.pf-btn.is-primary {
+  background: var(--kelbet-accent, #58e2bd);
+  border-color: transparent;
+  color: var(--kelbet-ink, #06110f);
+}
+
+.pf-btn.is-primary:hover {
+  background: var(--kelbet-accent-strong, #36cfa6);
+}
+
+.pf-link {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--kelbet-accent, #58e2bd);
+}
+
+.pf-link svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Stats ───────────────────────────────────────────── */
+
+.pf-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin-block-start: 14px;
+}
+
+.pf-stats > div {
+  padding: 12px 8px;
+  border-radius: 12px;
+  text-align: center;
+  background: rgba(6, 17, 15, 0.45);
+}
+
+.pf-stats strong {
+  display: block;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-stats span {
+  font-size: 10.5px;
+  color: rgba(242, 244, 237, 0.5);
+}
+
+/* ── Recent works ────────────────────────────────────── */
+
+.pf-works {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-block-start: 10px;
+}
+
+.pf-work {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid rgba(242, 244, 237, 0.1);
+  border-radius: 10px;
+  background: rgba(6, 17, 15, 0.5);
+}
+
+.pf-work img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pf-work-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(242, 244, 237, 0.3);
+}
+
+.pf-work-fallback svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pf-work-tag {
+  position: absolute;
+  inset-block-end: 4px;
+  inset-inline-end: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: rgba(6, 17, 15, 0.72);
+  color: var(--kelbet-paper, #f2f4ed);
+}
+
+.pf-work-tag svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* ── Empty states ────────────────────────────────────── */
+
+.pf-activity-empty {
+  margin-block-start: 14px;
+  padding: 18px 14px;
+  border: 1px dashed rgba(242, 244, 237, 0.16);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.pf-activity-empty p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: rgba(242, 244, 237, 0.58);
+}
+
+.pf-activity-empty p:last-child {
+  margin-block-end: 0;
+}
+
+.pf-activity-empty strong {
+  display: block;
+  font-size: 14px;
+  color: var(--kelbet-paper, #f2f4ed);
+}
+
+.pf-activity-empty small {
+  display: block;
+  margin-block-start: 4px;
+  font-size: 12px;
+}
+
+.pf-activity-empty .pf-btn {
+  display: inline-block;
+  flex: none;
+  padding-inline: 20px;
+}
+
+/* ── Referral ────────────────────────────────────────── */
+
+.pf-invite-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(242, 244, 237, 0.1);
+  border-radius: 10px;
+  background: rgba(6, 17, 15, 0.5);
+}
+
+.pf-invite-link code {
+  flex: 1;
+  overflow: hidden;
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(242, 244, 237, 0.58);
+}
+
+.pf-invite-link button {
+  flex: none;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--kelbet-accent, #58e2bd);
+}
+
+.pf-referral-terms {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: rgba(242, 244, 237, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-meter i {
+    transition: none;
+  }
+}

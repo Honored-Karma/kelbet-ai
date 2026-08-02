@@ -3,18 +3,11 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../shared/api/client";
 import type { AssetDownload, HistoryItem } from "../shared/api/types";
+import { isActiveGeneration } from "../shared/generation/status";
 import { useI18n } from "../shared/i18n/runtime";
 import type { MessageKey } from "../shared/i18n/messages";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { ErrorState } from "../shared/ui/ErrorState";
-
-const activeStatuses = new Set([
-  "created",
-  "queued",
-  "submitting",
-  "running",
-  "finalizing",
-]);
 
 type HistoryFilter = "all" | "image" | "video" | "active";
 
@@ -27,7 +20,7 @@ const filterLabels: Record<HistoryFilter, MessageKey> = {
 
 function statusMeta(status: string): { label: MessageKey; tone: string } {
   if (status === "succeeded") return { label: "history.ready", tone: "ready" };
-  if (activeStatuses.has(status)) return { label: "history.active", tone: "active" };
+  if (isActiveGeneration(status)) return { label: "history.active", tone: "active" };
   if (status === "cancelled") return { label: "history.cancelled", tone: "cancelled" };
   return { label: "history.failed", tone: "failed" };
 }
@@ -60,7 +53,7 @@ function HistoryArtwork({
     );
   }
 
-  if (activeStatuses.has(item.status)) {
+  if (isActiveGeneration(item.status)) {
     return (
       <div className="history-artwork-state is-active">
         <span className="history-working-mark" aria-hidden>
@@ -125,7 +118,7 @@ export function HistoryPage() {
     () =>
       (historyQuery.data ?? []).filter((item) => {
         if (filter === "all") return true;
-        if (filter === "active") return activeStatuses.has(item.status);
+        if (filter === "active") return isActiveGeneration(item.status);
         if (filter === "video") return item.modality === "video";
         return item.modality !== "video";
       }),
