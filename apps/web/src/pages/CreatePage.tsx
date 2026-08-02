@@ -426,9 +426,10 @@ export function CreatePage() {
     ? numericCapability(uiValue(selected, "eta_seconds"), 0)
     : 0;
 
+  const quoteEnabled = Boolean(selected) && templateValid && !templatesQuery.isLoading;
   const quoteQuery = useQuery({
     queryKey: ["quote", selected?.slug, params, templateSelection],
-    enabled: Boolean(selected) && templateValid && !templatesQuery.isLoading,
+    enabled: quoteEnabled,
     queryFn: () => api.quote(selected!.slug, params, templateSelection),
     retry: 1,
   });
@@ -701,13 +702,18 @@ export function CreatePage() {
     !templateValid ||
     (operation === "edit" && (!moderationQuery.data || !rightsConsent));
 
-  const quoteRecoveryMode = quoteQuery.isError
-    ? "quote"
-    : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
-      ? "expired"
-      : createMutation.isError
-        ? "submission"
-        : null;
+  // A previous query can remain in the error state while a manual refresh is
+  // already in flight. Do not show the recovery error together with the
+  // "price is updating" state.
+  const quoteRecoveryMode = !quoteEnabled || quoteQuery.isFetching
+    ? null
+    : quoteQuery.isError
+      ? "quote"
+      : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
+        ? "expired"
+        : createMutation.isError
+          ? "submission"
+          : null;
 
   const refreshQuote = () => {
     submissionRef.current = null;
@@ -1226,7 +1232,7 @@ export function CreatePage() {
         />
       ) : null}
 
-      <div className="create-action-spacer" />
+      <div className={`create-action-spacer${quoteRecoveryMode ? " has-recovery" : ""}`} />
       <aside className="create-action studio-quote">
         <div className="price-copy">
           <span>

@@ -464,10 +464,11 @@ export function VideoPage() {
   const resolutions = stringOptions(selected?.capabilities.resolutions);
   const etaSeconds = selected ? numericCapability(uiValue(selected, "eta_seconds"), 0) : 0;
 
+  const quoteEnabled = Boolean(selected) && templateValid && !templatesQuery.isLoading;
   const quoteQuery = useQuery({
     queryKey: ["quote", selected?.slug, params, templateSelection],
     queryFn: () => api.quote(selected!.slug, params, templateSelection),
-    enabled: Boolean(selected) && templateValid && !templatesQuery.isLoading,
+    enabled: quoteEnabled,
     retry: 1,
   });
   const quote = quoteQuery.data;
@@ -651,13 +652,17 @@ export function VideoPage() {
     !templateAssetsValid ||
     createMutation.isPending;
 
-  const quoteRecoveryMode = quoteQuery.isError
-    ? "quote"
-    : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
-      ? "expired"
-      : createMutation.isError
-        ? "submission"
-        : null;
+  // React Query retains an earlier error while a refresh is in progress.
+  // Keep the recovery panel hidden until that refresh has finished.
+  const quoteRecoveryMode = !quoteEnabled || quoteQuery.isFetching
+    ? null
+    : quoteQuery.isError
+      ? "quote"
+      : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
+        ? "expired"
+        : createMutation.isError
+          ? "submission"
+          : null;
 
   const refreshQuote = () => {
     submissionRef.current = null;
