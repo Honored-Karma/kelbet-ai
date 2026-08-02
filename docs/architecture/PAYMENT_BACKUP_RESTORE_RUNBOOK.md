@@ -9,7 +9,7 @@ encryption, tested RPO/RTO, and the latest restore drill. PITR is an external li
 1. Set `PAYMENTS_ENABLED=false` to stop new invoices. Keep successful-payment handling deployed.
 2. Identify a consistent PostgreSQL backup and record its timestamp and provider backup ID.
 3. Restore into an isolated database, never over production, and migrate through
-   `0022_payment_production_hardening`.
+   `0022_payment_hardening`.
 4. Compare counts and invariants for orders, receipts, payment ledger rows, refunds, normalized
    Star observations, and unresolved reconciliation issues.
 5. Run an isolated reconciliation with refunds disabled. A run marked
@@ -23,3 +23,11 @@ encryption, tested RPO/RTO, and the latest restore drill. PITR is an external li
 Transaction-history recovery can reconstruct a proven missing receipt and credit idempotently.
 It is not a durable Telegram update inbox; webhook/update durability remains a separate production
 work item and must stay on the operational risk register.
+
+## Downgrading past 0022
+
+`0022_payment_hardening` replaced the unconditional unique constraint on
+`payment_receipts.order_id` with a partial index limited to processed receipts, so a rejected
+duplicate-charge receipt may legitimately share an order with the processed one. Its `downgrade()`
+refuses to run while such duplicates exist rather than aborting halfway with a bare
+`UniqueViolation`. Resolve or archive the extra receipts first, then downgrade.

@@ -1,8 +1,11 @@
 """Harden Telegram Stars checkout, recovery, and reconciliation coverage.
 
-Revision ID: 0022_payment_production_hardening
+Revision ID: 0022_payment_hardening
 Revises: 0021_veo_extended_workflow
 Create Date: 2026-08-02 18:00:00.000000
+
+The identifier is deliberately shorter than the file name: Alembic stores it in
+alembic_version.version_num, which is VARCHAR(32). 0015 follows the same rule.
 """
 
 from collections.abc import Sequence
@@ -10,7 +13,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0022_payment_production_hardening"
+revision: str = "0022_payment_hardening"
 down_revision: str | None = "0021_veo_extended_workflow"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
