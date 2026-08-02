@@ -224,14 +224,22 @@ export const api = {
     if (getApiMode() === "mock") {
       return mockApi.createPaymentOrder(input);
     }
+    // The server treats a present-but-mismatched terms version as a hard
+    // validation error, so an unloaded catalogue must not be reported as the
+    // empty version — omitting the field yields the accurate "version required"
+    // response instead of a misleading mismatch.
+    const payload: Record<string, unknown> = {
+      product_slug: input.productSlug,
+      terms_accepted: input.termsAccepted,
+    };
+    const termsVersion = input.termsVersion.trim();
+    if (termsVersion) {
+      payload.terms_version = termsVersion;
+    }
     return liveRequest("/api/v1/payments/orders", paymentOrderSchema, {
       method: "POST",
       headers: { "Idempotency-Key": input.idempotencyKey },
-      json: {
-        product_slug: input.productSlug,
-        terms_accepted: input.termsAccepted,
-        terms_version: input.termsVersion,
-      },
+      json: payload,
     });
   },
 

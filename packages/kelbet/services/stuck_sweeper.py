@@ -9,11 +9,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kelbet.config import Settings, get_settings
+from kelbet.db.models.generation import GenerationJob
 from kelbet.domain.enums import GenerationStatus
 from kelbet.observability import get_metrics
 from kelbet.providers.factory import resolve_provider
 from kelbet.repositories.generation import GenerationRepository
 from kelbet.services.generation_sm import apply_transition
+from kelbet.services.video_workflow import job_timeout_seconds
 from kelbet.services.wallet import WalletService
 
 logger = logging.getLogger(__name__)
@@ -30,12 +32,15 @@ class StuckSweeper:
         self._jobs = GenerationRepository(session)
         self._wallet = WalletService(session)
 
-    def _timeout_seconds(self, modality: str) -> int:
-        if modality == "video":
-            return self._settings.runway_video_timeout_seconds
-        if modality in {"image", "image_edit", "upscale"}:
-            return self._settings.runway_image_timeout_seconds
-        return self._settings.text_timeout_seconds
+    def _timeout_seconds(self, job: GenerationJob) -> int:
+        """Deadline for this job, not merely for its modality.
+
+        An extended Veo job chains several provider calls inside one generation
+        record, so it is measured against the extended budget; using the plain
+        video timeout here would reap healthy long renders mid-chain.
+        """
+
+        return job_timeout_seconds(self._settings, job)
 
     async def sweep(self, *, now: datetime | None = None, limit: int = 50) -> list[UUID]:
         current = now or datetime.now(UTC)
@@ -44,7 +49,7 @@ class StuckSweeper:
         for job in candidates:
             status = GenerationStatus(job.status)
             anchor = job.started_at or job.queued_at or job.created_at
-            modality_deadline = anchor + timedelta(seconds=self._timeout_seconds(job.modality))
+            modality_deadline = anchor + timedelta(seconds=self._timeout_seconds(job))
             submitting_deadline = anchor + timedelta(
                 seconds=self._settings.stuck_submitting_seconds
             )

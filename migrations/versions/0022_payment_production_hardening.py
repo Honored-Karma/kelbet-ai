@@ -91,12 +91,33 @@ def downgrade() -> None:
     op.drop_column("star_transaction_observations", "invoice_payload")
     op.drop_column("star_transaction_observations", "telegram_user_id")
     op.drop_index("uq_payment_receipts_processed_order", table_name="payment_receipts")
-    op.create_unique_constraint(
-        "uq_payment_receipts_order_id", "payment_receipts", ["order_id"]
+
+    # Restoring the unconditional unique constraint is only possible while every
+    # order still has at most one receipt. After a duplicate Stars charge the
+    # rejected receipt legitimately shares its order_id, and recreating the old
+    # constraint would abort mid-downgrade with a bare UniqueViolation. Fail
+    # early with an actionable message instead of a cryptic driver error.
+    duplicate_order = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                "SELECT order_id FROM payment_receipts "
+                "GROUP BY order_id HAVING count(*) > 1 LIMIT 1"
+            )
+        )
+        .first()
     )
-    op.drop_constraint(
-        "uq_payment_orders_pre_checkout_query_id", "payment_orders", type_="unique"
-    )
+    if duplicate_order is not None:
+        raise RuntimeError(
+            "Cannot restore uq_payment_receipts_order_id: payment_receipts holds "
+            f"multiple receipts for order {duplicate_order[0]}. This is expected "
+            "after a duplicate Stars charge. Resolve or archive the extra receipts "
+            "before downgrading past 0022 — see "
+            "docs/architecture/PAYMENT_BACKUP_RESTORE_RUNBOOK.md."
+        )
+
+    op.create_unique_constraint("uq_payment_receipts_order_id", "payment_receipts", ["order_id"])
+    op.drop_constraint("uq_payment_orders_pre_checkout_query_id", "payment_orders", type_="unique")
     op.drop_column("payment_orders", "invoice_open_count")
     op.drop_column("payment_orders", "last_invoice_opened_at")
     op.drop_column("payment_orders", "pre_checkout_telegram_id")
