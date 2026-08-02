@@ -38,6 +38,11 @@ from kelbet.repositories.user import UserRepository
 from kelbet.services.catalog import FeatureFlagService
 from kelbet.services.generation_sm import apply_transition
 from kelbet.services.template_compositor import TemplateCompositor, TemplateCompositorError
+from kelbet.services.video_workflow import (
+    extended_durations,
+    extended_workflow,
+    is_extended_workflow,
+)
 from kelbet.services.wallet import WalletService
 from kelbet.storage import (
     ObjectStorage,
@@ -479,24 +484,21 @@ class GenerationRunner:
 
         return await self._finalize_success(job, attempt, result, now=current)
 
+    # The extended-workflow vocabulary lives in kelbet.services.video_workflow so
+    # that the stuck sweeper reaches the same verdict as the runner. These thin
+    # wrappers keep the existing call sites untouched.
+
     @staticmethod
     def _extended_workflow(job: GenerationJob) -> dict[str, object] | None:
-        workflow = (job.routing_snapshot or {}).get("workflow")
-        if isinstance(workflow, dict) and workflow.get("type") == "veo_extend":
-            return workflow
-        return None
+        return extended_workflow(job)
 
     @classmethod
     def _is_extended_workflow(cls, job: GenerationJob) -> bool:
-        return cls._extended_workflow(job) is not None
+        return is_extended_workflow(job)
 
     @staticmethod
     def _extended_durations(job: GenerationJob) -> list[int]:
-        target = int((job.params or {}).get("duration_sec") or 8)
-        allowed = [8, 15, 22, 29]
-        if target not in allowed:
-            return []
-        return [duration for duration in allowed if duration <= target]
+        return extended_durations(job)
 
     async def _process_extended(
         self,
@@ -770,12 +772,8 @@ class GenerationRunner:
                 active.error_code = result.error_code
                 active.updated_at = now
                 return await self._start_extended_step(job, steps, active, now=now)
-            return await self._fail_extended_step(
-                job, active, result, now=now, attempt=attempt
-            )
-        return await self._complete_extended_step(
-            job, steps, active, attempt, result, now=now
-        )
+            return await self._fail_extended_step(job, active, result, now=now, attempt=attempt)
+        return await self._complete_extended_step(job, steps, active, attempt, result, now=now)
 
     async def _resume_extended_finalization(
         self,
@@ -797,9 +795,7 @@ class GenerationRunner:
                 now=now,
             )
         try:
-            data = await self._storage.get_object(
-                object_key=final_step.intermediate_object_key
-            )
+            data = await self._storage.get_object(object_key=final_step.intermediate_object_key)
         except Exception:
             logger.exception(
                 "workflow_finalization_resume_failed",
@@ -909,9 +905,7 @@ class GenerationRunner:
         await self._cleanup_workflow_steps(steps)
         return status
 
-    async def _cleanup_workflow_steps(
-        self, steps: list[GenerationWorkflowStep]
-    ) -> None:
+    async def _cleanup_workflow_steps(self, steps: list[GenerationWorkflowStep]) -> None:
         for step in steps:
             if not step.intermediate_object_key:
                 continue
