@@ -10,6 +10,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, getApiMode } from "../shared/api/client";
 import { PhotoRightsConsent } from "../features/moderation/PhotoRightsConsent";
 import {
+  idempotencyKeyForQuote,
+  type SubmissionAttempt,
+} from "../features/generation/submissionRecovery";
+import {
   buildTemplateSelection,
   isTemplateUnavailable,
   templateFieldLabel,
@@ -21,6 +25,7 @@ import type { CatalogModel, GenerationTemplate, Language } from "../shared/api/t
 import { useI18n } from "../shared/i18n/runtime";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { ErrorState } from "../shared/ui/ErrorState";
+import { GenerationRecovery } from "../shared/ui/GenerationRecovery";
 import { SkeletonBlock } from "../shared/ui/Skeleton";
 
 type VideoMode = "text" | "photo";
@@ -231,12 +236,17 @@ function revokeLocal(url: string): void {
   if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 }
 
+function isStaleQuoteError(error: unknown): boolean {
+  return error instanceof Error && error.message === "stale_quote";
+}
+
 export function VideoPage() {
   const { tx, language } = useI18n();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<SourcePhoto | null>(null);
+  const submissionRef = useRef<SubmissionAttempt | null>(null);
   const hydratedRef = useRef(false);
 
   const sourceGenerationId = searchParams.get("from")?.trim() ?? "";
@@ -488,10 +498,22 @@ export function VideoPage() {
       if (!freshQuote || new Date(freshQuote.expires_at).getTime() <= Date.now()) {
         throw new Error("stale_quote");
       }
+      const submission = idempotencyKeyForQuote(
+        submissionRef.current,
+        freshQuote.quote_id,
+        JSON.stringify({
+          prompt: prompt.trim(),
+          inputAssetIds: mode === "photo" && photo?.assetId ? [photo.assetId] : [],
+          rightsConsent: mode === "photo" && rightsConsent,
+          template: templateSelectionFromQuote(freshQuote),
+        }),
+        () => crypto.randomUUID(),
+      );
+      submissionRef.current = submission;
       return api.createGeneration({
         quoteId: freshQuote.quote_id,
         prompt: prompt.trim(),
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: submission.idempotencyKey,
         inputAssetIds: mode === "photo" && photo?.assetId ? [photo.assetId] : [],
         rightsConsentConfirmed: mode === "photo" && rightsConsent,
         rightsConsentVersion:
@@ -620,6 +642,7 @@ export function VideoPage() {
     !selected ||
     !prompt.trim() ||
     !quote ||
+    quoteSeconds === 0 ||
     insufficient ||
     Boolean(photoPending) ||
     (mode === "photo" && !photoReady) ||
@@ -627,6 +650,20 @@ export function VideoPage() {
     !templateValid ||
     !templateAssetsValid ||
     createMutation.isPending;
+
+  const quoteRecoveryMode = quoteQuery.isError
+    ? "quote"
+    : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
+      ? "expired"
+      : createMutation.isError
+        ? "submission"
+        : null;
+
+  const refreshQuote = () => {
+    submissionRef.current = null;
+    createMutation.reset();
+    void quoteQuery.refetch();
+  };
 
   return (
     <section className="video-studio">
@@ -1020,62 +1057,64 @@ export function VideoPage() {
             </div>
           </details>
 
-          <p className="video-refund-note">
-            <span aria-hidden>↺</span>
-            {tx("video.refund")}
-          </p>
-
           <div className="video-quote-spacer" />
-          <section className="video-quote" aria-live="polite">
-            <div className="video-quote-copy">
-              <span>
-                {quoteSeconds > 0
-                  ? `${tx("create.quoteLocked")} · ${quoteSeconds}s`
-                  : tx("create.quoteExpired")}
-              </span>
-              <strong>
-                {quoteQuery.isFetching
-                  ? tx("create.quoteLoading")
-                  : quote
-                    ? `${quote.user_credit_price} cr`
-                    : "—"}
-              </strong>
-              <small>
-                {quote
-                  ? `${tx("create.balanceAfter")}: ${remaining}`
-                  : activeTemplate?.localization.name ?? selected?.localization.name}
-                {etaSeconds ? ` · ETA ~${Math.ceil(etaSeconds / 60)} min` : ""}
-              </small>
-            </div>
-            <button
-              type="button"
-              className="btn video-submit"
-              disabled={submitDisabled}
-              onClick={() => createMutation.mutate()}
-            >
-              {createMutation.isPending
-                ? tx("video.creating")
-                : insufficient
-                  ? tx("create.insufficient")
-                  : quote
-                    ? `${tx("video.submitWithPrice")} ${quote.user_credit_price}`
-                    : tx("video.submit")}
-              {!createMutation.isPending && !insufficient ? <span aria-hidden>→</span> : null}
-            </button>
-            {mode === "photo" && !photoReady && !photoPending ? (
-              <p className="video-quote-error">{tx("video.photoRequired")}</p>
+          <div className={`video-transaction-tray${quoteRecoveryMode ? " has-recovery" : ""}`}>
+            {quoteRecoveryMode ? (
+              <GenerationRecovery
+                mode={quoteRecoveryMode}
+                onAction={quoteRecoveryMode === "submission" ? () => createMutation.mutate() : refreshQuote}
+              />
             ) : null}
-            {quoteQuery.isError || createMutation.isError ? (
-              <p className="video-quote-error">
-                {tx("common.error")}{" "}
-                {quoteQuery.isError ? (
-                  <button type="button" onClick={() => void quoteQuery.refetch()}>
-                    {tx("common.retry")}
-                  </button>
-                ) : null}
-              </p>
-            ) : null}
-          </section>
+            <section className="video-quote">
+              <div className="video-quote-copy">
+                <span>
+                  {quoteSeconds > 0
+                    ? `${tx("create.quoteLocked")} · ${quoteSeconds} ${tx("video.seconds")}`
+                    : tx("create.quoteExpired")}
+                </span>
+                <strong>
+                  {quoteQuery.isFetching
+                    ? tx("create.quoteLoading")
+                    : quote
+                      ? `${quote.user_credit_price} ${tx("create.credits")}`
+                      : "—"}
+                </strong>
+                <small>
+                  {quote
+                    ? `${tx("create.balanceAfter")}: ${remaining}`
+                    : activeTemplate?.localization.name ?? selected?.localization.name}
+                  {etaSeconds
+                    ? ` · ${tx("create.eta")} ~${Math.ceil(etaSeconds / 60)} ${tx("video.minutes")}`
+                    : ""}
+                </small>
+              </div>
+              <button
+                type="button"
+                className="btn video-submit"
+                disabled={submitDisabled}
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending
+                  ? tx("video.creating")
+                  : insufficient
+                    ? tx("create.insufficient")
+                    : quote
+                      ? `${tx("video.submitWithPrice")} ${quote.user_credit_price} ${tx("create.credits")}`
+                      : tx("video.submit")}
+                {!createMutation.isPending && !insufficient ? <span aria-hidden>→</span> : null}
+              </button>
+              {mode === "photo" && !photoReady && !photoPending ? (
+                <p className="video-quote-error">{tx("video.photoRequired")}</p>
+              ) : null}
+              <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+                {createMutation.isPending
+                  ? tx("video.creating")
+                  : quoteQuery.isFetching
+                    ? tx("create.quoteLoading")
+                    : ""}
+              </div>
+            </section>
+          </div>
         </aside>
       </div>
     </section>

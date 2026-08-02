@@ -476,6 +476,13 @@ references plus WalletService idempotency keys (`referral:<reward_id>:inviter|in
 double credit. A reversal before credit cancels the reward; a reversal after credit marks it for
 review without an automatic negative-wallet clawback.
 
+### 3.18 OpenAI image provider catalog gate (0018)
+
+The additive seed migration creates the `openai_image=false` feature flag plus two disabled-by-
+flag GPT Image 2 generation models. The existing immutable quote and routing snapshots remain the
+authority for price and provider selection; no new job columns are required. Image editing stays
+adapter-capable but has no public catalog SKU until its variable input-image costs are reconciled.
+
 ---
 
 ## 4. Relationship diagram (Mermaid)
@@ -560,5 +567,6 @@ erDiagram
 | `0015_stars_refunds` | recoverable Stars refunds, normalized transaction observations, reconciliation runs/issues |
 | `0016_image_fallback` | immutable generation routing snapshot, opt-in Google image route and fallback catalog controls |
 | `0017_referral_mvp` | personal codes, immutable new-user attribution and ledger-backed referral reward states |
+| `0018_openai_image_provider` | disabled-by-default OpenAI GPT Image 2 catalog candidates and feature flag |
 
 > The migration chain is additive; do not rewrite older applied revisions.

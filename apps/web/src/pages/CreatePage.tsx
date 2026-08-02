@@ -10,6 +10,10 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PromptAssistant } from "../features/create/PromptAssistant";
 import { mockImageTemplates } from "../features/create/templates";
+import {
+  idempotencyKeyForQuote,
+  type SubmissionAttempt,
+} from "../features/generation/submissionRecovery";
 import { PhotoRightsConsent } from "../features/moderation/PhotoRightsConsent";
 import {
   buildTemplateSelection,
@@ -27,6 +31,7 @@ import type {
 import { useI18n } from "../shared/i18n/runtime";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { ErrorState } from "../shared/ui/ErrorState";
+import { GenerationRecovery } from "../shared/ui/GenerationRecovery";
 import { SkeletonBlock } from "../shared/ui/Skeleton";
 
 type Operation = "create" | "edit" | "upscale";
@@ -146,12 +151,17 @@ function revokeIfLocal(url: string): void {
   if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 }
 
+function isStaleQuoteError(error: unknown): boolean {
+  return error instanceof Error && error.message === "stale_quote";
+}
+
 export function CreatePage() {
   const { tx, language } = useI18n();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const referencesRef = useRef<ReferenceItem[]>([]);
+  const submissionRef = useRef<SubmissionAttempt | null>(null);
   const hydratedKeyRef = useRef<string | null>(null);
   const recipeHydratedRef = useRef<string | null>(null);
 
@@ -460,10 +470,22 @@ export function CreatePage() {
       if (!freshQuote || new Date(freshQuote.expires_at).getTime() <= Date.now()) {
         throw new Error("stale_quote");
       }
+      const submission = idempotencyKeyForQuote(
+        submissionRef.current,
+        freshQuote.quote_id,
+        JSON.stringify({
+          prompt: operation === "upscale" ? "" : prompt.trim(),
+          inputAssetIds: readyReferences.map((item) => item.assetId),
+          rightsConsent: operation === "edit" && rightsConsent,
+          template: templateSelectionFromQuote(freshQuote),
+        }),
+        () => crypto.randomUUID(),
+      );
+      submissionRef.current = submission;
       return api.createGeneration({
         quoteId: freshQuote.quote_id,
         prompt: operation === "upscale" ? "" : prompt.trim(),
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: submission.idempotencyKey,
         inputAssetIds: readyReferences.map((item) => item.assetId),
         rightsConsentConfirmed: operation === "edit" && rightsConsent,
         rightsConsentVersion:
@@ -669,6 +691,7 @@ export function CreatePage() {
     !selected ||
     (operation !== "upscale" && !prompt.trim()) ||
     !quote ||
+    quoteSeconds === 0 ||
     insufficient ||
     uploadsPending ||
     referencesMissing ||
@@ -677,6 +700,20 @@ export function CreatePage() {
     createMutation.isPending ||
     !templateValid ||
     (operation === "edit" && (!moderationQuery.data || !rightsConsent));
+
+  const quoteRecoveryMode = quoteQuery.isError
+    ? "quote"
+    : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
+      ? "expired"
+      : createMutation.isError
+        ? "submission"
+        : null;
+
+  const refreshQuote = () => {
+    submissionRef.current = null;
+    createMutation.reset();
+    void quoteQuery.refetch();
+  };
 
   const operationOptions: Array<{
     id: Operation;
@@ -1190,7 +1227,7 @@ export function CreatePage() {
       ) : null}
 
       <div className="create-action-spacer" />
-      <aside className="create-action studio-quote" aria-live="polite">
+      <aside className="create-action studio-quote">
         <div className="price-copy">
           <span>
             {quoteSeconds > 0
@@ -1224,15 +1261,19 @@ export function CreatePage() {
         {referencesMissing && !uploadsPending && operation !== "create" ? (
           <p className="action-hint">{tx("create.missingReference")}</p>
         ) : null}
-        {quoteQuery.isError ? (
-          <p className="field-error">
-            {tx("create.quoteError")}{" "}
-            <button type="button" onClick={() => void quoteQuery.refetch()}>
-              {tx("common.retry")}
-            </button>
-          </p>
+        <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+          {createMutation.isPending
+            ? tx("create.creating")
+            : quoteQuery.isFetching
+              ? tx("create.quoteLoading")
+              : ""}
+        </div>
+        {quoteRecoveryMode ? (
+          <GenerationRecovery
+            mode={quoteRecoveryMode}
+            onAction={quoteRecoveryMode === "submission" ? () => createMutation.mutate() : refreshQuote}
+          />
         ) : null}
-        {createMutation.isError ? <p className="field-error">{tx("common.error")}</p> : null}
       </aside>
     </section>
   );

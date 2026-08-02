@@ -110,6 +110,13 @@ class Settings(BaseSettings):
     openrouter_http_referer: str = "https://kelbet.ai"
     openrouter_app_title: str = "KELBET AI"
 
+    # OpenAI GPT Image is an independent, opt-in image route. The DB feature
+    # flag `openai_image` remains disabled until the canary runbook is met.
+    openai_image_api_key: str = ""
+    openai_image_base_url: str = "https://api.openai.com/v1"
+    openai_image_timeout_seconds: float = 120.0
+    openai_image_max_output_bytes: int = 20_971_520  # 20 MiB
+
     # Mini App auth (Stage C)
     telegram_auth_max_age_seconds: int = 86400
     session_ttl_seconds: int = 3600

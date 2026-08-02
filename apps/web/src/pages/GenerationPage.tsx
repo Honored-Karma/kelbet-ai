@@ -260,7 +260,12 @@ export function GenerationPage() {
       {active ? (
         <div
           className={`generation-progress${isVideo ? " video-generation-progress" : ""}`}
-          aria-label={`${generation.progress_pct}%`}
+          role="progressbar"
+          aria-label={tx("generation.progressLabel")}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
+          aria-valuetext={`${tx(stageKey)}: ${progress}%`}
         >
           <div>
             <span>{isVideo ? tx(stageKey) : `${generation.progress_pct}%`}</span>
@@ -273,6 +278,9 @@ export function GenerationPage() {
           <div className="progress-track">
             <div className="progress-fill" style={{ width: `${generation.progress_pct}%` }} />
           </div>
+          <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+            {tx(stageKey)}
+          </p>
           {isVideo ? (
             <div className="result-film-rail" aria-hidden>
               {[18, 42, 68, 92].map((threshold, index) => (

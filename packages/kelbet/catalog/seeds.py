@@ -19,6 +19,8 @@ RUNWAY_UPSCALE_ID = UUID("11111111-1111-1111-1111-111111111110")
 RUNWAY_FAST_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111111")
 RUNWAY_QUALITY_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111112")
 GOOGLE_FALLBACK_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111113")
+OPENAI_IMAGE_FAST_ID = UUID("11111111-1111-1111-1111-111111111114")
+OPENAI_IMAGE_QUALITY_ID = UUID("11111111-1111-1111-1111-111111111115")
 LEGACY_DISABLED_ID = UUID("11111111-1111-1111-1111-111111111199")
 
 
@@ -28,6 +30,7 @@ def feature_flag_rows() -> list[dict[str, Any]]:
         {"key": "google_video", "enabled": True, "payload": {}},
         {"key": "google_image", "enabled": False, "payload": {}},
         {"key": "image_fallback", "enabled": False, "payload": {}},
+        {"key": "openai_image", "enabled": False, "payload": {}},
         {"key": "referrals", "enabled": False, "payload": {}},
         {"key": "experimental_upscale", "enabled": False, "payload": {}},
     ]
@@ -706,6 +709,111 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "pricing_rules": None,
         },
     ]
+    # OpenAI GPT Image 2 is an independent primary route. It is disabled until
+    # an allowlisted canary has reconciled actual image-token cost and quality.
+    rows.extend(
+        [
+            {
+                "id": OPENAI_IMAGE_FAST_ID,
+                "slug": "openai-gpt-image-2-fast",
+                "modality": "image",
+                "provider": "openai",
+                "provider_model_id": "gpt-image-2",
+                "display_order": 44,
+                "enabled": True,
+                "deprecated_at": None,
+                "replacement_slug": None,
+                "feature_flag": "openai_image",
+                "user_credit_price": 8,
+                "provider_cost_units": 600,
+                "currency_hint": "USD",
+                "capabilities": {
+                    "aspect_ratios": ["1:1", "16:9", "9:16"],
+                    "resolutions": ["1k"],
+                    "flavors": ["low"],
+                    "max_prompt_chars": 4000,
+                    "supports_seed": False,
+                    "max_outputs": 1,
+                    "ui": {
+                        "operation": "create",
+                        "studio_tier": "fast",
+                        "smart_candidate": True,
+                        "simple_default": False,
+                        "hidden_in_production": False,
+                        "eta_seconds": 75,
+                    },
+                },
+                "input_requirements": {
+                    "prompt": "required",
+                    "source_image": "forbidden",
+                    "accepted_mime": [],
+                    "max_input_bytes": 0,
+                    "max_input_assets": 0,
+                },
+                "localization": {
+                    "ru": {
+                        "name": "GPT Image Fast",
+                        "description": "Быстрые черновики через GPT Image 2",
+                    },
+                    "kk": {
+                        "name": "GPT Image Fast",
+                        "description": "GPT Image 2 арқылы жылдам нобайлар",
+                    },
+                },
+                "pricing_rules": None,
+            },
+            {
+                "id": OPENAI_IMAGE_QUALITY_ID,
+                "slug": "openai-gpt-image-2-quality",
+                "modality": "image",
+                "provider": "openai",
+                "provider_model_id": "gpt-image-2",
+                "display_order": 45,
+                "enabled": True,
+                "deprecated_at": None,
+                "replacement_slug": None,
+                "feature_flag": "openai_image",
+                "user_credit_price": 16,
+                "provider_cost_units": 5300,
+                "currency_hint": "USD",
+                "capabilities": {
+                    "aspect_ratios": ["1:1", "16:9", "9:16"],
+                    "resolutions": ["1k"],
+                    "flavors": ["medium"],
+                    "max_prompt_chars": 4000,
+                    "supports_seed": False,
+                    "max_outputs": 1,
+                    "ui": {
+                        "operation": "create",
+                        "studio_tier": "quality",
+                        "smart_candidate": True,
+                        "simple_default": False,
+                        "hidden_in_production": False,
+                        "eta_seconds": 110,
+                    },
+                },
+                "input_requirements": {
+                    "prompt": "required",
+                    "source_image": "forbidden",
+                    "accepted_mime": [],
+                    "max_input_bytes": 0,
+                    "max_input_assets": 0,
+                },
+                "localization": {
+                    "ru": {
+                        "name": "GPT Image Quality",
+                        "description": "Точные изображения через GPT Image 2",
+                    },
+                    "kk": {
+                        "name": "GPT Image Quality",
+                        "description": "GPT Image 2 арқылы дәл кескіндер",
+                    },
+                },
+                "pricing_rules": None,
+            },
+        ]
+    )
+
     # Gemini native image generation/editing is an independent, opt-in fallback.
     # Google does not document deterministic upscale semantics, so the upscale SKU
     # intentionally receives no fallback route.

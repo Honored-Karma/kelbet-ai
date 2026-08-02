@@ -94,6 +94,7 @@ Health: `GET http://localhost:8000/health`
 - Studio operations: catalog-driven Create/Edit/Upscale, Smart/Fast/Quality presets, and up to 10 ordered references
 - Video Studio: text/photo-to-video, Fast/Quality, Runway primary routes, and a cost-bounded Google Veo fallback
 - Video completion: signed Google callbacks plus provider-safe Runway polling
+- Image providers: opt-in Google and OpenAI GPT Image 2 routes, each disabled until its own canary
 - Video production gate: machine-readable 100-job lifecycle and financial reconciliation
 - Telegram Stars: gated XTR invoices, validated checkout, durable receipts, and idempotent credit delivery
 
@@ -104,6 +105,8 @@ See `docs/architecture/VIDEO_PRODUCTION_GATE.md` for signed callback setup and
 the required 100-job staging gate.
 See `docs/architecture/TELEGRAM_STARS_PAYMENTS.md` for the payment contract and
 remaining legal, refund, and reconciliation gates.
+See `docs/architecture/OPENAI_IMAGE_PROVIDER_RUNBOOK.md` for the disabled-by-default
+GPT Image 2 rollout and rollback procedure.
 
 ## Deployment
 

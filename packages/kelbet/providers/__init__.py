@@ -8,6 +8,7 @@ from kelbet.providers.factory import resolve_provider
 from kelbet.providers.google_image import GoogleGeminiImageProvider
 from kelbet.providers.google_veo import GoogleVeoProvider
 from kelbet.providers.mock import MockImageProvider, MockTextProvider
+from kelbet.providers.openai_image import OpenAIImageProvider
 from kelbet.providers.openrouter import OpenRouterTextProvider
 from kelbet.providers.runway import RunwayProvider
 
@@ -21,6 +22,7 @@ __all__ = [
     "MockImageProvider",
     "MockTextProvider",
     "OpenRouterTextProvider",
+    "OpenAIImageProvider",
     "RunwayProvider",
     "resolve_provider",
 ]

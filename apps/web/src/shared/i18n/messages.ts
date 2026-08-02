@@ -211,12 +211,12 @@ type MessageKey =
   | "video.format"
   | "video.duration"
   | "video.seconds"
+  | "video.minutes"
   | "video.advanced"
   | "video.advancedHelp"
   | "video.model"
   | "video.resolution"
   | "video.seed"
-  | "video.refund"
   | "video.submit"
   | "video.submitWithPrice"
   | "video.creating"
@@ -271,6 +271,15 @@ type MessageKey =
   | "generation.stageRunning"
   | "generation.stageFinalizing"
   | "generation.etaRemaining"
+  | "generation.progressLabel"
+  | "recovery.quoteTitle"
+  | "recovery.quoteBody"
+  | "recovery.expiredTitle"
+  | "recovery.expiredBody"
+  | "recovery.submissionTitle"
+  | "recovery.submissionBody"
+  | "recovery.refreshQuote"
+  | "recovery.retryRequest"
   | "history.title"
   | "history.empty"
   | "history.eyebrow"
@@ -578,12 +587,12 @@ const ru: Record<MessageKey, string> = {
   "video.format": "Формат",
   "video.duration": "Длительность",
   "video.seconds": "сек",
+  "video.minutes": "мин",
   "video.advanced": "Точные настройки",
   "video.advancedHelp": "Модель, 720p и воспроизводимый seed",
   "video.model": "Модель",
   "video.resolution": "Разрешение",
   "video.seed": "Seed",
-  "video.refund": "При техническом сбое кредиты вернутся автоматически.",
   "video.submit": "Создать видео",
   "video.submitWithPrice": "Создать за",
   "video.creating": "Запускаем сцену…",
@@ -638,6 +647,15 @@ const ru: Record<MessageKey, string> = {
   "generation.stageRunning": "Строим движение по кадрам",
   "generation.stageFinalizing": "Собираем финальный ролик",
   "generation.etaRemaining": "Осталось примерно",
+  "generation.progressLabel": "Ход генерации",
+  "recovery.quoteTitle": "Не удалось обновить стоимость",
+  "recovery.quoteBody": "Проверьте цену ещё раз, прежде чем отправлять задачу.",
+  "recovery.expiredTitle": "Срок расчёта закончился",
+  "recovery.expiredBody": "Обновите стоимость, затем отправьте задачу снова.",
+  "recovery.submissionTitle": "Запрос пока не подтверждён",
+  "recovery.submissionBody": "Повторим ту же отправку, не создавая новый запрос.",
+  "recovery.refreshQuote": "Обновить стоимость",
+  "recovery.retryRequest": "Повторить отправку",
   "history.title": "История",
   "history.empty": "Пока пусто — создайте первую работу",
   "history.eyebrow": "Архив студии",
@@ -948,12 +966,12 @@ const kk: Record<MessageKey, string> = {
   "video.format": "Пішім",
   "video.duration": "Ұзақтығы",
   "video.seconds": "сек",
+  "video.minutes": "мин",
   "video.advanced": "Дәл баптаулар",
   "video.advancedHelp": "Модель, 720p және қайталанатын seed",
   "video.model": "Модель",
   "video.resolution": "Ажыратымдылық",
   "video.seed": "Seed",
-  "video.refund": "Техникалық ақауда кредит автоматты түрде қайтарылады.",
   "video.submit": "Бейне жасау",
   "video.submitWithPrice": "Жасау бағасы",
   "video.creating": "Көрініс іске қосылуда…",
@@ -1008,6 +1026,15 @@ const kk: Record<MessageKey, string> = {
   "generation.stageRunning": "Кадрлар бойынша қозғалыс құрылуда",
   "generation.stageFinalizing": "Финалдық ролик жиналуда",
   "generation.etaRemaining": "Шамамен қалды",
+  "generation.progressLabel": "Жасау барысы",
+  "recovery.quoteTitle": "Бағаны жаңарту мүмкін болмады",
+  "recovery.quoteBody": "Тапсырманы жібермес бұрын бағаны қайта тексеріңіз.",
+  "recovery.expiredTitle": "Есептеу мерзімі аяқталды",
+  "recovery.expiredBody": "Бағаны жаңартып, содан кейін тапсырманы қайта жіберіңіз.",
+  "recovery.submissionTitle": "Сұрау әлі расталмады",
+  "recovery.submissionBody": "Жаңа сұрау жасамай, сол жіберуді қайталаймыз.",
+  "recovery.refreshQuote": "Бағаны жаңарту",
+  "recovery.retryRequest": "Жіберуді қайталау",
   "history.title": "Тарих",
   "history.empty": "Әзірге бос — алғашқы жұмысты жасаңыз",
   "history.eyebrow": "Студия мұрағаты",

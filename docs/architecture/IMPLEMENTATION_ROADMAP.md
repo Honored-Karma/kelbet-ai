@@ -18,7 +18,7 @@
 - миграционная цепочка: `0001_initial` → `0017_referral_mvp`;
 - backend: целевые контракты этапов 1–7, Ruff и mypy проходят локально;
 - Mini App: tests, lint, TypeScript typecheck и production build проходят локально;
-- CI, OpenAPI baseline, deployment manifests и локальные UI evidence-артефакты существуют;
+- CI проверяет Ruff, форматирование, полный mypy, цепочку Alembic upgrade/downgrade/re-upgrade, pytest, OpenAPI drift, а для Mini App — typecheck, tests, production build и lint; OpenAPI baseline, deployment manifests и локальные UI evidence-артефакты существуют;
 - upgrade/downgrade миграций проверяется на отдельной локальной test DB; реальные provider/payment keys, live canary и юридические согласования не подтверждались.
 
 `DATA_MODEL.md` синхронизирован с additive-цепочкой до `0017_referral_mvp`.
@@ -156,6 +156,15 @@
 | 8. Definition of Done | **Локальный technical DoD выполнен:** adapter основан на official spec/fixtures; coverage честная; fallback только transient и в cost ceiling; attempts/final route/safe code сохранены; ровно один capture/release; prompts/images/raw responses не логируются; kill switch покрыт. Остался реальный canary. |
 | 9. Обязательные тесты | Реализованы primary success, transient→fallback, запреты для permanent/moderation/invalid/unsupported/account, missing key/source validation, cost ceiling, fallback failure/replay, bounded attempts/no loop, immutable route/price, capture/release once, redaction/cardinality и kill switch. |
 | 10. Порядок внутри этапа | 1–8 выполнены: official research → ADR/capabilities → routing snapshot → adapter/fixtures → generic fallback → catalog/flags → metrics/admin health → tests. Остались 9) shadow/canary; 10) controlled rollout. |
+
+### 6.1 OpenAI GPT Image 2 route
+
+`0018_openai_image_provider` adds a synchronous OpenAI adapter and two conservative generation
+catalog candidates (`low` and `medium`). `openai_image=false` is the default, so this is a local
+technical route rather than a production enablement. The adapter has idempotency, strict input and
+output validation, safe error classification, and no raw provider-response persistence. A live
+canary, account/region verification, moderation review, observed-cost reconciliation, and
+allowlisted rollout remain mandatory; see `OPENAI_IMAGE_PROVIDER_RUNBOOK.md`.
 
 ---
 
