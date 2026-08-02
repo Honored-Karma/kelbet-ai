@@ -1103,6 +1103,7 @@ export function CreatePage() {
                     <strong>{model.localization.name}</strong>
                     <small>{model.localization.description}</small>
                   </span>
+                  <span className="model-price">{model.user_credit_price} cr</span>
                 </button>
               ))}
             </div>
@@ -1120,6 +1121,7 @@ export function CreatePage() {
                   className={params.aspect_ratio === aspect ? "selected" : ""}
                   onClick={() => setParams((current) => ({ ...current, aspect_ratio: aspect }))}
                 >
+                  <span className={`aspect-shape aspect-${aspect.replace(":", "-")}`} aria-hidden />
                   {aspect}
                 </button>
               ))}

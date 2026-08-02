@@ -823,43 +823,54 @@ a {
 
 .option-grid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .aspect-grid {
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
 }
 
 .resolution-grid {
-  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
 }
 
 .option-grid button {
-  min-height: 56px;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
+  padding: 0 6px;
   color: var(--tg-theme-hint-color);
-  background: rgba(3, 15, 13, 0.6);
-  border: 1px solid rgba(138, 163, 156, 0.1);
-  border-radius: 16px;
-  font-size: 15px;
-  font-weight: 500;
+  background: rgba(3, 15, 13, 0.52);
+  border: 1px solid rgba(138, 163, 156, 0.16);
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+
+.option-grid button:active {
+  transform: scale(0.96);
 }
 
 .option-grid button.selected {
-  color: var(--tg-theme-text-color);
-  background: rgba(138, 163, 156, 0.25);
-  border-color: rgba(138, 163, 156, 0.4);
+  color: var(--kelbet-accent);
+  background: rgba(61, 207, 182, 0.1);
+  border-color: rgba(61, 207, 182, 0.5);
+  box-shadow: 0 0 12px rgba(61, 207, 182, 0.08);
 }
 
 .aspect-shape {
   display: inline-block;
   border: 1.5px solid currentColor;
-  border-radius: 2px;
+  border-radius: 2.5px;
+  opacity: 0.72;
+}
+
+.option-grid button.selected .aspect-shape {
+  opacity: 1;
 }
 
 .aspect-1-1 {
@@ -873,35 +884,76 @@ a {
 }
 
 .aspect-9-16 {
-  width: 9px;
+  width: 10px;
+  height: 18px;
+}
+
+.aspect-4-3 {
+  width: 16px;
+  height: 12px;
+}
+
+.aspect-3-4 {
+  width: 12px;
   height: 16px;
+}
+
+.aspect-3-2 {
+  width: 17px;
+  height: 11px;
+}
+
+.aspect-2-3 {
+  width: 11px;
+  height: 17px;
+}
+
+.aspect-4-5 {
+  width: 13px;
+  height: 16px;
+}
+
+.aspect-5-4 {
+  width: 16px;
+  height: 13px;
+}
+
+.aspect-21-9 {
+  width: 21px;
+  height: 9px;
 }
 
 .model-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 }
 
 .model-list > button {
   width: 100%;
-  min-height: 58px;
+  min-height: 62px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   color: var(--tg-theme-text-color);
   text-align: left;
-  background: rgba(3, 15, 13, 0.42);
+  background: rgba(3, 15, 13, 0.48);
   border: 1px solid rgba(138, 163, 156, 0.14);
-  border-radius: 13px;
+  border-radius: 14px;
   cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 120ms ease;
+}
+
+.model-list > button:active {
+  transform: scale(0.98);
 }
 
 .model-list > button.selected {
   border-color: var(--kelbet-accent);
-  background: rgba(61, 207, 182, 0.08);
+  background: rgba(61, 207, 182, 0.09);
+  box-shadow: 0 0 16px rgba(61, 207, 182, 0.06);
 }
 
 .model-list strong,
@@ -1144,11 +1196,11 @@ a {
 
 .recipe-shelf {
   display: grid;
-  grid-auto-columns: minmax(166px, 44%);
+  grid-auto-columns: minmax(178px, 48%);
   grid-auto-flow: column;
-  gap: 9px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 2px 3px 9px;
+  padding: 2px 3px 10px;
   scroll-snap-type: x proximity;
   scrollbar-width: thin;
   scrollbar-color: rgba(216, 195, 161, 0.32) transparent;
@@ -1156,13 +1208,13 @@ a {
 
 .recipe-shelf button {
   position: relative;
-  min-height: 154px;
+  min-height: 164px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   scroll-snap-align: start;
-  padding: 14px 13px 12px;
+  padding: 15px 14px 13px;
   color: var(--tg-theme-text-color);
   text-align: left;
   background:
@@ -1170,7 +1222,7 @@ a {
   border: 1px solid rgba(138, 163, 156, 0.18);
   border-radius: 4px 18px 18px 18px;
   cursor: pointer;
-  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease, box-shadow 200ms ease;
 }
 
 .recipe-shelf button:hover {
@@ -1178,16 +1230,20 @@ a {
   border-color: rgba(216, 195, 161, 0.4);
 }
 
+.recipe-shelf button:active {
+  transform: scale(0.97);
+}
+
 .recipe-shelf button.active {
   background:
     linear-gradient(155deg, rgba(25, 73, 61, 0.96), rgba(8, 30, 25, 0.98));
   border-color: var(--kelbet-accent);
-  box-shadow: inset 0 -3px 0 rgba(61, 207, 182, 0.55);
+  box-shadow: inset 0 -3px 0 rgba(61, 207, 182, 0.55), 0 0 20px rgba(61, 207, 182, 0.06);
 }
 
 .recipe-index {
   color: var(--kelbet-sand);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.14em;
 }
@@ -1198,24 +1254,24 @@ a {
   right: 11px;
   color: rgba(216, 195, 161, 0.36);
   font-family: var(--kelbet-font-display);
-  font-size: 34px;
+  font-size: 36px;
   line-height: 1;
 }
 
 .recipe-shelf strong {
-  max-width: 12ch;
-  margin-top: 25px;
+  max-width: 14ch;
+  margin-top: 22px;
   font-family: var(--kelbet-font-display);
-  font-size: 14px;
-  line-height: 1.16;
+  font-size: 15px;
+  line-height: 1.18;
   letter-spacing: -0.025em;
 }
 
 .recipe-shelf small {
   margin-top: 7px;
   color: var(--tg-theme-hint-color);
-  font-size: 9px;
-  line-height: 1.38;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .recipe-format {
@@ -4400,7 +4456,7 @@ a {
 
 .video-recipe-rail {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   padding: 0 14px 4px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -4411,13 +4467,13 @@ a {
 
 .video-recipe-rail button {
   position: relative;
-  min-width: 170px;
-  min-height: 178px;
+  min-width: 184px;
+  min-height: 188px;
   display: grid;
   grid-template-columns: 39px minmax(0, 1fr);
   grid-template-rows: auto auto 1fr auto;
-  gap: 7px 9px;
-  padding: 11px;
+  gap: 7px 10px;
+  padding: 12px;
   color: var(--tg-theme-hint-color);
   text-align: left;
   background: rgba(7, 29, 24, 0.64);
@@ -4425,12 +4481,16 @@ a {
   border-radius: 2px;
   cursor: pointer;
   scroll-snap-align: start;
-  transition: border-color 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 200ms ease;
 }
 
 .video-recipe-rail button:hover {
   transform: translateY(-2px);
   border-color: rgba(216, 195, 161, 0.42);
+}
+
+.video-recipe-rail button:active {
+  transform: scale(0.97);
 }
 
 .video-recipe-number {
@@ -4455,7 +4515,7 @@ a {
 .video-recipe-rail strong {
   color: var(--tg-theme-text-color);
   font-family: var(--kelbet-font-display);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.25;
 }
 
@@ -4475,6 +4535,7 @@ a {
 .video-recipe-rail button.selected {
   background: rgba(61, 207, 182, 0.08);
   border-color: var(--kelbet-accent);
+  box-shadow: 0 0 18px rgba(61, 207, 182, 0.06);
 }
 
 .video-recipe-rail button.selected .video-recipe-marker {
@@ -5967,9 +6028,9 @@ button,
 
 .home-recipe-rail {
   display: grid;
-  grid-auto-columns: minmax(154px, 44%);
+  grid-auto-columns: minmax(168px, 48%);
   grid-auto-flow: column;
-  gap: 9px;
+  gap: 10px;
   padding-bottom: 4px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
@@ -5982,10 +6043,10 @@ button,
 
 .home-recipe {
   position: relative;
-  min-height: 228px;
+  min-height: 240px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: 128px auto 1fr;
+  grid-template-rows: 132px auto 1fr;
   gap: 5px 8px;
   overflow: hidden;
   color: var(--tg-theme-text-color);
@@ -5993,6 +6054,11 @@ button,
   border: 1px solid var(--kelbet-line-cool);
   border-radius: 3px 15px 15px;
   scroll-snap-align: start;
+  transition: transform 160ms ease;
+}
+
+.home-recipe:active {
+  transform: scale(0.97);
 }
 
 .home-recipe-visual {
@@ -6042,7 +6108,7 @@ button,
 .home-recipe strong {
   align-self: end;
   font-family: var(--kelbet-font-display);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.25;
 }
 
