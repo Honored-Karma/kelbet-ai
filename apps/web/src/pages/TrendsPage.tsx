@@ -126,6 +126,7 @@ export function TrendsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [clock, setClock] = useState(Date.now());
   const [rightsConsent, setRightsConsent] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   useEffect(() => {
     photoRef.current = photo;
@@ -240,6 +241,7 @@ export function TrendsPage() {
   });
 
   const selectTrend = (trendId: string) => {
+    setSubmissionError(null);
     setSelectedId(trendId);
     setUploadError(null);
     createMutation.reset();
@@ -249,6 +251,7 @@ export function TrendsPage() {
   };
 
   const clearPhoto = () => {
+    setSubmissionError(null);
     setRightsConsent(false);
     setPhoto((current) => {
       if (current) revokeIfLocal(current.previewUrl);
@@ -259,6 +262,7 @@ export function TrendsPage() {
   };
 
   const uploadPhoto = async (file: File) => {
+    setSubmissionError(null);
     setRightsConsent(false);
     if (!allowedMime.includes(file.type)) {
       setUploadError(tx("create.invalidType"));
@@ -312,21 +316,50 @@ export function TrendsPage() {
   if (!editModel && !videoModel) return <EmptyState title={tx("trends.noModels")} />;
 
   const photoReady = photo?.status === "ready" && Boolean(photo.assetId);
-  const submitDisabled =
-    !selected ||
-    !selectedModel ||
-    !quote ||
-    insufficient ||
-    !photoReady ||
-    !moderationQuery.data ||
-    !rightsConsent ||
-    createMutation.isPending;
-
   const filters: Array<{ id: TrendFilter; label: string }> = [
     { id: "all", label: tx("trends.filterAll") },
     { id: "image", label: tx("trends.filterPhoto") },
     { id: "video", label: tx("trends.filterVideo") },
   ];
+
+  const showSubmissionError = (message: string, selector?: string) => {
+    setSubmissionError(message);
+    if (selector) {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(selector)?.focus();
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!selected || !selectedModel) {
+      showSubmissionError(tx("trends.pickFirst"));
+      return;
+    }
+    if (photo?.status === "uploading") {
+      showSubmissionError(tx("create.uploadsPending"), "[data-trend-upload]");
+      return;
+    }
+    if (!photoReady) {
+      showSubmissionError(tx("trends.photoRequired"), "[data-trend-upload]");
+      return;
+    }
+    if (!moderationQuery.data || !rightsConsent) {
+      showSubmissionError(tx("create.consentRequired"), "#trend-photo-rights-check");
+      return;
+    }
+    if (insufficient) {
+      showSubmissionError(tx("create.insufficient"));
+      return;
+    }
+    if (!quote || quoteSeconds === 0) {
+      showSubmissionError(tx("create.quoteExpired"));
+      if (!quoteQuery.isFetching) void quoteQuery.refetch();
+      return;
+    }
+    setSubmissionError(null);
+    createMutation.mutate();
+  };
 
   return (
     <section className="create-studio trends-page">
@@ -342,13 +375,12 @@ export function TrendsPage() {
         </div>
       </header>
 
-      <div className="trend-filter" role="tablist" aria-label={tx("trends.title")}>
+      <div className="trend-filter" role="group" aria-label={tx("trends.title")}>
         {filters.map((item) => (
           <button
             key={item.id}
             type="button"
-            role="tab"
-            aria-selected={filter === item.id}
+            aria-pressed={filter === item.id}
             className={filter === item.id ? "selected" : ""}
             onClick={() => setFilter(item.id)}
           >
@@ -395,7 +427,7 @@ export function TrendsPage() {
 
       <input
         ref={fileInputRef}
-        className="visually-hidden"
+        hidden
         type="file"
         accept={allowedMime.join(",")}
         onChange={handleFile}
@@ -444,7 +476,11 @@ export function TrendsPage() {
                   </small>
                 </div>
                 <span className="trend-photo-actions">
-                  <button type="button" onClick={() => fileInputRef.current?.click()}>
+                  <button
+                    type="button"
+                    data-trend-upload
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     {tx("create.replacePhoto")}
                   </button>
                   <button
@@ -461,6 +497,7 @@ export function TrendsPage() {
             <button
               type="button"
               className="upload-zone atelier-upload"
+              data-trend-upload
               onClick={() => fileInputRef.current?.click()}
             >
               <span className="upload-icon" aria-hidden>＋</span>
@@ -476,7 +513,10 @@ export function TrendsPage() {
             checked={rightsConsent}
             loading={moderationQuery.isLoading}
             error={moderationQuery.isError}
-            onChange={setRightsConsent}
+            onChange={(checked) => {
+              setSubmissionError(null);
+              setRightsConsent(checked);
+            }}
           />
         </section>
       ) : null}
@@ -502,8 +542,8 @@ export function TrendsPage() {
           <button
             type="button"
             className="btn create-submit"
-            disabled={submitDisabled}
-            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending}
+            onClick={handleSubmit}
           >
             {createMutation.isPending
               ? tx("create.creating")
@@ -515,6 +555,7 @@ export function TrendsPage() {
           {!photoReady && photo?.status !== "uploading" ? (
             <p className="action-hint">{tx("trends.photoRequired")}</p>
           ) : null}
+          {submissionError ? <p className="field-error" role="alert">{submissionError}</p> : null}
           {quoteQuery.isError ? (
             <p className="field-error">
               {tx("create.quoteError")}{" "}

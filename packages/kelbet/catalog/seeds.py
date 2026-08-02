@@ -220,7 +220,7 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "currency_hint": "USD",
             "capabilities": {
                 "aspect_ratios": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"],
-                "resolutions": ["1k", "2k"],
+                "resolutions": ["1k", "2k", "auto_1k", "auto_2k"],
                 "max_prompt_chars": 4000,
                 "supports_seed": False,
                 "max_outputs": 1,
@@ -254,6 +254,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                 "resolution_multipliers": {
                     "1k": {"num": 1, "den": 1},
                     "2k": {"num": 5, "den": 3},
+                    "auto_1k": {"num": 1, "den": 1},
+                    "auto_2k": {"num": 5, "den": 3},
                 }
             },
         },
@@ -321,7 +323,7 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "currency_hint": "USD",
             "capabilities": {
                 "aspect_ratios": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"],
-                "resolutions": ["1k", "2k"],
+                "resolutions": ["1k", "2k", "auto_1k", "auto_2k"],
                 "max_prompt_chars": 4000,
                 "supports_seed": False,
                 "max_outputs": 1,
@@ -355,6 +357,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                 "resolution_multipliers": {
                     "1k": {"num": 1, "den": 1},
                     "2k": {"num": 5, "den": 3},
+                    "auto_1k": {"num": 1, "den": 1},
+                    "auto_2k": {"num": 5, "den": 3},
                 }
             },
         },

@@ -10,7 +10,7 @@ export function ErrorState({
   retryLabel: string;
 }) {
   return (
-    <div className="panel state-card rise">
+    <div className="panel state-card rise" role="alert">
       <h2>{title}</h2>
       {body ? <p className="muted">{body}</p> : null}
       {onRetry ? (

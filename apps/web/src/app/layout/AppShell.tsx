@@ -81,7 +81,7 @@ export function AppShell() {
       <main className="app-main">
         {meQuery.isLoading ? <SkeletonBlock rows={4} /> : <Outlet />}
       </main>
-      <nav className="bottom-nav" aria-label="Main">
+      <nav className="bottom-nav" aria-label={tx("nav.main")}>
         {navItems.map((item) => {
           const forcedActive = item.create && isCreateRoute;
           return (

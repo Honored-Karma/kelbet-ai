@@ -273,6 +273,7 @@ export function VideoPage() {
   const [continuation, setContinuation] = useState<"repeat" | "frame" | null>(null);
   const [clock, setClock] = useState(Date.now());
   const [rightsConsent, setRightsConsent] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   useEffect(() => {
     photoRef.current = photo;
@@ -528,6 +529,7 @@ export function VideoPage() {
   });
 
   const clearPhoto = () => {
+    setSubmissionError(null);
     setRightsConsent(false);
     setPhoto((current) => {
       if (current) revokeLocal(current.previewUrl);
@@ -538,6 +540,7 @@ export function VideoPage() {
   };
 
   const handlePhoto = async (event: ChangeEvent<HTMLInputElement>) => {
+    setSubmissionError(null);
     const file = event.target.files?.[0];
     if (!file) return;
     if (!allowedMime.includes(file.type)) {
@@ -587,6 +590,7 @@ export function VideoPage() {
   };
 
   const applyTemplate = (template: GenerationTemplate) => {
+    setSubmissionError(null);
     if (activeTemplateId === template.id) {
       setActiveTemplateId(null);
       setRestoredTemplateSlug(null);
@@ -639,26 +643,13 @@ export function VideoPage() {
   }
   if (!videoModels.length) return <EmptyState title={tx("video.noModels")} />;
 
-  const submitDisabled =
-    !selected ||
-    !prompt.trim() ||
-    !quote ||
-    quoteSeconds === 0 ||
-    insufficient ||
-    Boolean(photoPending) ||
-    (mode === "photo" && !photoReady) ||
-    (mode === "photo" && (!moderationQuery.data || !rightsConsent)) ||
-    !templateValid ||
-    !templateAssetsValid ||
-    createMutation.isPending;
-
   // React Query retains an earlier error while a refresh is in progress.
   // Keep the recovery panel hidden until that refresh has finished.
   const quoteRecoveryMode = !quoteEnabled || quoteQuery.isFetching
     ? null
     : quoteQuery.isError
       ? "quote"
-      : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
+      : (Boolean(quote) && quoteSeconds === 0) || isStaleQuoteError(createMutation.error)
         ? "expired"
         : createMutation.isError
           ? "submission"
@@ -668,6 +659,56 @@ export function VideoPage() {
     submissionRef.current = null;
     createMutation.reset();
     void quoteQuery.refetch();
+  };
+
+  const showSubmissionError = (message: string, selector?: string) => {
+    setSubmissionError(message);
+    if (selector) {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(selector)?.focus();
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!selected) {
+      showSubmissionError(tx("video.noModels"));
+      return;
+    }
+    if (!prompt.trim()) {
+      showSubmissionError(tx("video.promptRequired"), "#video-prompt");
+      return;
+    }
+    if (photoPending) {
+      showSubmissionError(tx("create.uploadsPending"), "[data-video-upload]");
+      return;
+    }
+    if (mode === "photo" && !photoReady) {
+      showSubmissionError(tx("video.photoRequired"), "[data-video-upload]");
+      return;
+    }
+    if (!templateValid || !templateAssetsValid) {
+      showSubmissionError(
+        tx("create.templateRequired"),
+        activeTemplate?.required_inputs.fields.length ? "[data-template-input]" : "[data-video-upload]",
+      );
+      return;
+    }
+    if (mode === "photo" && (!moderationQuery.data || !rightsConsent)) {
+      showSubmissionError(tx("create.consentRequired"), "#video-photo-rights-check");
+      return;
+    }
+    if (insufficient) {
+      showSubmissionError(tx("create.insufficient"));
+      return;
+    }
+    if (!quote || quoteSeconds === 0) {
+      showSubmissionError(tx("create.quoteExpired"));
+      if (!quoteQuery.isFetching) refreshQuote();
+      return;
+    }
+    setSubmissionError(null);
+    createMutation.mutate();
   };
 
   return (
@@ -744,6 +785,7 @@ export function VideoPage() {
                   className={mode === item ? "selected" : ""}
                   aria-pressed={mode === item}
                   onClick={() => {
+                    setSubmissionError(null);
                     if (item !== mode) setRightsConsent(false);
                     setMode(item);
                   }}
@@ -805,6 +847,7 @@ export function VideoPage() {
                   <label key={field.key}>
                     <span>{templateFieldLabel(field, language)}{field.required ? " *" : ""}</span>
                     <input
+                      data-template-input
                       type="text"
                       value={templateInputs[field.key] ?? ""}
                       maxLength={field.max_length}
@@ -841,7 +884,7 @@ export function VideoPage() {
             <section className="video-photo-panel" aria-labelledby="video-photo-title">
               <input
                 ref={fileInputRef}
-                className="visually-hidden"
+                hidden
                 type="file"
                 accept={allowedMime.join(",")}
                 onChange={handlePhoto}
@@ -872,7 +915,11 @@ export function VideoPage() {
                           : tx("video.photoHelp")}
                       </small>
                     </div>
-                    <button type="button" onClick={() => fileInputRef.current?.click()}>
+                    <button
+                      type="button"
+                      data-video-upload
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       {tx("video.replacePhoto")}
                     </button>
                     <button type="button" onClick={clearPhoto}>
@@ -884,6 +931,7 @@ export function VideoPage() {
                 <button
                   type="button"
                   className="video-upload-zone"
+                  data-video-upload
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <span aria-hidden>＋</span>
@@ -899,7 +947,10 @@ export function VideoPage() {
                 checked={rightsConsent}
                 loading={moderationQuery.isLoading}
                 error={moderationQuery.isError}
-                onChange={setRightsConsent}
+                onChange={(checked) => {
+                  setSubmissionError(null);
+                  setRightsConsent(checked);
+                }}
               />
             </section>
           ) : null}
@@ -917,6 +968,7 @@ export function VideoPage() {
               maxLength={maxPromptChars}
               placeholder={tx("video.promptHint")}
               onChange={(event) => {
+                setSubmissionError(null);
                 setPrompt(event.target.value);
               }}
             />
@@ -1096,8 +1148,8 @@ export function VideoPage() {
               <button
                 type="button"
                 className="btn video-submit"
-                disabled={submitDisabled}
-                onClick={() => createMutation.mutate()}
+                disabled={createMutation.isPending}
+                onClick={handleSubmit}
               >
                 {createMutation.isPending
                   ? tx("video.creating")
@@ -1111,6 +1163,7 @@ export function VideoPage() {
               {mode === "photo" && !photoReady && !photoPending ? (
                 <p className="video-quote-error">{tx("video.photoRequired")}</p>
               ) : null}
+              {submissionError ? <p className="field-error" role="alert">{submissionError}</p> : null}
               <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
                 {createMutation.isPending
                   ? tx("video.creating")

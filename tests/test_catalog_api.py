@@ -197,6 +197,17 @@ async def test_quote_uses_db_price_and_multipliers(
     assert quality.status_code == 200, quality.text
     assert quality.json()["user_credit_price"] == 20
 
+    quality_auto = await api_client.post(
+        "/api/v1/wallet/quote",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "model_slug": "runway-seedream5-pro-image",
+            "params": {"resolution": "auto_2k", "aspect_ratio": "9:16"},
+        },
+    )
+    assert quality_auto.status_code == 200, quality_auto.text
+    assert quality_auto.json()["user_credit_price"] == 20
+
     upscale = await api_client.post(
         "/api/v1/wallet/quote",
         headers={"Authorization": f"Bearer {token}"},

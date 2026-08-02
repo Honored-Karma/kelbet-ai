@@ -204,6 +204,31 @@ async def test_runway_seedream_edit_keeps_reference_order() -> None:
 
 
 @pytest.mark.asyncio
+async def test_runway_seedream_pro_supports_auto_quality_ratios() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/v1/text_to_image":
+            body = json.loads(request.content.decode())
+            assert body["ratio"] == "auto_2k"
+            return httpx.Response(200, json={"id": "task_auto_quality_001"})
+        return httpx.Response(404)
+
+    provider, client = _provider(handler)
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="seedream5_pro",
+                modality="image",
+                prompt="A storefront product composition",
+                params={"aspect_ratio": "1:1", "resolution": "auto_2k"},
+            )
+        )
+
+    assert result.status == "accepted"
+    assert result.provider_job_id == "task_auto_quality_001"
+
+
+@pytest.mark.asyncio
 async def test_runway_image_upscale_contract() -> None:
     source = "https://assets.example.test/photo.jpg"
 

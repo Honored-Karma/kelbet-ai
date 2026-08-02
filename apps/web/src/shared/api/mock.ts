@@ -202,7 +202,7 @@ const models: CatalogModel[] = [
     user_credit_price: 12,
     capabilities: {
       aspect_ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"],
-      resolutions: ["1k", "2k"],
+      resolutions: ["1k", "2k", "auto_1k", "auto_2k"],
       max_prompt_chars: 4000,
       supports_seed: false,
       max_outputs: 1,
@@ -230,6 +230,8 @@ const models: CatalogModel[] = [
       resolution_multipliers: {
         "1k": { num: 1, den: 1 },
         "2k": { num: 5, den: 3 },
+        auto_1k: { num: 1, den: 1 },
+        auto_2k: { num: 5, den: 3 },
       },
     },
   },
@@ -285,7 +287,7 @@ const models: CatalogModel[] = [
     user_credit_price: 12,
     capabilities: {
       aspect_ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"],
-      resolutions: ["1k", "2k"],
+      resolutions: ["1k", "2k", "auto_1k", "auto_2k"],
       max_prompt_chars: 4000,
       supports_seed: false,
       max_outputs: 1,
@@ -313,6 +315,8 @@ const models: CatalogModel[] = [
       resolution_multipliers: {
         "1k": { num: 1, den: 1 },
         "2k": { num: 5, den: 3 },
+        auto_1k: { num: 1, den: 1 },
+        auto_2k: { num: 5, den: 3 },
       },
     },
   },
@@ -791,7 +795,7 @@ function serverQuote(
     price = Math.ceil((price * 3) / 2);
   }
   if (
-    resolution === "2k" &&
+    (resolution === "2k" || resolution === "auto_2k") &&
     (modelSlug === "runway-seedream5-pro-image" ||
       modelSlug === "runway-seedream5-pro-edit")
   ) {

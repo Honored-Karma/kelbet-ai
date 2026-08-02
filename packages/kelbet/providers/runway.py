@@ -87,6 +87,8 @@ def _ratio_for_params(
     if provider_model_id == "seedream5_lite":
         return seedream_lite.get((aspect, resolution), "2048:2048")
     if provider_model_id == "seedream5_pro":
+        if resolution in {"auto_1k", "auto_2k"}:
+            return resolution
         return seedream_pro.get((aspect, resolution), "2048:2048")
     mapping = {
         ("1:1", "720p"): "1024:1024",

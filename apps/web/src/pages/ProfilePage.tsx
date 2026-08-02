@@ -152,13 +152,15 @@ export function ProfilePage() {
         <div className="profile-setting">
           <span className="setting-icon"><Icon name="bell" /></span>
           <div>
-            <strong>{tx("profile.readyNotifications")}</strong>
-            <small>{tx("profile.readyNotificationsHelp")}</small>
+            <strong id="profile-ready-notifications-label">{tx("profile.readyNotifications")}</strong>
+            <small id="profile-ready-notifications-help">{tx("profile.readyNotificationsHelp")}</small>
           </div>
           <button
             type="button"
             role="switch"
             aria-checked={me.notify_generation_ready}
+            aria-labelledby="profile-ready-notifications-label"
+            aria-describedby="profile-ready-notifications-help"
             className={`profile-switch${me.notify_generation_ready ? " is-on" : ""}`}
             disabled={notificationMutation.isPending}
             onClick={() => {

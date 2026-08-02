@@ -1,6 +1,7 @@
 import type { Language } from "../api/types";
 
 type MessageKey =
+  | "nav.main"
   | "nav.home"
   | "nav.create"
   | "nav.history"
@@ -77,6 +78,10 @@ type MessageKey =
   | "create.addReferences"
   | "create.removeReference"
   | "create.missingReference"
+  | "create.promptRequired"
+  | "create.uploadsPending"
+  | "create.templateRequired"
+  | "create.consentRequired"
   | "create.upscaleSource"
   | "create.upscaleSourceHelp"
   | "create.upscaleEligibility"
@@ -205,6 +210,7 @@ type MessageKey =
   | "video.tooLarge"
   | "video.uploadError"
   | "video.photoRequired"
+  | "video.promptRequired"
   | "video.prompt"
   | "video.promptHint"
   | "video.promptGuide"
@@ -377,6 +383,7 @@ type MessageKey =
   | "auth.unknownError";
 
 const ru: Record<MessageKey, string> = {
+  "nav.main": "Основная навигация",
   "nav.home": "Главная",
   "nav.create": "Создать",
   "nav.history": "История",
@@ -453,6 +460,10 @@ const ru: Record<MessageKey, string> = {
   "create.addReferences": "Добавить изображения",
   "create.removeReference": "Убрать референс",
   "create.missingReference": "Добавьте хотя бы один готовый референс",
+  "create.promptRequired": "Опишите, что хотите создать.",
+  "create.uploadsPending": "Дождитесь завершения загрузки файлов.",
+  "create.templateRequired": "Заполните обязательные поля шаблона.",
+  "create.consentRequired": "Подтвердите права на загруженное фото.",
   "create.upscaleSource": "Исходное изображение",
   "create.upscaleSourceHelp": "Один кадр для точного восстановления",
   "create.upscaleEligibility": "Источник до 2048×2048 · результат 2×",
@@ -581,6 +592,7 @@ const ru: Record<MessageKey, string> = {
   "video.tooLarge": "Фото должно быть меньше 10 МБ.",
   "video.uploadError": "Не удалось загрузить фото. Попробуйте другое.",
   "video.photoRequired": "Добавьте готовый кадр для запуска.",
+  "video.promptRequired": "Опишите сцену для видео.",
   "video.prompt": "Режиссёрский бриф",
   "video.promptHint": "Например: керамическая чашка поворачивается к камере, медленный наезд, тёплый утренний свет, тихий звук кофейни",
   "video.promptGuide": "Объект → действие → камера → атмосфера → звук",
@@ -756,6 +768,7 @@ const ru: Record<MessageKey, string> = {
 };
 
 const kk: Record<MessageKey, string> = {
+  "nav.main": "Негізгі мәзір",
   "nav.home": "Басты",
   "nav.create": "Жасау",
   "nav.history": "Тарих",
@@ -832,6 +845,10 @@ const kk: Record<MessageKey, string> = {
   "create.addReferences": "Суреттер қосу",
   "create.removeReference": "Референсті алып тастау",
   "create.missingReference": "Кемінде бір дайын референс қосыңыз",
+  "create.promptRequired": "Не жасағыңыз келетінін сипаттаңыз.",
+  "create.uploadsPending": "Файлдар жүктелгенше күтіңіз.",
+  "create.templateRequired": "Үлгінің міндетті өрістерін толтырыңыз.",
+  "create.consentRequired": "Жүктелген фотоны пайдалануға құқығыңызды растаңыз.",
   "create.upscaleSource": "Бастапқы сурет",
   "create.upscaleSourceHelp": "Дәл қалпына келтіруге бір кадр",
   "create.upscaleEligibility": "Дереккөз 2048×2048 дейін · нәтиже 2×",
@@ -960,6 +977,7 @@ const kk: Record<MessageKey, string> = {
   "video.tooLarge": "Фото 10 МБ-тан кіші болуы керек.",
   "video.uploadError": "Фото жүктелмеді. Басқасын қолданып көріңіз.",
   "video.photoRequired": "Іске қосу үшін дайын кадр қосыңыз.",
+  "video.promptRequired": "Бейне көрінісін сипаттаңыз.",
   "video.prompt": "Режиссерлік бриф",
   "video.promptHint": "Мысалы: керамикалық кесе камераға бұрылады, баяу жақындау, жылы таңғы жарық, кофехананың тыныш дыбысы",
   "video.promptGuide": "Нысан → әрекет → камера → атмосфера → дыбыс",

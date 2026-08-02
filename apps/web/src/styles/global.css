@@ -98,12 +98,14 @@ body,
 
 html {
   min-height: 100%;
+  overflow-x: clip;
   background: #06110f;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
+  overflow-x: clip;
   font-family: var(--kelbet-font-body);
   color: var(--tg-theme-text-color);
   background:
@@ -7397,17 +7399,17 @@ button,
   }
 
   .app-shell.is-wide .app-main {
-    padding: 28px 30px 120px;
+    padding: 28px 30px 32px;
   }
 
   .app-shell.is-wide .bottom-nav {
-    position: fixed;
+    position: relative;
     right: auto;
-    bottom: 14px;
-    left: 50%;
-    width: min(620px, calc(100% - 64px));
-    margin: 0;
-    transform: translateX(-50%);
+    bottom: auto;
+    left: auto;
+    width: min(720px, 100%);
+    margin: 8px auto 18px;
+    transform: none;
   }
 
   .home-page {

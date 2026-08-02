@@ -155,6 +155,12 @@ function isStaleQuoteError(error: unknown): boolean {
   return error instanceof Error && error.message === "stale_quote";
 }
 
+function resolutionLabel(resolution: string): string {
+  return resolution.startsWith("auto_")
+    ? `AUTO · ${resolution.slice("auto_".length).toUpperCase()}`
+    : resolution.toUpperCase();
+}
+
 export function CreatePage() {
   const { tx, language } = useI18n();
   const navigate = useNavigate();
@@ -193,6 +199,7 @@ export function CreatePage() {
   const [continuation, setContinuation] = useState<ContinuationNotice | null>(null);
   const [clock, setClock] = useState(Date.now());
   const [rightsConsent, setRightsConsent] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   useEffect(() => {
     referencesRef.current = references;
@@ -502,6 +509,7 @@ export function CreatePage() {
   });
 
   const clearReferences = () => {
+    setSubmissionError(null);
     setRightsConsent(false);
     setReferences((current) => {
       current.forEach((item) => revokeIfLocal(item.previewUrl));
@@ -513,6 +521,7 @@ export function CreatePage() {
 
   const selectOperation = (next: Operation) => {
     if (next === operation) return;
+    setSubmissionError(null);
     setOperation(next);
     setExplicitSlug(null);
     setStudioMode("simple");
@@ -533,6 +542,7 @@ export function CreatePage() {
   };
 
   const uploadFiles = async (files: File[]) => {
+    setSubmissionError(null);
     setRightsConsent(false);
     const remainingSlots = Math.max(0, maxReferences - references.length);
     const selectedFiles = files.slice(0, remainingSlots);
@@ -600,6 +610,7 @@ export function CreatePage() {
   };
 
   const removeReference = (localId: string) => {
+    setSubmissionError(null);
     setRightsConsent(false);
     setReferences((current) => {
       const removed = current.find((item) => item.localId === localId);
@@ -625,6 +636,7 @@ export function CreatePage() {
   };
 
   const applyTemplate = (templateId: string) => {
+    setSubmissionError(null);
     if (activeTemplateId === templateId) {
       setActiveTemplateId(null);
       setRestoredTemplateSlug(null);
@@ -688,20 +700,6 @@ export function CreatePage() {
   }
   if (!studioModels.length) return <EmptyState title={tx("create.noModels")} />;
 
-  const submitDisabled =
-    !selected ||
-    (operation !== "upscale" && !prompt.trim()) ||
-    !quote ||
-    quoteSeconds === 0 ||
-    insufficient ||
-    uploadsPending ||
-    referencesMissing ||
-    referencesOverLimit ||
-    upscaleBlocked ||
-    createMutation.isPending ||
-    !templateValid ||
-    (operation === "edit" && (!moderationQuery.data || !rightsConsent));
-
   // A previous query can remain in the error state while a manual refresh is
   // already in flight. Do not show the recovery error together with the
   // "price is updating" state.
@@ -709,7 +707,7 @@ export function CreatePage() {
     ? null
     : quoteQuery.isError
       ? "quote"
-      : quoteSeconds === 0 || isStaleQuoteError(createMutation.error)
+      : (Boolean(quote) && quoteSeconds === 0) || isStaleQuoteError(createMutation.error)
         ? "expired"
         : createMutation.isError
           ? "submission"
@@ -719,6 +717,64 @@ export function CreatePage() {
     submissionRef.current = null;
     createMutation.reset();
     void quoteQuery.refetch();
+  };
+
+  const showSubmissionError = (message: string, selector?: string) => {
+    setSubmissionError(message);
+    if (selector) {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(selector)?.focus();
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!selected) {
+      showSubmissionError(tx("create.noModels"));
+      return;
+    }
+    if (operation !== "upscale" && !prompt.trim()) {
+      showSubmissionError(tx("create.promptRequired"), "#image-prompt");
+      return;
+    }
+    if (uploadsPending) {
+      showSubmissionError(tx("create.uploadsPending"), "[data-reference-upload]");
+      return;
+    }
+    if (referencesMissing) {
+      showSubmissionError(tx("create.missingReference"), "[data-reference-upload]");
+      return;
+    }
+    if (referencesOverLimit) {
+      showSubmissionError(tx("create.referencesLimit"), "[data-reference-upload]");
+      return;
+    }
+    if (upscaleBlocked) {
+      showSubmissionError(
+        upscaleTooLarge ? tx("create.upscaleTooLarge") : tx("create.upscaleUnverified"),
+        "[data-reference-upload]",
+      );
+      return;
+    }
+    if (!templateValid) {
+      showSubmissionError(tx("create.templateRequired"), "[data-template-input]");
+      return;
+    }
+    if (operation === "edit" && (!moderationQuery.data || !rightsConsent)) {
+      showSubmissionError(tx("create.consentRequired"), "#create-photo-rights-check");
+      return;
+    }
+    if (insufficient) {
+      showSubmissionError(tx("create.insufficient"));
+      return;
+    }
+    if (!quote || quoteSeconds === 0) {
+      showSubmissionError(tx("create.quoteExpired"));
+      if (!quoteQuery.isFetching) refreshQuote();
+      return;
+    }
+    setSubmissionError(null);
+    createMutation.mutate();
   };
 
   const operationOptions: Array<{
@@ -921,6 +977,7 @@ export function CreatePage() {
                 <label key={field.key}>
                   <span>{templateFieldLabel(field, language)}{field.required ? " *" : ""}</span>
                   <input
+                    data-template-input
                     type="text"
                     value={templateInputs[field.key] ?? ""}
                     maxLength={field.max_length}
@@ -942,7 +999,7 @@ export function CreatePage() {
 
       <input
         ref={fileInputRef}
-        className="visually-hidden"
+        hidden
         type="file"
         accept={allowedMime.join(",")}
         multiple={operation === "edit"}
@@ -1004,6 +1061,7 @@ export function CreatePage() {
                 <button
                   type="button"
                   className="contact-add"
+                  data-reference-upload
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <span aria-hidden>+</span>
@@ -1015,6 +1073,7 @@ export function CreatePage() {
             <button
               type="button"
               className="upload-zone atelier-upload"
+              data-reference-upload
               onClick={() => fileInputRef.current?.click()}
             >
               <span className="upload-icon" aria-hidden>＋</span>
@@ -1047,7 +1106,10 @@ export function CreatePage() {
           <textarea
             id="image-prompt"
             value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
+            onChange={(event) => {
+              setSubmissionError(null);
+              setPrompt(event.target.value);
+            }}
             placeholder={tx("create.promptHint")}
             maxLength={maxPromptChars}
           />
@@ -1183,7 +1245,7 @@ export function CreatePage() {
                   className={params.resolution === resolution ? "selected" : ""}
                   onClick={() => setParams((current) => ({ ...current, resolution }))}
                 >
-                  {resolution}
+                  {resolutionLabel(resolution)}
                 </button>
               ))}
             </div>
@@ -1228,7 +1290,10 @@ export function CreatePage() {
           checked={rightsConsent}
           loading={moderationQuery.isLoading}
           error={moderationQuery.isError}
-          onChange={setRightsConsent}
+          onChange={(checked) => {
+            setSubmissionError(null);
+            setRightsConsent(checked);
+          }}
         />
       ) : null}
 
@@ -1252,8 +1317,8 @@ export function CreatePage() {
         <button
           type="button"
           className="btn create-submit"
-          disabled={submitDisabled}
-          onClick={() => createMutation.mutate()}
+          disabled={createMutation.isPending}
+          onClick={handleSubmit}
         >
           {createMutation.isPending
             ? tx("create.creating")
@@ -1267,6 +1332,7 @@ export function CreatePage() {
         {referencesMissing && !uploadsPending && operation !== "create" ? (
           <p className="action-hint">{tx("create.missingReference")}</p>
         ) : null}
+        {submissionError ? <p className="field-error" role="alert">{submissionError}</p> : null}
         <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
           {createMutation.isPending
             ? tx("create.creating")
