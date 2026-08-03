@@ -29,6 +29,11 @@ from kelbet.db.models.payment import (
     StarTransactionObservation,
 )
 from kelbet.db.models.referral import ReferralAttribution, ReferralCode, ReferralReward
+from kelbet.db.models.subscription import (
+    SubscriptionGrant,
+    SubscriptionPlan,
+    UserSubscription,
+)
 from kelbet.db.models.user import User
 from kelbet.db.models.wallet import Wallet
 
@@ -64,4 +69,7 @@ __all__ = [
     "ReferralCode",
     "ReferralAttribution",
     "ReferralReward",
+    "SubscriptionPlan",
+    "UserSubscription",
+    "SubscriptionGrant",
 ]

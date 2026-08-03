@@ -8,6 +8,16 @@ class Language(StrEnum):
 
 class Plan(StrEnum):
     FREE = "free"
+    START = "start"
+    PRO = "pro"
+    STUDIO = "studio"
+    BUSINESS = "business"
+
+
+class SubscriptionStatus(StrEnum):
+    ACTIVE = "active"
+    CANCELLING = "cancelling"  # runs to the end of the paid period, then expires
+    EXPIRED = "expired"
 
 
 class OperatorRole(StrEnum):

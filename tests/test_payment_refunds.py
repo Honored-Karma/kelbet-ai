@@ -24,6 +24,7 @@ from kelbet.payments.gateway import (
     StarsGatewayError,
     StarTransactionRecord,
 )
+from kelbet.payments.seeds import payment_product_rows
 from kelbet.services.payment import PaymentService, payment_production_gate_failures
 from kelbet.services.payment_reconciliation import reconcile_star_transactions
 from kelbet.services.payment_refund import PaymentRefundService, process_due_refund
@@ -94,7 +95,11 @@ async def _seed_operator(session: AsyncSession, telegram_id: int = 939_999) -> U
     return user.id
 
 
-def _record(charge_id: str, direction: str, *, amount: int = 100) -> StarTransactionRecord:
+def _record(charge_id: str, direction: str, *, amount: int | None = None) -> StarTransactionRecord:
+    # Reconciliation matches this against the order total, which comes from the
+    # starter pack seed. A literal would silently drift from the catalog.
+    if amount is None:
+        amount = next(row["stars"] for row in payment_product_rows() if row["slug"] == "starter")
     return StarTransactionRecord(
         transaction_id=charge_id,
         amount=amount,

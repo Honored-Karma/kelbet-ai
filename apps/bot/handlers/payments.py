@@ -96,10 +96,9 @@ async def on_terms_accept(
     if callback.from_user is None or callback.data is None or callback.message is None:
         return
     language = await _language(session, callback.from_user.id)
-    if (
-        not _payments_ready(settings, callback.from_user.id)
-        or callback.data.removeprefix("pay_terms_accept:") != _terms_token(settings)
-    ):
+    if not _payments_ready(settings, callback.from_user.id) or callback.data.removeprefix(
+        "pay_terms_accept:"
+    ) != _terms_token(settings):
         await callback.answer(t(Msg.PAYMENT_UNAVAILABLE, language), show_alert=True)
         return
     products = await PaymentService(session, settings).list_products(

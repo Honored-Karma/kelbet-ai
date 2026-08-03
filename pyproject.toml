@@ -30,7 +30,9 @@ dependencies = [
 dev = [
     "pytest>=8.3,<9",
     "pytest-asyncio>=0.24,<1",
-    "ruff>=0.8,<1",
+    # Pinned to a minor: ruff changes its formatter between minors, so an open
+    # range makes `ruff format --check` fail in CI on files nobody touched.
+    "ruff>=0.16,<0.17",
     "mypy>=1.13,<2",
     "types-redis",
 ]
