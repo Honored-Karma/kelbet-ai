@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from kelbet.catalog.video_inputs import (
+    DEFAULT_MODE,
+    narrow_aspect_ratios,
+    resolve_mode,
+)
 from kelbet.domain.exceptions import InvalidQuoteParamsError
 
 
@@ -39,11 +44,22 @@ def validate_params_against_capabilities(
     """Normalize and validate quote params; return cleaned params."""
     cleaned: dict[str, Any] = {}
 
+    # Resolved first because it can narrow what follows: reference images are
+    # accepted at fewer aspect ratios than plain generation, so the mode has to
+    # be known before an aspect ratio is validated or defaulted.
+    mode = resolve_mode(capabilities, params.get("input_mode"))
+    if params.get("input_mode") is not None or mode.name != DEFAULT_MODE:
+        cleaned["input_mode"] = mode.name
+
     aspect = params.get("aspect_ratio")
-    allowed_aspects = capabilities.get("aspect_ratios")
+    allowed_aspects = narrow_aspect_ratios(capabilities.get("aspect_ratios"), mode)
     if aspect is not None:
         if not allowed_aspects or aspect not in allowed_aspects:
-            raise InvalidQuoteParamsError(f"Unsupported aspect_ratio: {aspect}")
+            raise InvalidQuoteParamsError(
+                f"Unsupported aspect_ratio: {aspect}"
+                if mode.name == DEFAULT_MODE
+                else f"aspect_ratio {aspect} is not supported with input_mode {mode.name}"
+            )
         cleaned["aspect_ratio"] = aspect
     elif allowed_aspects:
         cleaned["aspect_ratio"] = allowed_aspects[0]
@@ -111,6 +127,7 @@ def validate_params_against_capabilities(
         "seed",
         "scale_factor",
         "flavor",
+        "input_mode",
         "sharpen",
         "smart_grain",
         "ultra_detail",

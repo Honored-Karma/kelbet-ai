@@ -10,6 +10,12 @@ from urllib.parse import urlparse
 
 import httpx
 
+from kelbet.catalog.video_inputs import (
+    DEFAULT_MODE,
+    FIRST_LAST_FRAME,
+    MAX_REFERENCE_ASSETS,
+    REFERENCE_ASSETS,
+)
 from kelbet.config import Settings, get_settings
 from kelbet.providers.base import (
     GenerationOutput,
@@ -21,6 +27,41 @@ from kelbet.providers.runway import host_allowed
 logger = logging.getLogger(__name__)
 
 _MP4_STUB = b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"
+
+
+def _inline_image(content_type: str, data: bytes) -> dict[str, Any]:
+    """The image envelope this endpoint expects.
+
+    `predictLongRunning` lives on generativelanguage but takes Vertex-shaped
+    instances, which is a well-known source of confusion: guides for the Vertex
+    host document `bytesBase64Encoded`, while the Gemini host documents
+    `inlineData`. The official Gemini examples use `inlineData` for `image`,
+    `lastFrame`, `referenceImages[].image` and `video` alike, so all four go
+    through here rather than being spelled out at each call site.
+    https://ai.google.dev/gemini-api/docs/veo
+    """
+
+    return {
+        "inlineData": {
+            "mimeType": content_type,
+            "data": base64.b64encode(data).decode("ascii"),
+        }
+    }
+
+
+def _expected_image_count(input_mode: str, available: int) -> int:
+    """How many of the supplied images this mode actually sends.
+
+    Quote-time validation already bounded the count, so this only decides how
+    many to download — an upper bound the provider enforces itself so a stale
+    quote can never make it base64 more images than the API accepts.
+    """
+
+    if input_mode == REFERENCE_ASSETS:
+        return min(available, MAX_REFERENCE_ASSETS)
+    if input_mode == FIRST_LAST_FRAME:
+        return min(available, 2)
+    return 1
 
 
 def _provider_cost_units(provider_model_id: str, duration: int) -> int:
@@ -105,11 +146,12 @@ class GoogleVeoProvider:
                 error_code="unsupported_modality",
                 error_message_safe="Google Veo adapter only supports video",
             )
-        if len(request.input_urls) > 1:
+        input_mode = str(request.params.get("input_mode") or DEFAULT_MODE)
+        if len(request.input_urls) > _expected_image_count(input_mode, MAX_REFERENCE_ASSETS):
             return GenerationProviderResult(
                 status="failed",
                 error_code="invalid_input_count",
-                error_message_safe="Google Veo accepts one starting image",
+                error_message_safe=f"Too many images for input mode {input_mode}",
             )
         if request.extension_video is not None and request.input_urls:
             return GenerationProviderResult(
@@ -144,9 +186,13 @@ class GoogleVeoProvider:
                     "data": base64.b64encode(request.extension_video.data).decode("ascii"),
                 }
             }
+        # An extending request already carries `video`, which Google says excludes
+        # every image field; that combination is rejected above before any bytes
+        # are fetched.
         if request.input_urls:
+            wanted = _expected_image_count(input_mode, len(request.input_urls))
             try:
-                content_type, image_bytes = await self._load_input_image(request.input_urls[0])
+                images = [await self._load_input_image(url) for url in request.input_urls[:wanted]]
             except (httpx.HTTPError, ValueError):
                 return GenerationProviderResult(
                     status="failed",
@@ -154,12 +200,25 @@ class GoogleVeoProvider:
                     error_message_safe="Could not prepare the source image for Google Veo",
                     latency_ms=int((time.perf_counter() - started) * 1000),
                 )
-            instance["image"] = {
-                "inlineData": {
-                    "mimeType": content_type,
-                    "data": base64.b64encode(image_bytes).decode("ascii"),
-                }
-            }
+
+            if input_mode == REFERENCE_ASSETS:
+                # instances[0].referenceImages — up to three `asset` images that
+                # pin the subject's appearance. referenceType is lowercase and
+                # `style` is Veo 2 only.
+                # https://ai.google.dev/gemini-api/docs/veo
+                instance["referenceImages"] = [
+                    {
+                        "image": _inline_image(content_type, data),
+                        "referenceType": "asset",
+                    }
+                    for content_type, data in images
+                ]
+            else:
+                instance["image"] = _inline_image(*images[0])
+                if input_mode == FIRST_LAST_FRAME and len(images) > 1:
+                    # instances[0].lastFrame, alongside the opening frame. Veo
+                    # generates the transition between the two.
+                    instance["lastFrame"] = _inline_image(*images[1])
 
         parameters: dict[str, Any] = {
             "aspectRatio": str(request.params.get("aspect_ratio") or "16:9"),
