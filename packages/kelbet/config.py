@@ -86,6 +86,11 @@ class Settings(BaseSettings):
     stars_refund_processing_timeout_seconds: int = 300
     stars_reconciliation_page_limit: int = 100
 
+    # Recurring Stars subscriptions. Off until the expiry worker and the cancel path ship
+    # together: billing users without the expiry worker would leave them on a paid tier
+    # after their period ended, and without cancel they could not stop paying.
+    subscriptions_enabled: bool = False
+
     # Referral MVP. The DB feature flag `referrals` is the rollout/kill switch.
     referral_bot_username: str = ""
     referral_inviter_bonus_credits: int = 5

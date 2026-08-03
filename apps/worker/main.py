@@ -28,6 +28,7 @@ from kelbet.services.payment_reconciliation import run_star_reconciliation
 from kelbet.services.payment_refund import process_due_refund
 from kelbet.services.referral import process_due_referral_rewards
 from kelbet.services.stuck_sweeper import StuckSweeper
+from kelbet.services.subscription import process_due_subscriptions
 from kelbet.storage import build_object_storage
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,31 @@ async def process_referral_rewards(ctx: dict[str, object]) -> int:
         _record_worker_metrics("process_referral_rewards", "maintain", outcome, started)
 
 
+async def expire_due_subscriptions(ctx: dict[str, object]) -> int:
+    """Downgrade users whose paid subscription period has ended.
+
+    This is the counterweight to billing: Telegram stops charging, but only this job takes
+    the tier away. Without it a cancelled or lapsed subscriber would keep their plan for
+    ever. It needs no bot instance — it moves no money and calls no Telegram API — so it
+    keeps running even when the bot token is absent.
+    """
+    started = monotonic()
+    outcome = "failed"
+    settings = cast(Settings, ctx.get("settings") or get_settings())
+    if not settings.subscriptions_enabled:
+        _record_worker_metrics("expire_due_subscriptions", "maintain", "skipped", started)
+        return 0
+    try:
+        count = await process_due_subscriptions(
+            ctx["session_factory"],  # type: ignore[arg-type]
+            settings,
+        )
+        outcome = "succeeded" if count else "empty"
+        return count
+    finally:
+        _record_worker_metrics("expire_due_subscriptions", "maintain", outcome, started)
+
+
 def _record_worker_metrics(job: str, queue: str, outcome: str, started: float) -> None:
     tags = {"queue": queue, "job": job, "outcome": outcome}
     metrics = get_metrics()
@@ -249,6 +275,7 @@ class MaintainWorkerSettings:
         process_star_refund,
         reconcile_star_payments,
         process_referral_rewards,
+        expire_due_subscriptions,
     ]
     cron_jobs = [
         cron(poll_due_generations, second=set(range(0, 60, 5))),
@@ -264,6 +291,10 @@ class MaintainWorkerSettings:
             second={30},
         ),
         cron(process_referral_rewards, minute=set(range(60)), second={40}),
+        # Every five minutes is ample: the deadline is a date Telegram set 30 days ago, so
+        # a few minutes of overshoot is invisible, and a tighter schedule would only add
+        # empty queries.
+        cron(expire_due_subscriptions, minute=set(range(0, 60, 5)), second={20}),
     ]
     on_startup = startup
     on_shutdown = shutdown

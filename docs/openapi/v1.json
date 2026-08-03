@@ -2100,6 +2100,116 @@
         }
       }
     },
+    "/api/v1/subscriptions/plans": {
+      "get": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "List Subscription Plans",
+        "operationId": "list_subscription_plans_api_v1_subscriptions_plans_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionPlansResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/subscriptions/checkout": {
+      "post": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Create Subscription Checkout",
+        "operationId": "create_subscription_checkout_api_v1_subscriptions_checkout_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionCheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionCheckoutResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/subscriptions/cancel": {
+      "post": {
+        "tags": [
+          "subscriptions"
+        ],
+        "summary": "Cancel Subscription",
+        "description": "Stop renewal. Access continues to the end of the period the user already paid for.",
+        "operationId": "cancel_subscription_api_v1_subscriptions_cancel_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionCancelResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/uploads/presign": {
       "post": {
         "tags": [
@@ -4786,6 +4896,294 @@
           "display_order"
         ],
         "title": "SetTemplateRequest"
+      },
+      "SubscriptionCancelResponse": {
+        "properties": {
+          "subscription_id": {
+            "type": "string",
+            "title": "Subscription Id"
+          },
+          "cancel_at_period_end": {
+            "type": "boolean",
+            "title": "Cancel At Period End"
+          },
+          "access_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Until"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscription_id",
+          "cancel_at_period_end",
+          "access_until"
+        ],
+        "title": "SubscriptionCancelResponse"
+      },
+      "SubscriptionCheckoutRequest": {
+        "properties": {
+          "plan_slug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Plan Slug"
+          },
+          "terms_accepted": {
+            "type": "boolean",
+            "title": "Terms Accepted"
+          },
+          "terms_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan_slug",
+          "terms_accepted"
+        ],
+        "title": "SubscriptionCheckoutRequest"
+      },
+      "SubscriptionCheckoutResponse": {
+        "properties": {
+          "subscription_id": {
+            "type": "string",
+            "title": "Subscription Id"
+          },
+          "plan_slug": {
+            "type": "string",
+            "title": "Plan Slug"
+          },
+          "plan_name": {
+            "type": "string",
+            "title": "Plan Name"
+          },
+          "stars": {
+            "type": "integer",
+            "title": "Stars"
+          },
+          "monthly_credits": {
+            "type": "integer",
+            "title": "Monthly Credits"
+          },
+          "period_days": {
+            "type": "integer",
+            "title": "Period Days"
+          },
+          "invoice_url": {
+            "type": "string",
+            "title": "Invoice Url"
+          },
+          "terms_url": {
+            "type": "string",
+            "title": "Terms Url"
+          },
+          "refund_policy_url": {
+            "type": "string",
+            "title": "Refund Policy Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscription_id",
+          "plan_slug",
+          "plan_name",
+          "stars",
+          "monthly_credits",
+          "period_days",
+          "invoice_url",
+          "terms_url",
+          "refund_policy_url"
+        ],
+        "title": "SubscriptionCheckoutResponse"
+      },
+      "SubscriptionPlanResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "monthly_credits": {
+            "type": "integer",
+            "title": "Monthly Credits"
+          },
+          "stars": {
+            "type": "integer",
+            "title": "Stars"
+          },
+          "kzt_price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kzt Price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "plan",
+          "name",
+          "description",
+          "monthly_credits",
+          "stars",
+          "kzt_price"
+        ],
+        "title": "SubscriptionPlanResponse"
+      },
+      "SubscriptionPlansResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionPlanResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "subscriptions_enabled": {
+            "type": "boolean",
+            "title": "Subscriptions Enabled"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionStateResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period_days": {
+            "type": "integer",
+            "title": "Period Days"
+          },
+          "terms_url": {
+            "type": "string",
+            "title": "Terms Url"
+          },
+          "terms_version": {
+            "type": "string",
+            "title": "Terms Version"
+          },
+          "refund_policy_url": {
+            "type": "string",
+            "title": "Refund Policy Url"
+          },
+          "support_url": {
+            "type": "string",
+            "title": "Support Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "subscriptions_enabled",
+          "current",
+          "period_days",
+          "terms_url",
+          "terms_version",
+          "refund_policy_url",
+          "support_url"
+        ],
+        "title": "SubscriptionPlansResponse"
+      },
+      "SubscriptionStateResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "plan_slug": {
+            "type": "string",
+            "title": "Plan Slug"
+          },
+          "plan_name": {
+            "type": "string",
+            "title": "Plan Name"
+          },
+          "monthly_credits": {
+            "type": "integer",
+            "title": "Monthly Credits"
+          },
+          "stars": {
+            "type": "integer",
+            "title": "Stars"
+          },
+          "current_period_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Period End"
+          },
+          "cancel_at_period_end": {
+            "type": "boolean",
+            "title": "Cancel At Period End"
+          },
+          "renewal_count": {
+            "type": "integer",
+            "title": "Renewal Count"
+          },
+          "renewal_failed": {
+            "type": "boolean",
+            "title": "Renewal Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "plan",
+          "plan_slug",
+          "plan_name",
+          "monthly_credits",
+          "stars",
+          "current_period_end",
+          "cancel_at_period_end",
+          "renewal_count",
+          "renewal_failed"
+        ],
+        "title": "SubscriptionStateResponse"
       },
       "TelegramAuthRequest": {
         "properties": {

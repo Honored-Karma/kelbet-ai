@@ -25,8 +25,18 @@ from kelbet.observability import get_metrics
 from kelbet.services.payment import PaymentService, payment_new_purchase_allowed
 from kelbet.services.profile import ProfileService
 from kelbet.services.registration import RegistrationService
+from kelbet.services.subscription import SUBSCRIPTION_PAYLOAD_PREFIX
 
 router = Router(name="payments")
+
+# Recurring subscriptions arrive through the same payment updates but are owned by
+# apps/bot/handlers/subscriptions.py. Excluding their payload explicitly — rather than
+# relying on router order — means a reordering in build_root_router cannot route a paid
+# subscription into the one-off path, where it would be rejected as an unknown order.
+_NOT_SUBSCRIPTION = ~F.invoice_payload.startswith(f"{SUBSCRIPTION_PAYLOAD_PREFIX}:")
+_NOT_SUBSCRIPTION_PAYMENT = ~F.successful_payment.invoice_payload.startswith(
+    f"{SUBSCRIPTION_PAYLOAD_PREFIX}:"
+)
 
 
 def _payments_ready(settings: Settings, telegram_id: int) -> bool:
@@ -182,7 +192,7 @@ async def on_payment_confirm(
     await callback.answer()
 
 
-@router.pre_checkout_query()
+@router.pre_checkout_query(_NOT_SUBSCRIPTION)
 async def on_pre_checkout(
     query: PreCheckoutQuery,
     session: AsyncSession,
@@ -232,7 +242,7 @@ async def on_pre_checkout(
         )
 
 
-@router.message(F.successful_payment)
+@router.message(F.successful_payment, _NOT_SUBSCRIPTION_PAYMENT)
 async def on_successful_payment(
     message: Message,
     session: AsyncSession,

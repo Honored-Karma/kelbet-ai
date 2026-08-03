@@ -8,6 +8,29 @@ class Language(StrEnum):
 
 class Plan(StrEnum):
     FREE = "free"
+    START = "start"
+    PRO = "pro"
+    STUDIO = "studio"
+    BUSINESS = "business"
+
+
+class SubscriptionStatus(StrEnum):
+    """Lifecycle of one Telegram Stars subscription.
+
+    Telegram owns the billing clock, so these states record what Telegram has told us
+    rather than a schedule of our own. PENDING: an invoice link was issued, no charge has
+    arrived. CANCELLED: renewal is switched off but the paid period is still running —
+    access continues to `current_period_end`, which is what Telegram guarantees. Cancelling
+    is therefore never an immediate revocation. PAYMENT_FAILED: Telegram could not collect
+    a renewal; the period still ends when it was always going to end, so this is a signal
+    to the user, not a cut-off.
+    """
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    CANCELLED = "cancelled"
+    PAYMENT_FAILED = "payment_failed"
+    EXPIRED = "expired"
 
 
 class OperatorRole(StrEnum):
