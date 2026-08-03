@@ -12,12 +12,19 @@ from uuid import UUID, uuid4
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kelbet.catalog.video_inputs import (
+    requires_prompt,
+    resolve_mode,
+)
+from kelbet.catalog.video_inputs import (
+    validate_asset_count as validate_video_asset_count,
+)
 from kelbet.config import Settings, get_settings
 from kelbet.db.models.asset import GenerationAsset
 from kelbet.db.models.catalog import CatalogModel
 from kelbet.db.models.credit_reservation import CreditReservation
 from kelbet.db.models.generation import GenerationJob, GenerationWorkflowStep
-from kelbet.domain.enums import AssetRole, AssetStatus, GenerationStatus
+from kelbet.domain.enums import AssetRole, AssetStatus, GenerationStatus, Modality
 from kelbet.domain.exceptions import (
     ActiveGenerationLimitError,
     AssetNotFoundError,
@@ -280,6 +287,19 @@ class GenerationService:
             raise UploadValidationError(
                 f"This model accepts at most {max_input_assets} source image(s)"
             )
+
+        # `max_input_assets` is the ceiling across every input mode a model
+        # offers; the mode chosen at quote time is narrower than that. Checked
+        # here, before credits are reserved, because Veo rejects a wrong image
+        # count outright and the user should not pay for the round trip that
+        # discovers it.
+        if model.modality == Modality.VIDEO.value:
+            input_mode = resolve_mode(model.capabilities or {}, quote.params.get("input_mode"))
+            validate_video_asset_count(input_mode, len(asset_ids))
+            if requires_prompt(input_mode) and not text:
+                raise UploadValidationError(
+                    "Reference images guide a prompt, so a prompt is required alongside them"
+                )
 
         max_prompt_chars = int((model.capabilities or {}).get("max_prompt_chars") or 8000)
         if len(text) > max_prompt_chars:

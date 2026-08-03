@@ -26,6 +26,7 @@ RUNWAY_FAST_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111111")
 RUNWAY_QUALITY_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111112")
 GOOGLE_FALLBACK_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111113")
 GOOGLE_EXTENDED_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111116")
+GOOGLE_CONSISTENT_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111117")
 OPENAI_IMAGE_FAST_ID = UUID("11111111-1111-1111-1111-111111111114")
 OPENAI_IMAGE_QUALITY_ID = UUID("11111111-1111-1111-1111-111111111115")
 LEGACY_DISABLED_ID = UUID("11111111-1111-1111-1111-111111111199")
@@ -78,6 +79,9 @@ def feature_flag_rows() -> list[dict[str, Any]]:
         {"key": "runway_media", "enabled": True, "payload": {}},
         {"key": "google_video", "enabled": True, "payload": {}},
         {"key": "veo_extended", "enabled": False, "payload": {}},
+        # Off until one live call confirms the reference-image payload: the shape
+        # is documented but has never been exercised against the real API here.
+        {"key": "veo_consistency", "enabled": False, "payload": {}},
         {"key": "google_image", "enabled": False, "payload": {}},
         {"key": "image_fallback", "enabled": False, "payload": {}},
         {"key": "openai_image", "enabled": False, "payload": {}},
@@ -742,6 +746,95 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                 "kk": {
                     "name": "Google Veo 3.1 Lite",
                     "description": "Google Veo арқылы қысқа әрі тыныш көріністер",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "4": {"num": 1, "den": 1},
+                    "6": {"num": 3, "den": 2},
+                    "8": {"num": 2, "den": 1},
+                }
+            },
+        },
+        {
+            # Veo 3.1 Fast without the extension chain, which is what makes the
+            # richer image inputs possible: an extending request carries `video`,
+            # and Google excludes `image`, `lastFrame` and `referenceImages`
+            # whenever it does. Keeping the two products apart is cheaper than
+            # explaining mid-chain why a reference image stopped being allowed.
+            "id": GOOGLE_CONSISTENT_VIDEO_ID,
+            "slug": "google-veo31-fast-consistent-video",
+            "modality": "video",
+            "provider": "google",
+            "provider_model_id": "veo-3.1-fast-generate-preview",
+            "display_order": 55,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "veo_consistency",
+            # $0.10 per second at Fast without audio, so the 4s base costs 4000
+            # units. `enforce_economics` holds the price at its floor.
+            "user_credit_price": 100,
+            "provider_cost_units": 4000,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16"],
+                "resolutions": ["720p"],
+                "durations_sec": [4, 6, 8],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "video_inputs": {
+                    "modes": {
+                        # One opening frame, or none at all — plain text to video.
+                        "first_frame": {"min_assets": 0, "max_assets": 1},
+                        # Opening and closing frame; Veo generates the transition
+                        # between them, so both are mandatory.
+                        "first_last_frame": {"min_assets": 2, "max_assets": 2},
+                        # Up to three images of a subject to hold steady across
+                        # shots. 16:9 only for now: Google restricted reference
+                        # images to that ratio and said 9:16 was coming, so the
+                        # limit is declared here rather than compiled in.
+                        "reference_assets": {
+                            "min_assets": 1,
+                            "max_assets": 3,
+                            "aspect_ratios": ["16:9"],
+                        },
+                    }
+                },
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "premium",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 420,
+                    "badge": "CHARACTER",
+                    "provider_cost_ceiling_units_per_second": 1000,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png"],
+                "max_input_bytes": 10485760,
+                # The ceiling across every mode; the chosen mode narrows it.
+                "max_input_assets": 3,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Veo 3.1 Fast · Персонаж",
+                    "description": (
+                        "До трёх фото героя, чтобы он остался собой в каждом кадре, "
+                        "или переход от первого кадра к последнему"
+                    ),
+                },
+                "kk": {
+                    "name": "Veo 3.1 Fast · Кейіпкер",
+                    "description": (
+                        "Кейіпкер әр кадрда өзі болып қалуы үшін үшке дейін фото, "
+                        "немесе бірінші кадрдан соңғысына дейінгі ауысу"
+                    ),
                 },
             },
             "pricing_rules": {

@@ -277,3 +277,147 @@ async def test_google_veo_rejects_unexpected_output_mime() -> None:
         result = await provider.get_status("operations/bad-mime")
     assert result.status == "failed"
     assert result.error_code == "provider_http_error"
+
+
+@pytest.mark.asyncio
+async def test_google_veo_sends_reference_images_in_the_documented_shape() -> None:
+    """Three `asset` references, exactly as the Gemini docs spell them out.
+
+    The shape is asserted field by field because it is the one part of this
+    feature no test can otherwise reach: `referenceImages` belongs to the
+    instance and not to `parameters`, each entry wraps its bytes in `inlineData`,
+    and `referenceType` is the lowercase string `asset` — `style` is Veo 2 only.
+    A silent rename here would surface as a 400 on a paid generation.
+    https://ai.google.dev/gemini-api/docs/veo
+    """
+
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        captured.update(body)
+        return httpx.Response(200, json={"name": "operations/reference-001"})
+
+    provider, client = _provider(handler)
+    source = f"data:image/png;base64,{base64.b64encode(_PNG_1X1).decode('ascii')}"
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-fast-generate-preview",
+                modality="video",
+                prompt="The same courier walks through three different streets",
+                params={
+                    "duration_sec": 8,
+                    "aspect_ratio": "16:9",
+                    "input_mode": "reference_assets",
+                },
+                input_urls=[source, source, source],
+            )
+        )
+
+    assert result.status == "accepted"
+    instance = captured["instances"][0]  # type: ignore[index]
+    references = instance["referenceImages"]
+    assert len(references) == 3
+    for reference in references:
+        assert reference["referenceType"] == "asset"
+        assert reference["image"]["inlineData"]["mimeType"] == "image/png"
+        assert base64.b64decode(reference["image"]["inlineData"]["data"]) == _PNG_1X1
+    # Reference images replace the frame fields rather than joining them.
+    assert "image" not in instance
+    assert "lastFrame" not in instance
+    assert "referenceImages" not in captured["parameters"]  # type: ignore[operator]
+
+
+@pytest.mark.asyncio
+async def test_google_veo_sends_first_and_last_frame_at_instance_level() -> None:
+    """`lastFrame` sits beside `image` on the instance, not under `parameters`."""
+
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={"name": "operations/first-last-001"})
+
+    provider, client = _provider(handler)
+    # Two distinct payloads, so the assertions below prove the closing frame is
+    # the second image rather than a copy of the first.
+    closing_png = _PNG_1X1 + b"\x00"
+    first = f"data:image/png;base64,{base64.b64encode(_PNG_1X1).decode('ascii')}"
+    last = f"data:image/png;base64,{base64.b64encode(closing_png).decode('ascii')}"
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-fast-generate-preview",
+                modality="video",
+                prompt="The swing empties as the fog thickens",
+                params={"duration_sec": 8, "input_mode": "first_last_frame"},
+                input_urls=[first, last],
+            )
+        )
+
+    assert result.status == "accepted"
+    instance = captured["instances"][0]  # type: ignore[index]
+    assert base64.b64decode(instance["image"]["inlineData"]["data"]) == _PNG_1X1
+    assert instance["lastFrame"]["inlineData"]["mimeType"] == "image/png"
+    assert base64.b64decode(instance["lastFrame"]["inlineData"]["data"]) == closing_png
+    assert "referenceImages" not in instance
+    assert "lastFrame" not in captured["parameters"]  # type: ignore[operator]
+
+
+@pytest.mark.asyncio
+async def test_google_veo_still_sends_one_frame_when_no_mode_is_given() -> None:
+    """Callers that never heard of modes must keep working unchanged."""
+
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={"name": "operations/default-mode-001"})
+
+    provider, client = _provider(handler)
+    source = f"data:image/png;base64,{base64.b64encode(_PNG_1X1).decode('ascii')}"
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-lite-generate-preview",
+                modality="video",
+                prompt="Steam rises as the camera moves closer",
+                params={"duration_sec": 8},
+                input_urls=[source],
+            )
+        )
+
+    assert result.status == "accepted"
+    instance = captured["instances"][0]  # type: ignore[index]
+    assert "image" in instance
+    assert "referenceImages" not in instance
+    assert "lastFrame" not in instance
+
+
+@pytest.mark.asyncio
+async def test_google_veo_refuses_more_images_than_the_mode_allows() -> None:
+    """A stale quote must not be able to smuggle four references past the ceiling."""
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover - not reached
+        raise AssertionError("the provider must refuse before calling Google")
+
+    provider, client = _provider(handler)
+    source = f"data:image/png;base64,{base64.b64encode(_PNG_1X1).decode('ascii')}"
+    async with client:
+        result = await provider.generate(
+            GenerationRequest(
+                generation_id=uuid4(),
+                provider_model_id="veo-3.1-fast-generate-preview",
+                modality="video",
+                prompt="Four references is one too many",
+                params={"duration_sec": 8, "input_mode": "reference_assets"},
+                input_urls=[source] * 4,
+            )
+        )
+
+    assert result.status == "failed"
+    assert result.error_code == "invalid_input_count"
