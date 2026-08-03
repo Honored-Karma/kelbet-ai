@@ -43,6 +43,31 @@ from kelbet.services.wallet import WalletService
 
 
 @dataclass(frozen=True, slots=True)
+class GenerationPassportDTO:
+    """What actually ran, told to the person who paid for it.
+
+    Every field here is read from the generation record, never recomputed from
+    the catalog: the point is to report the run that happened rather than the run
+    that was ordered. `substituted` is the reason this exists — a route may fall
+    back to another provider mid-flight, and a user who paid for one model is
+    entitled to know when a different one produced the result.
+    """
+
+    provider: str
+    provider_model_id: str
+    requested_provider: str
+    requested_provider_model_id: str
+    substituted: bool
+    credits_charged: int
+    attempts: int
+    aspect_ratio: str | None = None
+    resolution: str | None = None
+    duration_sec: int | None = None
+    width: int | None = None
+    height: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class GenerationDTO:
     id: UUID
     status: GenerationStatus
@@ -63,6 +88,7 @@ class GenerationDTO:
     template_slug: str | None = None
     template_version: int | None = None
     workflow: dict[str, int] | None = None
+    passport: GenerationPassportDTO | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -662,13 +688,21 @@ class GenerationService:
                     if elapsed <= eta_seconds:
                         estimated_remaining_seconds = eta_seconds - elapsed
         assets = await self._session.execute(
-            select(GenerationAsset.id).where(
+            select(
+                GenerationAsset.id,
+                GenerationAsset.width,
+                GenerationAsset.height,
+            ).where(
                 GenerationAsset.generation_id == job.id,
                 GenerationAsset.role == "output",
                 GenerationAsset.status == AssetStatus.READY.value,
             )
         )
-        output_ids = list(assets.scalars().all())
+        output_rows = list(assets.all())
+        output_ids = [row[0] for row in output_rows]
+        # Dimensions of what was delivered, not of what was ordered: measured
+        # pixels are the only part of the passport the provider cannot overstate.
+        delivered = next((row for row in output_rows if row[1] and row[2]), None)
         workflow: dict[str, int] | None = None
         workflow_rows = await self._session.execute(
             select(GenerationWorkflowStep)
@@ -699,6 +733,31 @@ class GenerationService:
             }
             and job.cancel_requested_at is None
         )
+        params = job.params or {}
+        requested = job.routing_snapshot.get("primary") if job.routing_snapshot else None
+        requested = requested if isinstance(requested, dict) else {}
+        # The quoted route is the promise; job.provider is what served it. When
+        # the snapshot is silent, the job's own values are the best account we
+        # have, and claiming a substitution we cannot prove would be its own lie.
+        requested_provider = str(requested.get("provider") or job.provider)
+        requested_model = str(requested.get("provider_model_id") or job.provider_model_id)
+        duration = params.get("duration_sec")
+        passport = GenerationPassportDTO(
+            provider=job.provider,
+            provider_model_id=job.provider_model_id,
+            requested_provider=requested_provider,
+            requested_provider_model_id=requested_model,
+            substituted=(
+                job.provider != requested_provider or job.provider_model_id != requested_model
+            ),
+            credits_charged=job.user_credit_price,
+            attempts=job.attempt_count,
+            aspect_ratio=str(params["aspect_ratio"]) if params.get("aspect_ratio") else None,
+            resolution=str(params["resolution"]) if params.get("resolution") else None,
+            duration_sec=int(duration) if isinstance(duration, int | float) else None,
+            width=delivered[1] if delivered is not None else None,
+            height=delivered[2] if delivered is not None else None,
+        )
         return GenerationDTO(
             id=job.id,
             status=status,
@@ -717,4 +776,5 @@ class GenerationService:
             template_slug=job.template_slug,
             template_version=job.template_version,
             workflow=workflow,
+            passport=passport,
         )

@@ -829,3 +829,168 @@ async def test_generic_webhook_requires_secret_and_handles_unknown_generation(
     assert accepted.status_code == 200
     assert accepted.json() == {"ok": True, "duplicate": False}
     assert app.state.generation_queue.pop_all() == []  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_passport_reports_the_run_that_actually_happened(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The passport is the receipt: which model served the request, at what size, for what."""
+
+    client, app = api_client
+    token = await _login(client, 715001)
+    quote_id = await _quote(client, token)
+
+    created = await client.post(
+        "/api/v1/generations",
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "idem-passport-1"},
+        json={"quote_id": quote_id, "prompt": "a blue cube"},
+    )
+    assert created.status_code == 201, created.text
+    gen_id = created.json()["id"]
+
+    # Present before the work starts: the quoted route is already a commitment.
+    queued_passport = created.json()["passport"]
+    assert queued_passport["provider"] == "mock"
+    assert queued_passport["substituted"] is False
+    assert queued_passport["credits_charged"] == 5
+    assert queued_passport["resolution"] == "720p"
+    assert queued_passport["aspect_ratio"] == "1:1"
+    assert queued_passport["width"] is None  # nothing delivered yet
+
+    assert await _drain_queue(app, session_factory) == ["succeeded"]
+
+    detail = await client.get(
+        f"/api/v1/generations/{gen_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert detail.status_code == 200
+    passport = detail.json()["passport"]
+    assert passport["provider"] == "mock"
+    assert passport["provider_model_id"] == "mock-image-v1"
+    assert passport["requested_provider"] == "mock"
+    assert passport["requested_provider_model_id"] == "mock-image-v1"
+    assert passport["substituted"] is False
+    assert passport["credits_charged"] == 5
+    assert passport["attempts"] == 1
+    # Measured from the delivered file, which is the one claim a provider cannot inflate.
+    assert passport["width"] == 1
+    assert passport["height"] == 1
+
+
+@pytest.mark.asyncio
+async def test_passport_declares_a_substituted_model(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A fallback must be disclosed, not absorbed into the model_slug the user picked.
+
+    `model_slug` stays the SKU that was bought, so without this field a route that
+    quietly served a different model would be indistinguishable from one that did not.
+    """
+
+    client, _app = api_client
+    token = await _login(client, 715002)
+    quote_id = await _quote(client, token)
+
+    created = await client.post(
+        "/api/v1/generations",
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "idem-passport-2"},
+        json={"quote_id": quote_id, "prompt": "a green cube"},
+    )
+    assert created.status_code == 201
+    gen_id = created.json()["id"]
+
+    # Stand in for a mid-flight fallback: the served route no longer matches the quote.
+    async with session_factory() as session, session.begin():
+        job = (
+            await session.execute(select(GenerationJob).where(GenerationJob.id == UUID(gen_id)))
+        ).scalar_one()
+        job.provider = "google"
+        job.provider_model_id = "veo-3.1-lite-generate-preview"
+
+    detail = await client.get(
+        f"/api/v1/generations/{gen_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    passport = detail.json()["passport"]
+    assert passport["substituted"] is True
+    assert passport["provider"] == "google"
+    assert passport["provider_model_id"] == "veo-3.1-lite-generate-preview"
+    # And it still says what was promised, so the two can be compared.
+    assert passport["requested_provider"] == "mock"
+    assert passport["requested_provider_model_id"] == "mock-image-v1"
+    assert detail.json()["model_slug"] == "mock-image"
+
+
+@pytest.mark.asyncio
+async def test_ledger_shows_every_movement_and_links_the_charge_to_its_generation(
+    api_client: tuple[AsyncClient, object],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    client, app = api_client
+    token = await _login(client, 715003)
+    quote_id = await _quote(client, token)
+
+    created = await client.post(
+        "/api/v1/generations",
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "idem-ledger-1"},
+        json={"quote_id": quote_id, "prompt": "a yellow cube"},
+    )
+    assert created.status_code == 201
+    gen_id = created.json()["id"]
+    assert await _drain_queue(app, session_factory) == ["succeeded"]
+
+    ledger = await client.get(
+        "/api/v1/wallet/transactions",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert ledger.status_code == 200
+    items = ledger.json()["items"]
+    assert len(items) == 2
+
+    # Newest first: the charge for the generation, then the welcome bonus.
+    charge, welcome = items
+    assert charge["type"] == "debit"
+    assert charge["reason"] == "generation_capture"
+    assert charge["amount"] == -5
+    assert charge["generation_id"] == gen_id
+    assert welcome["type"] == "credit"
+    assert welcome["reason"] == "welcome_bonus"
+    assert welcome["generation_id"] is None
+    # Running balance is carried on every line, so a user can audit the arithmetic.
+    assert welcome["balance_after"] - 5 == charge["balance_after"]
+
+
+@pytest.mark.asyncio
+async def test_ledger_never_shows_another_wallet(
+    api_client: tuple[AsyncClient, object],
+) -> None:
+    client, _app = api_client
+    mine = await _login(client, 715004)
+    theirs = await _login(client, 715005)
+
+    quote_id = await _quote(client, mine)
+    created = await client.post(
+        "/api/v1/generations",
+        headers={"Authorization": f"Bearer {mine}", "Idempotency-Key": "idem-ledger-2"},
+        json={"quote_id": quote_id, "prompt": "a private cube"},
+    )
+    assert created.status_code == 201
+
+    other = await client.get(
+        "/api/v1/wallet/transactions",
+        headers={"Authorization": f"Bearer {theirs}"},
+    )
+    assert other.status_code == 200
+    reasons = [item["reason"] for item in other.json()["items"]]
+    # A hold is not a movement, so the other wallet holds only its own welcome bonus.
+    assert reasons == ["welcome_bonus"]
+
+
+@pytest.mark.asyncio
+async def test_ledger_requires_a_session(api_client: tuple[AsyncClient, object]) -> None:
+    client, _app = api_client
+    response = await client.get("/api/v1/wallet/transactions")
+    assert response.status_code == 401

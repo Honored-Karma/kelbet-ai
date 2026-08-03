@@ -1836,6 +1836,68 @@
         }
       }
     },
+    "/api/v1/wallet/transactions": {
+      "get": {
+        "tags": [
+          "wallet"
+        ],
+        "summary": "List Wallet Transactions",
+        "description": "Every credit movement on the caller's own wallet, newest first.",
+        "operationId": "list_wallet_transactions_api_v1_wallet_transactions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditLedgerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/wallet": {
       "get": {
         "tags": [
@@ -3347,6 +3409,72 @@
         ],
         "title": "CreatePaymentOrderRequest"
       },
+      "CreditLedgerResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CreditTransactionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CreditLedgerResponse"
+      },
+      "CreditTransactionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "amount": {
+            "type": "integer",
+            "title": "Amount"
+          },
+          "balance_after": {
+            "type": "integer",
+            "title": "Balance After"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "generation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "reason",
+          "amount",
+          "balance_after",
+          "created_at",
+          "generation_id"
+        ],
+        "title": "CreditTransactionResponse"
+      },
       "GenerationDraftResponse": {
         "properties": {
           "source_generation_id": {
@@ -3477,6 +3605,110 @@
           "template_inputs"
         ],
         "title": "GenerationDraftResponse"
+      },
+      "GenerationPassportResponse": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "provider_model_id": {
+            "type": "string",
+            "title": "Provider Model Id"
+          },
+          "requested_provider": {
+            "type": "string",
+            "title": "Requested Provider"
+          },
+          "requested_provider_model_id": {
+            "type": "string",
+            "title": "Requested Provider Model Id"
+          },
+          "substituted": {
+            "type": "boolean",
+            "title": "Substituted"
+          },
+          "credits_charged": {
+            "type": "integer",
+            "title": "Credits Charged"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "aspect_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aspect Ratio"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "duration_sec": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Sec"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "provider_model_id",
+          "requested_provider",
+          "requested_provider_model_id",
+          "substituted",
+          "credits_charged",
+          "attempts",
+          "aspect_ratio",
+          "resolution",
+          "duration_sec",
+          "width",
+          "height"
+        ],
+        "title": "GenerationPassportResponse",
+        "description": "Receipt for a generation: which model actually served it, and at what size.\n\nNamed a passport because it travels with the result. `substituted` is the\nfield that earns the rest: it is set when the route that ran differs from the\nroute that was quoted, so a fallback is disclosed instead of being absorbed\nsilently into the same `model_slug` the user picked."
       },
       "GenerationResponse": {
         "properties": {
@@ -3615,6 +3847,16 @@
               }
             ],
             "title": "Workflow"
+          },
+          "passport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationPassportResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
