@@ -12,6 +12,7 @@ from apps.api.routes.v1.payments import router as payments_router
 from apps.api.routes.v1.prompt_assistant import router as prompt_assistant_router
 from apps.api.routes.v1.ready import router as ready_router
 from apps.api.routes.v1.referrals import router as referrals_router
+from apps.api.routes.v1.subscriptions import router as subscriptions_router
 from apps.api.routes.v1.uploads import router as uploads_router
 from apps.api.routes.v1.wallet import router as wallet_router
 from apps.api.routes.v1.webhooks import router as webhooks_router
@@ -26,6 +27,7 @@ api_v1_router.include_router(referrals_router)
 api_v1_router.include_router(catalog_router)
 api_v1_router.include_router(wallet_router)
 api_v1_router.include_router(payments_router)
+api_v1_router.include_router(subscriptions_router)
 api_v1_router.include_router(uploads_router)
 api_v1_router.include_router(assets_router)
 api_v1_router.include_router(generations_router)

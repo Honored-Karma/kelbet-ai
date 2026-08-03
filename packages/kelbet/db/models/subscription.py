@@ -64,7 +64,10 @@ class UserSubscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "user_subscriptions"
     __table_args__ = (
         UniqueConstraint("user_id", name="uq_user_subscriptions_user"),
-        CheckConstraint("status IN ('active','cancelling','expired')", name="status_known"),
+        CheckConstraint(
+            "status IN ('pending','active','cancelling','payment_failed','expired')",
+            name="status_known",
+        ),
         CheckConstraint("current_period_end > current_period_start", name="period_ordered"),
         CheckConstraint("current_period_index >= 0", name="period_index_non_negative"),
     )
@@ -93,6 +96,16 @@ class UserSubscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Telegram's stable identity for a recurring subscription. Every renewal arrives with
+    # this same payload and a *different* charge id, which is why the payload lives on the
+    # subscription and the charge id lives on the grant.
+    invoice_payload: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    # The first charge. `editUserStarSubscription` addresses a subscription by it, so
+    # cancelling depends on having kept it.
+    root_charge_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    renewal_failed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_payment_order_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("payment_orders.id", ondelete="RESTRICT"),
@@ -136,6 +149,11 @@ class SubscriptionGrant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
     period_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The Telegram charge that paid for this period, and a third independent guard against
+    # double-crediting. `period_index` protects against a replayed *renewal*; this protects
+    # against a replayed *update*, which is the case Telegram actually produces. Nullable
+    # because a period granted outside Telegram (an operator comp) has no charge.
+    charge_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
     credits: Mapped[int] = mapped_column(Integer, nullable=False)
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ledger_transaction_id: Mapped[UUID | None] = mapped_column(

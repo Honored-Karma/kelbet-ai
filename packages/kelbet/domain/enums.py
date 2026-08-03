@@ -15,8 +15,10 @@ class Plan(StrEnum):
 
 
 class SubscriptionStatus(StrEnum):
+    PENDING = "pending"  # invoice link issued, Telegram has not charged yet
     ACTIVE = "active"
     CANCELLING = "cancelling"  # runs to the end of the paid period, then expires
+    PAYMENT_FAILED = "payment_failed"  # Telegram could not collect a renewal
     EXPIRED = "expired"
 
 

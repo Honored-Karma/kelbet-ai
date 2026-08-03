@@ -157,4 +157,43 @@ TEXTS: dict[str, str] = {
         "⏳ Telegram төлемді растады, бірақ кредитті қосу тексеруді қажет етеді.\n"
         "/paysupport қызметіне жазыңыз — төлем сақталды."
     ),
+    Msg.SUBSCRIPTION_UNAVAILABLE: (
+        "Жазылым әзірге қолжетімсіз. Кредитті пакетпен алуға болады: /buy"
+    ),
+    Msg.SUBSCRIPTION_CHOOSE: (
+        "Жазылым 30 күнде бір рет жұлдыз шешіп, әр жолы кредит қосады. "
+        "Кез келген уақытта тоқтатуға болады — төленген кезең соңына дейін қолжетімділік "
+        "қалады. Жұмсалмаған кредит жойылмайды.\n\nТарифті таңдаңыз:"
+    ),
+    Msg.SUBSCRIPTION_PLAN_BUTTON: "{name} · {credits} 💎/ай · {stars} ⭐",
+    Msg.SUBSCRIPTION_OPEN_PAYMENT: (
+        "«{name}» тарифі: 30 күн сайын {stars} ⭐ үшін {credits} кредит.\n"
+        "Жазылу үшін төмендегі түймені басыңыз."
+    ),
+    Msg.SUBSCRIPTION_PAY_BUTTON: "{stars} ⭐ үшін жазылу",
+    Msg.SUBSCRIPTION_ACTIVE: (
+        "«{name}» тарифі: 30 күн сайын {credits} кредит.\nКелесі төлем: {until}."
+    ),
+    Msg.SUBSCRIPTION_NONE: "Белсенді жазылым жоқ. Тарифтерді көру: /subscribe",
+    Msg.SUBSCRIPTION_STARTED: (
+        "«{name}» жазылымы рәсімделді. {credits} кредит қосылды, шотта {balance}.\n"
+        "Келесі төлем: {until}."
+    ),
+    Msg.SUBSCRIPTION_RENEWED: (
+        "«{name}» жазылымы жаңартылды. {credits} кредит қосылды, шотта {balance}.\n"
+        "Келесі төлем: {until}."
+    ),
+    Msg.SUBSCRIPTION_REVIEW: (
+        "Төлем қабылданды, бірақ жазылымды тексеру қажет. Біз тексеріп жатырмыз, ақша "
+        "жоғалмайды. Қолдау: /paysupport"
+    ),
+    Msg.SUBSCRIPTION_CANCEL_BUTTON: "Жаңартуды тоқтату",
+    Msg.SUBSCRIPTION_CANCELLED: (
+        "Жаңарту өшірілді. Тариф пен кредит {until} дейін сақталады — бұл кезең төленген."
+    ),
+    Msg.SUBSCRIPTION_RENEWAL_FAILED: (
+        "«{name}» тарифін жаңарту үшін жұлдыз шешілмеді. Қолжетімділік {until} дейін "
+        "жұмыс істейді. Тарифті жоғалтпау үшін жұлдыз балансын толтырыңыз."
+    ),
+    Msg.CMD_SUBSCRIBE: "ай сайын кредит алуға жазылу",
 }
