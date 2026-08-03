@@ -16,12 +16,19 @@ if TYPE_CHECKING:
 
 
 class GenerationAsset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Uploaded or generated media objects (generation_id bound in Stage F)."""
+    """Uploaded or generated media objects."""
 
     __tablename__ = "generation_assets"
 
+    # Mirrors migration 0006, which adds this foreign key additively. Declaring it here is
+    # not cosmetic: SQLAlchemy derives DDL ordering from the relationships on the metadata,
+    # so while the column was FK-less `metadata.drop_all` did not know this table depended
+    # on generation_jobs, dropped the parent first, and Postgres refused. That is the
+    # failure the test fixture now sidesteps with DROP SCHEMA CASCADE — this closes the
+    # underlying disagreement rather than only its symptom.
     generation_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
+        ForeignKey("generation_jobs.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

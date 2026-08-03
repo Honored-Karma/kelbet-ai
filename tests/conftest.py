@@ -2,6 +2,7 @@ import os
 from collections.abc import AsyncIterator
 
 import pytest
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncSession,
@@ -42,24 +43,6 @@ from kelbet.db.models import (  # noqa: F401
 )
 
 
-async def _reset_schema(conn: AsyncConnection) -> None:
-    """Drop everything in the test database, however it was created.
-
-    `Base.metadata.drop_all` sorts tables by the foreign keys declared on the models,
-    so it only works on a schema that `create_all` built. CI runs `alembic upgrade head`
-    before pytest, and the migrated schema carries constraints the models do not
-    declare — generation_assets.generation_id references generation_jobs in migration
-    0006, but the model leaves the column FK-less. drop_all then tries to drop
-    generation_jobs first and Postgres refuses with DependentObjectsStillExistError,
-    which failed every database test in the suite.
-
-    Dropping the schema sidesteps the ordering question entirely and is safe here
-    because this only ever runs against the test database.
-    """
-    await conn.exec_driver_sql("DROP SCHEMA public CASCADE")
-    await conn.exec_driver_sql("CREATE SCHEMA public")
-
-
 def _test_database_url() -> str:
     return os.getenv(
         "TEST_DATABASE_URL",
@@ -67,9 +50,54 @@ def _test_database_url() -> str:
     )
 
 
+def _assert_disposable(url: str) -> None:
+    """Refuse to wipe a database that does not look disposable.
+
+    `_reset_schema` issues `DROP SCHEMA public CASCADE`, which destroys everything in the
+    schema rather than only the tables the ORM knows about. That is the right tool for a
+    test database and a catastrophe against any other one, and the only thing standing
+    between the two is the value of `TEST_DATABASE_URL`. A typo, an inherited shell
+    export, or a copy-pasted staging URL would otherwise be silently obeyed.
+
+    Requiring the database name to say it is for testing keeps the guard trivial to
+    satisfy on purpose and hard to satisfy by accident.
+    """
+    database = (make_url(url).database or "").lower()
+    if not database:
+        msg = f"TEST_DATABASE_URL names no database: {url!r}"
+        raise RuntimeError(msg)
+    if "test" not in database:
+        msg = (
+            f"refusing to run tests against database {database!r}: the suite drops and "
+            "recreates the public schema, so its name must contain 'test'. Set "
+            "TEST_DATABASE_URL to a disposable database."
+        )
+        raise RuntimeError(msg)
+
+
+async def _reset_schema(conn: AsyncConnection) -> None:
+    """Drop everything in the test database, however it was created.
+
+    `Base.metadata.drop_all` orders tables by the foreign keys declared on the models, so
+    it only works on a schema that `create_all` built. CI runs `alembic upgrade head`
+    before pytest, and any constraint present in a migration but missing from a model
+    makes that ordering wrong — which is how a single absent foreign key on
+    `generation_assets.generation_id` once failed every database test in the suite with
+    `DependentObjectsStillExistError`.
+
+    Dropping the schema sidesteps the ordering question entirely, and keeps doing so even
+    if the models and migrations disagree again in future. That they currently agree is
+    asserted separately and deliberately, by tests/test_schema_drift.py.
+    """
+    await conn.exec_driver_sql("DROP SCHEMA public CASCADE")
+    await conn.exec_driver_sql("CREATE SCHEMA public")
+
+
 @pytest.fixture
 async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    engine = create_async_engine(_test_database_url(), pool_pre_ping=True)
+    url = _test_database_url()
+    _assert_disposable(url)
+    engine = create_async_engine(url, pool_pre_ping=True)
     async with engine.begin() as conn:
         await _reset_schema(conn)
         await conn.run_sync(Base.metadata.create_all)
