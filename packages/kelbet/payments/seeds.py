@@ -87,3 +87,16 @@ def payment_product_rows() -> list[dict[str, Any]]:
             },
         },
     ]
+
+
+def payment_product_row(slug: str) -> dict[str, Any]:
+    """Look up one seeded pack by slug.
+
+    Tests and callers that need a pack's star price should read it from here rather than
+    hardcoding it. Repricing a pack used to silently invalidate assertions written as
+    literals, which is how a stale `100` outlived the move of `starter` to 99 stars.
+    """
+    for row in payment_product_rows():
+        if row["slug"] == slug:
+            return row
+    raise KeyError(f"no seeded payment product with slug {slug!r}")

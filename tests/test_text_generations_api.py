@@ -242,7 +242,8 @@ async def test_openrouter_text_generation_reserve_capture(
 
     async with session_factory() as session, session.begin():
         wallet = (await session.execute(select(Wallet))).scalar_one()
-        assert wallet.balance == 19
+        # 20 welcome credits less the 2 that openrouter-gpt-4o-mini costs in the catalog.
+        assert wallet.balance == 18
         assert wallet.reserved == 0
         usage = (await session.execute(select(ProviderUsage))).scalar_one()
         assert usage.provider == "openrouter"

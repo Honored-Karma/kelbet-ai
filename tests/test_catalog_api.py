@@ -14,10 +14,24 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from kelbet.auth import MemoryReplayStore, sign_init_data
 from kelbet.catalog.seed_db import seed_catalog
+from kelbet.catalog.seeds import catalog_model_rows
 from kelbet.config import Settings, get_settings
 from kelbet.db.models.catalog import CatalogModel, FeatureFlag
 
 BOT_TOKEN = "999:TEST-TOKEN-CATALOG"
+
+
+def _seeded_price(slug: str) -> int:
+    """The catalog price of a model, read from the seed rather than copied into a literal."""
+    for row in catalog_model_rows():
+        if row["slug"] == slug:
+            return int(row["user_credit_price"])
+    raise KeyError(f"no seeded catalog model with slug {slug!r}")
+
+
+def _ceil_ratio(price: int, num: int, den: int) -> int:
+    """Apply a pricing multiplier the way the quote endpoint does: exact, then rounded up."""
+    return -(-price * num // den)
 
 
 def _user_json(*, telegram_id: int = 888001, language_code: str = "ru") -> str:
@@ -198,8 +212,13 @@ async def test_quote_uses_db_price_and_multipliers(
             "params": {"resolution": "2k", "aspect_ratio": "9:16"},
         },
     )
+    # 2k costs 9/5 of 1k for this model, and the quote must round the product up so a
+    # fractional credit is never given away. Derived from the seeded row rather than
+    # written as a literal: repricing the model is routine, and a literal here silently
+    # stops testing the multiplier the moment it happens.
+    quality_expected = _ceil_ratio(_seeded_price("runway-seedream5-pro-image"), 9, 5)
     assert quality.status_code == 200, quality.text
-    assert quality.json()["user_credit_price"] == 20
+    assert quality.json()["user_credit_price"] == quality_expected
 
     quality_auto = await api_client.post(
         "/api/v1/wallet/quote",
@@ -209,16 +228,18 @@ async def test_quote_uses_db_price_and_multipliers(
             "params": {"resolution": "auto_2k", "aspect_ratio": "9:16"},
         },
     )
+    # `auto_2k` resolves to the same tier as `2k`, so it must cost the same.
     assert quality_auto.status_code == 200, quality_auto.text
-    assert quality_auto.json()["user_credit_price"] == 20
+    assert quality_auto.json()["user_credit_price"] == quality_expected
 
     upscale = await api_client.post(
         "/api/v1/wallet/quote",
         headers={"Authorization": f"Bearer {token}"},
         json={"model_slug": "runway-magnific-image-upscale", "params": {}},
     )
+    # The upscale model prices flat: no multipliers, so the quote is the catalog price.
     assert upscale.status_code == 200, upscale.text
-    assert upscale.json()["user_credit_price"] == 60
+    assert upscale.json()["user_credit_price"] == _seeded_price("runway-magnific-image-upscale")
     assert upscale.json()["params"]["scale_factor"] == 2
 
     video = await api_client.post(
@@ -233,8 +254,11 @@ async def test_quote_uses_db_price_and_multipliers(
             },
         },
     )
+    # 8 seconds is twice the 4-second base, and duration pricing is strictly linear.
     assert video.status_code == 200, video.text
-    assert video.json()["user_credit_price"] == 200
+    assert video.json()["user_credit_price"] == _ceil_ratio(
+        _seeded_price("runway-gemini-omni-video-fast"), 2, 1
+    )
 
     veo = await api_client.post(
         "/api/v1/wallet/quote",
@@ -248,8 +272,11 @@ async def test_quote_uses_db_price_and_multipliers(
             },
         },
     )
+    # 6 seconds against the same 4-second base is 3/2, not a rounded-up 2x.
     assert veo.status_code == 200, veo.text
-    assert veo.json()["user_credit_price"] == 75
+    assert veo.json()["user_credit_price"] == _ceil_ratio(
+        _seeded_price("google-veo31-lite-video-fallback"), 3, 2
+    )
 
     unsupported_video_seed = await api_client.post(
         "/api/v1/wallet/quote",

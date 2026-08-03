@@ -16,12 +16,17 @@ if TYPE_CHECKING:
 
 
 class GenerationAsset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Uploaded or generated media objects (generation_id bound in Stage F)."""
+    """Uploaded or generated media objects."""
 
     __tablename__ = "generation_assets"
 
+    # The foreign key mirrors migration 0006, which adds it additively. Declaring it here
+    # is not cosmetic: without it SQLAlchemy does not know that this table depends on
+    # generation_jobs, so metadata.drop_all sorts the two wrongly and Postgres refuses
+    # to drop generation_jobs.
     generation_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
+        ForeignKey("generation_jobs.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

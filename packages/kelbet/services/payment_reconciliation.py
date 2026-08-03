@@ -180,11 +180,7 @@ async def reconcile_star_transactions(
 
         receipt = await payments.get_receipt_by_charge_id(record.transaction_id)
         if record.direction == StarTransactionDirection.INCOMING.value:
-            if (
-                receipt is None
-                and record.telegram_user_id is not None
-                and record.invoice_payload
-            ):
+            if receipt is None and record.telegram_user_id is not None and record.invoice_payload:
                 recovered = await PaymentService(session, settings).complete_payment(
                     telegram_id=record.telegram_user_id,
                     invoice_payload=record.invoice_payload,

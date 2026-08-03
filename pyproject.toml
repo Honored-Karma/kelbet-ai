@@ -30,8 +30,13 @@ dependencies = [
 dev = [
     "pytest>=8.3,<9",
     "pytest-asyncio>=0.24,<1",
-    "ruff>=0.8,<1",
-    "mypy>=1.13,<2",
+    # Pinned exactly, not ranged. Ruff's formatter output is deliberately not stable across
+    # minor releases, so `ruff>=0.8,<1` meant a contributor on 0.8 and CI on 0.16 disagreed
+    # about files neither had touched, and `ruff format --check` failed for reasons unrelated
+    # to the change under review. Upgrade deliberately: bump the pin and commit the reformat
+    # as its own change.
+    "ruff==0.16.1",
+    "mypy==1.20.2",
     "types-redis",
 ]
 

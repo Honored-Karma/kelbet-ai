@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kelbet.config import Settings
 from kelbet.db.models import CreditTransaction, PaymentOrder, PaymentReceipt, Wallet
 from kelbet.domain.enums import Language, PaymentReceiptStatus, PaymentStatus, TxReason
-from kelbet.payments import seed_payment_products
+from kelbet.payments import payment_product_row, seed_payment_products
 from kelbet.services.payment import PaymentService
 from kelbet.services.registration import RegistrationService
 
@@ -55,16 +55,20 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
         language=Language.KK,
         now=now,
     )
+    starter = payment_product_row("starter")
     assert order.currency == "XTR"
-    assert order.total_amount == 100
-    assert order.credits == 100
+    assert order.total_amount == starter["stars"]
+    assert order.credits == starter["credits"]
 
     wrong = await service.validate_pre_checkout(
         telegram_id=user.telegram_id,
         query_id="pre-wrong",
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=99,
+        # Any amount other than the pack's own price must be rejected. Derived from the
+        # pack rather than written as a literal, because a literal that happens to equal
+        # the real price turns this into a test that asserts nothing.
+        total_amount=int(starter["stars"]) - 1,
         now=now,
     )
     assert wrong.ok is False
@@ -75,7 +79,7 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
         query_id="pre-ok",
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=100,
+        total_amount=order.total_amount,
         now=now,
     )
     assert approved.ok is True
@@ -84,21 +88,21 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
         telegram_id=user.telegram_id,
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=100,
+        total_amount=order.total_amount,
         telegram_payment_charge_id="tg-charge-001",
         provider_payment_charge_id="",
         now=now + timedelta(seconds=2),
     )
     assert first.processed is True
     assert first.applied is True
-    assert first.credits == 100
+    assert first.credits == starter["credits"]
     assert first.balance == 105
 
     duplicate = await service.complete_payment(
         telegram_id=user.telegram_id,
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=100,
+        total_amount=order.total_amount,
         telegram_payment_charge_id="tg-charge-001",
         provider_payment_charge_id="",
         now=now + timedelta(seconds=3),

@@ -18,7 +18,7 @@ from kelbet.db.models import (
 )
 from kelbet.domain.enums import Language, PaymentRefundStatus, PaymentStatus, TxReason
 from kelbet.domain.exceptions import PaymentRefundConflictError
-from kelbet.payments import seed_payment_products
+from kelbet.payments import payment_product_row, seed_payment_products
 from kelbet.payments.gateway import (
     FakeStarsGateway,
     StarsGatewayError,
@@ -94,7 +94,20 @@ async def _seed_operator(session: AsyncSession, telegram_id: int = 939_999) -> U
     return user.id
 
 
-def _record(charge_id: str, direction: str, *, amount: int = 100) -> StarTransactionRecord:
+def _record(
+    charge_id: str,
+    direction: str,
+    *,
+    amount: int | None = None,
+) -> StarTransactionRecord:
+    """Build a star-transaction record as Telegram would report it.
+
+    The amount defaults to what the seeded `starter` pack actually costs. Reconciliation
+    compares the reported amount against the order, so a hardcoded default silently
+    became a mismatch the moment the pack was repriced from 100 stars to 99.
+    """
+    if amount is None:
+        amount = int(payment_product_row("starter")["stars"])
     return StarTransactionRecord(
         transaction_id=charge_id,
         amount=amount,

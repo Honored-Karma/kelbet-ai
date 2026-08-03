@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from kelbet.auth import MemoryReplayStore, sign_init_data
 from kelbet.config import Settings, get_settings
-from kelbet.payments import seed_payment_products
+from kelbet.payments import payment_product_row, seed_payment_products
 
 BOT_TOKEN = "999:TEST-TOKEN-PAYMENTS"
 
@@ -102,9 +102,10 @@ async def test_products_create_invoice_and_history(
     )
     assert created.status_code == 200, created.text
     body = created.json()
+    starter = payment_product_row("starter")
     assert body["currency"] == "XTR"
-    assert body["total_amount"] == 100
-    assert body["credits"] == 100
+    assert body["total_amount"] == starter["stars"]
+    assert body["credits"] == starter["credits"]
     assert body["invoice_url"].startswith("https://t.me/$kelbet_")
 
     replay = await payment_api_client.post(

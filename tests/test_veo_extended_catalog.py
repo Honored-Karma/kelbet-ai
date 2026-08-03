@@ -7,9 +7,7 @@ def test_veo_extended_catalog_is_off_by_default_and_truthful() -> None:
     assert flag["enabled"] is False
 
     model = next(
-        row
-        for row in catalog_model_rows()
-        if row["slug"] == "google-veo31-fast-extended-video"
+        row for row in catalog_model_rows() if row["slug"] == "google-veo31-fast-extended-video"
     )
     assert model["feature_flag"] == "veo_extended"
     assert model["provider_model_id"] == "veo-3.1-fast-generate-preview"
@@ -37,9 +35,7 @@ def test_veo_extended_price_tracks_output_seconds() -> None:
     of the market rather than protecting margin.
     """
     model = next(
-        row
-        for row in catalog_model_rows()
-        if row["slug"] == "google-veo31-fast-extended-video"
+        row for row in catalog_model_rows() if row["slug"] == "google-veo31-fast-extended-video"
     )
     assert model["user_credit_price"] == 200
 
