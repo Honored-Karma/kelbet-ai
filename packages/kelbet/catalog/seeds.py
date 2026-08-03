@@ -6,6 +6,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+# Economics invariant. `provider_cost_units` is USD in fixed point: 1 unit == $0.0001.
+# One credit is defined as $0.004 of provider cost, i.e. 40 units. Every billable SKU
+# must charge at least its recorded provider cost, otherwise the sale loses money.
+# `enforce_economics` below makes that structurally impossible to violate.
+CREDIT_COST_UNITS = 40
+
 MOCK_TEXT_ID = UUID("11111111-1111-1111-1111-111111111101")
 MOCK_IMAGE_ID = UUID("11111111-1111-1111-1111-111111111102")
 OPENROUTER_ID = UUID("11111111-1111-1111-1111-111111111103")
@@ -23,6 +29,48 @@ GOOGLE_EXTENDED_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111116")
 OPENAI_IMAGE_FAST_ID = UUID("11111111-1111-1111-1111-111111111114")
 OPENAI_IMAGE_QUALITY_ID = UUID("11111111-1111-1111-1111-111111111115")
 LEGACY_DISABLED_ID = UUID("11111111-1111-1111-1111-111111111199")
+
+# SKUs whose provider cost is strictly linear in output seconds. For these, the
+# duration multiplier must be duration/base_duration, never a rounded-up integer
+# step: Veo bills each extension for its own new seconds only, so a 29s clip costs
+# 29/8 of an 8s clip, not 4x. Charging 4x is not "safe", it just prices the SKU
+# out of the market; charging less than linear sells long clips below cost.
+DURATION_LINEAR_SLUGS = frozenset({"google-veo31-fast-extended-video"})
+
+
+def ceil_div(value: int, divisor: int) -> int:
+    return -(-value // divisor)
+
+
+def cost_floor_credits(provider_cost_units: int) -> int:
+    """Minimum credit price that still covers recorded provider cost."""
+    return ceil_div(provider_cost_units, CREDIT_COST_UNITS)
+
+
+def enforce_economics(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Raise any below-cost price to its floor and linearise per-second pricing.
+
+    Declared prices in this module are already correct; this pass is a structural
+    guarantee so a future edit cannot silently ship a loss-making SKU.
+    """
+    for row in rows:
+        units = row["provider_cost_units"]
+        assert isinstance(units, int)
+        floor = cost_floor_credits(units)
+        if row["user_credit_price"] < floor:
+            row["user_credit_price"] = floor
+
+        if row["slug"] not in DURATION_LINEAR_SLUGS:
+            continue
+        pricing_rules = row["pricing_rules"]
+        assert isinstance(pricing_rules, dict)
+        multipliers = pricing_rules["duration_multipliers"]
+        assert isinstance(multipliers, dict)
+        base_duration = min(int(key) for key in multipliers)
+        pricing_rules["duration_multipliers"] = {
+            key: {"num": int(key), "den": base_duration} for key in multipliers
+        }
+    return rows
 
 
 def feature_flag_rows() -> list[dict[str, Any]]:
@@ -132,7 +180,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "deprecated_at": None,
             "replacement_slug": None,
             "feature_flag": None,
-            "user_credit_price": 1,
+            # Was 1 credit ($0.004) against a recorded $0.005 cost — sold below cost.
+            "user_credit_price": 2,
             "provider_cost_units": 50,
             "currency_hint": "USD",
             "capabilities": {
@@ -217,7 +266,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "deprecated_at": None,
             "replacement_slug": None,
             "feature_flag": "runway_media",
-            "user_credit_price": 12,
+            # Was 12 credits ($0.048) against $0.05 recorded cost.
+            "user_credit_price": 13,
             "provider_cost_units": 500,
             "currency_hint": "USD",
             "capabilities": {
@@ -253,11 +303,12 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                 },
             },
             "pricing_rules": {
+                # 2k costs $0.09 against $0.05 at 1k — a 9/5 ratio, not 5/3.
                 "resolution_multipliers": {
                     "1k": {"num": 1, "den": 1},
-                    "2k": {"num": 5, "den": 3},
+                    "2k": {"num": 9, "den": 5},
                     "auto_1k": {"num": 1, "den": 1},
-                    "auto_2k": {"num": 5, "den": 3},
+                    "auto_2k": {"num": 9, "den": 5},
                 }
             },
         },
@@ -320,7 +371,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "deprecated_at": None,
             "replacement_slug": None,
             "feature_flag": "runway_media",
-            "user_credit_price": 12,
+            # Was 12 credits ($0.048) against $0.05 recorded cost.
+            "user_credit_price": 13,
             "provider_cost_units": 500,
             "currency_hint": "USD",
             "capabilities": {
@@ -358,9 +410,9 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "pricing_rules": {
                 "resolution_multipliers": {
                     "1k": {"num": 1, "den": 1},
-                    "2k": {"num": 5, "den": 3},
+                    "2k": {"num": 9, "den": 5},
                     "auto_1k": {"num": 1, "den": 1},
-                    "auto_2k": {"num": 5, "den": 3},
+                    "auto_2k": {"num": 9, "den": 5},
                 }
             },
         },
@@ -375,7 +427,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "deprecated_at": None,
             "replacement_slug": None,
             "feature_flag": "runway_media",
-            "user_credit_price": 60,
+            # Was 60 credits ($0.24) against $0.25 recorded cost.
+            "user_credit_price": 63,
             "provider_cost_units": 2500,
             "currency_hint": "USD",
             "capabilities": {
@@ -429,7 +482,11 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "deprecated_at": None,
             "replacement_slug": None,
             "feature_flag": "runway_media",
-            "user_credit_price": 8,
+            # Was 8 credits ($0.032) against $0.08 recorded cost — the worst gap in
+            # the catalog at 2.5x below cost. Recorded cost is the 1080p figure, so
+            # 720p is intentionally priced at the same floor until per-resolution
+            # cost is measured and split.
+            "user_credit_price": 20,
             "provider_cost_units": 800,
             "currency_hint": "USD",
             "capabilities": {
@@ -481,7 +538,9 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "deprecated_at": datetime(2026, 7, 30, tzinfo=UTC),
             "replacement_slug": "runway-gemini-omni-video-fast",
             "feature_flag": "runway_media",
-            "user_credit_price": 25,
+            # Was 25 credits ($0.10) against $0.25 recorded cost. Disabled and
+            # deprecated, but corrected so it cannot be re-enabled at a loss.
+            "user_credit_price": 63,
             "provider_cost_units": 2500,
             "currency_hint": "USD",
             "capabilities": {
@@ -704,7 +763,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
             "deprecated_at": None,
             "replacement_slug": None,
             "feature_flag": "veo_extended",
-            "user_credit_price": 100,
+            # Was 100 credits ($0.40) against $0.80 recorded cost for the 8s base.
+            "user_credit_price": 200,
             "provider_cost_units": 8000,
             "currency_hint": "USD",
             "capabilities": {
@@ -751,12 +811,16 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                     "description": "Кезең-кезеңімен жалғасатын ≈30 секундқа дейінгі тұтас көрініс",
                 },
             },
+            # Each extend call bills only its own 7 new seconds, so cost is linear in
+            # total output seconds. `enforce_economics` rewrites these to duration/8:
+            # 8s -> 200, 15s -> 375, 22s -> 550, 29s -> 725 credits. The previous
+            # 1x/2x/3x/4x steps charged 2000 credits for 29s, nearly 3x over cost.
             "pricing_rules": {
                 "duration_multipliers": {
-                    "8": {"num": 1, "den": 1},
-                    "15": {"num": 2, "den": 1},
-                    "22": {"num": 3, "den": 1},
-                    "29": {"num": 4, "den": 1},
+                    "8": {"num": 8, "den": 8},
+                    "15": {"num": 15, "den": 8},
+                    "22": {"num": 22, "den": 8},
+                    "29": {"num": 29, "den": 8},
                 }
             },
         },
@@ -798,7 +862,8 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                 "deprecated_at": None,
                 "replacement_slug": None,
                 "feature_flag": "openai_image",
-                "user_credit_price": 8,
+                # Was 8 credits ($0.032) against $0.06 recorded cost.
+                "user_credit_price": 15,
                 "provider_cost_units": 600,
                 "currency_hint": "USD",
                 "capabilities": {
@@ -847,7 +912,10 @@ def catalog_model_rows() -> list[dict[str, Any]]:
                 "deprecated_at": None,
                 "replacement_slug": None,
                 "feature_flag": "openai_image",
-                "user_credit_price": 16,
+                # Was 16 credits ($0.064) against $0.53 recorded cost — 8x below
+                # cost. The recorded cost is a conservative placeholder pending the
+                # canary reconciliation, so this price will drop once it is measured.
+                "user_credit_price": 133,
                 "provider_cost_units": 5300,
                 "currency_hint": "USD",
                 "capabilities": {
@@ -925,4 +993,4 @@ def catalog_model_rows() -> list[dict[str, Any]]:
         ui = capabilities.get("ui")
         assert isinstance(ui, dict)
         ui["provider_cost_ceiling_units"] = 1100
-    return rows
+    return enforce_economics(rows)
