@@ -10,8 +10,23 @@ from kelbet.config import Settings
 from kelbet.db.models import CreditTransaction, PaymentOrder, PaymentReceipt, Wallet
 from kelbet.domain.enums import Language, PaymentReceiptStatus, PaymentStatus, TxReason
 from kelbet.payments import seed_payment_products
+from kelbet.payments.seeds import payment_product_rows
 from kelbet.services.payment import PaymentService
 from kelbet.services.registration import RegistrationService
+
+
+def _starter_stars() -> int:
+    """Star price of the starter pack, read from the seed instead of hardcoded.
+
+    The pack was 100 credits for 100 stars, a 1.00 credits-per-star rate that matched
+    no margin target. Reading the seed means this test tracks the catalog rather than
+    drifting a release behind it.
+    """
+    return int(next(row["stars"] for row in payment_product_rows() if row["slug"] == "starter"))
+
+
+def _starter_credits() -> int:
+    return int(next(row["credits"] for row in payment_product_rows() if row["slug"] == "starter"))
 
 
 def _settings() -> Settings:
@@ -56,15 +71,18 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
         now=now,
     )
     assert order.currency == "XTR"
-    assert order.total_amount == 100
-    assert order.credits == 100
+    assert order.total_amount == _starter_stars()
+    assert order.credits == _starter_credits()
 
     wrong = await service.validate_pre_checkout(
         telegram_id=user.telegram_id,
         query_id="pre-wrong",
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=99,
+        # Deliberately off by one from the real price. A literal here turned into
+        # the *correct* amount when the starter pack moved to 99 stars, which made
+        # this rejection test silently assert success.
+        total_amount=_starter_stars() - 1,
         now=now,
     )
     assert wrong.ok is False
@@ -75,7 +93,7 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
         query_id="pre-ok",
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=100,
+        total_amount=_starter_stars(),
         now=now,
     )
     assert approved.ok is True
@@ -84,7 +102,7 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
         telegram_id=user.telegram_id,
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=100,
+        total_amount=_starter_stars(),
         telegram_payment_charge_id="tg-charge-001",
         provider_payment_charge_id="",
         now=now + timedelta(seconds=2),
@@ -98,7 +116,7 @@ async def test_stars_payment_is_validated_and_credited_exactly_once(
         telegram_id=user.telegram_id,
         invoice_payload=order.invoice_payload,
         currency="XTR",
-        total_amount=100,
+        total_amount=_starter_stars(),
         telegram_payment_charge_id="tg-charge-001",
         provider_payment_charge_id="",
         now=now + timedelta(seconds=3),

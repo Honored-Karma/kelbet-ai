@@ -81,9 +81,7 @@ class UserSubscription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    current_period_start: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    current_period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     current_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     #: Monotonic counter. Doubles as the idempotency discriminator for grants, so a
     #: replayed renewal can never hand out a second period of credits.

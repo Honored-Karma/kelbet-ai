@@ -171,9 +171,7 @@ async def test_google_veo_extension_uses_official_inline_mp4_contract() -> None:
                 "numberOfVideos": 1,
             },
         }
-        assert request.url.path.endswith(
-            "/models/veo-3.1-fast-generate-preview:predictLongRunning"
-        )
+        assert request.url.path.endswith("/models/veo-3.1-fast-generate-preview:predictLongRunning")
         return httpx.Response(200, json={"name": "operations/extend-001"})
 
     provider, client = _provider(handler)

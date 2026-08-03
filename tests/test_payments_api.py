@@ -12,8 +12,23 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from kelbet.auth import MemoryReplayStore, sign_init_data
 from kelbet.config import Settings, get_settings
 from kelbet.payments import seed_payment_products
+from kelbet.payments.seeds import payment_product_rows
 
 BOT_TOKEN = "999:TEST-TOKEN-PAYMENTS"
+
+
+def _starter_stars() -> int:
+    """Star price of the starter pack, read from the seed instead of hardcoded.
+
+    The pack was 100 credits for 100 stars, a 1.00 credits-per-star rate that matched
+    no margin target. Reading the seed means this test tracks the catalog rather than
+    drifting a release behind it.
+    """
+    return int(next(row["stars"] for row in payment_product_rows() if row["slug"] == "starter"))
+
+
+def _starter_credits() -> int:
+    return int(next(row["credits"] for row in payment_product_rows() if row["slug"] == "starter"))
 
 
 def _signed_init_data(telegram_id: int = 930_001) -> str:
@@ -103,8 +118,8 @@ async def test_products_create_invoice_and_history(
     assert created.status_code == 200, created.text
     body = created.json()
     assert body["currency"] == "XTR"
-    assert body["total_amount"] == 100
-    assert body["credits"] == 100
+    assert body["total_amount"] == _starter_stars()
+    assert body["credits"] == _starter_credits()
     assert body["invoice_url"].startswith("https://t.me/$kelbet_")
 
     replay = await payment_api_client.post(

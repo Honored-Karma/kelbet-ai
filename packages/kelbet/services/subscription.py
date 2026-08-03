@@ -113,9 +113,7 @@ class SubscriptionService:
 
     async def _subscription_for_update(self, user_id: UUID) -> UserSubscription | None:
         result = await self._session.execute(
-            select(UserSubscription)
-            .where(UserSubscription.user_id == user_id)
-            .with_for_update()
+            select(UserSubscription).where(UserSubscription.user_id == user_id).with_for_update()
         )
         return result.scalar_one_or_none()
 
@@ -127,9 +125,7 @@ class SubscriptionService:
         return wallet_id
 
     async def _set_user_plan(self, user_id: UUID, plan_key: str) -> None:
-        await self._session.execute(
-            update(User).where(User.id == user_id).values(plan=plan_key)
-        )
+        await self._session.execute(update(User).where(User.id == user_id).values(plan=plan_key))
 
     def _state(self, subscription: UserSubscription, plan_slug: str) -> SubscriptionState:
         return SubscriptionState(

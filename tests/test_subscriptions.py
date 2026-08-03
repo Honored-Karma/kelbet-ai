@@ -9,6 +9,7 @@ exercise, so they belong in the integration suite rather than here.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -30,7 +31,7 @@ from kelbet.subscriptions.seeds import (
 )
 
 
-def _ordered_plans() -> list[dict[str, object]]:
+def _ordered_plans() -> list[dict[str, Any]]:
     return sorted(subscription_plan_rows(), key=lambda row: int(row["stars"]))
 
 
@@ -67,7 +68,7 @@ def test_no_plan_falls_below_the_margin_floor_on_stars() -> None:
 def test_generosity_ceiling_matches_the_margin_floor() -> None:
     """The ceiling is not a magic number: it is payout/cost * (1 - floor)."""
     derived = STAR_PAYOUT_USD / 0.004 * (1 - MIN_PLAN_MARGIN)
-    assert MAX_CREDITS_PER_STAR == pytest.approx(derived, abs=1e-9)
+    assert pytest.approx(derived, abs=1e-9) == MAX_CREDITS_PER_STAR
 
 
 def test_bigger_plans_are_a_better_deal_never_a_worse_one() -> None:
@@ -85,8 +86,7 @@ def test_every_plan_beats_every_top_up_pack() -> None:
     credits per star, more than the planned entry subscription.
     """
     best_pack_rate = max(
-        credits_per_star(int(row["credits"]), int(row["stars"]))
-        for row in payment_product_rows()
+        credits_per_star(int(row["credits"]), int(row["stars"])) for row in payment_product_rows()
     )
     for row in subscription_plan_rows():
         rate = credits_per_star(int(row["credits_per_period"]), int(row["stars"]))
@@ -137,9 +137,7 @@ def test_period_end_is_fixed_length_and_rejects_nonsense() -> None:
     start = datetime(2026, 1, 31, 12, 0, tzinfo=UTC)
     assert period_end(start, 30) == start + timedelta(days=30)
     # A fixed length sidesteps the "31st of February" clamping question entirely.
-    assert period_end(datetime(2026, 1, 31, tzinfo=UTC), 30) == datetime(
-        2026, 3, 2, tzinfo=UTC
-    )
+    assert period_end(datetime(2026, 1, 31, tzinfo=UTC), 30) == datetime(2026, 3, 2, tzinfo=UTC)
     with pytest.raises(ValueError, match="period_days must be positive"):
         period_end(start, 0)
     with pytest.raises(ValueError, match="period_days must be positive"):

@@ -199,7 +199,8 @@ async def test_quote_uses_db_price_and_multipliers(
         },
     )
     assert quality.status_code == 200, quality.text
-    assert quality.json()["user_credit_price"] == 20
+    # 13 base credits * 9/5 for 2k, ceil -> 24. 2k costs $0.09 vs $0.05 at 1k.
+    assert quality.json()["user_credit_price"] == 24
 
     quality_auto = await api_client.post(
         "/api/v1/wallet/quote",
@@ -210,7 +211,8 @@ async def test_quote_uses_db_price_and_multipliers(
         },
     )
     assert quality_auto.status_code == 200, quality_auto.text
-    assert quality_auto.json()["user_credit_price"] == 20
+    # auto_2k resolves to the same pixel budget as 2k: 13 * 9/5, ceil -> 24.
+    assert quality_auto.json()["user_credit_price"] == 24
 
     upscale = await api_client.post(
         "/api/v1/wallet/quote",
@@ -218,7 +220,8 @@ async def test_quote_uses_db_price_and_multipliers(
         json={"model_slug": "runway-magnific-image-upscale", "params": {}},
     )
     assert upscale.status_code == 200, upscale.text
-    assert upscale.json()["user_credit_price"] == 60
+    # Magnific 2x costs $0.25, i.e. 63 credits at $0.004 each. Was 60 ($0.24).
+    assert upscale.json()["user_credit_price"] == 63
     assert upscale.json()["params"]["scale_factor"] == 2
 
     video = await api_client.post(
