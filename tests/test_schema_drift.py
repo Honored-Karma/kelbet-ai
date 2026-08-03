@@ -16,6 +16,7 @@ import pytest
 from scripts.schema_drift import (
     InsufficientPrivilege,
     Snapshot,
+    _fk_action,
     compare,
     detect_drift,
     preflight,
@@ -101,3 +102,18 @@ async def test_migrations_and_models_describe_the_same_schema() -> None:
         "SQLAlchemy uses it to order DDL, and its ON DELETE action decides whether rows "
         "are cascaded, nulled, or the delete is refused."
     )
+
+
+def test_referential_actions_are_named_whatever_the_driver_returns() -> None:
+    """Postgres types these columns as `"char"`, which asyncpg hands back as `bytes`.
+
+    Without decoding, every lookup missed and the report read `ON DELETE b'n'`. The
+    comparison still worked, since both sides were mangled identically, but the message a
+    developer has to act on was unreadable — and an unreadable guard gets ignored.
+    """
+    assert _fk_action(b"n") == "SET NULL"
+    assert _fk_action("n") == "SET NULL"
+    assert _fk_action(b"c") == "CASCADE"
+    assert _fk_action(b"a") == "NO ACTION"
+    # An action Postgres adds in future should surface as itself, not vanish.
+    assert _fk_action(b"z") == "z"

@@ -50,6 +50,20 @@ _FK_ACTIONS = {
 }
 
 
+def _fk_action(value: object) -> str:
+    """Name a referential action, whatever shape the driver hands it over in.
+
+    Postgres types these columns as `"char"`, and asyncpg surfaces that as `bytes` rather
+    than `str`. Without decoding, every lookup missed and the report read
+    `ON DELETE b'n'` — the comparison still worked, because both sides were mangled
+    identically, but the message a developer has to act on was unreadable.
+    """
+    if isinstance(value, bytes):
+        value = value.decode("ascii", "replace")
+    text_value = str(value)
+    return _FK_ACTIONS.get(text_value, text_value)
+
+
 class InsufficientPrivilege(RuntimeError):
     """The role cannot create the scratch databases this comparison needs."""
 
@@ -154,8 +168,8 @@ async def _snapshot(conn: AsyncConnection) -> Snapshot:
             src_column,
             tgt_table,
             tgt_column,
-            _FK_ACTIONS.get(on_delete, on_delete),
-            _FK_ACTIONS.get(on_update, on_update),
+            _fk_action(on_delete),
+            _fk_action(on_update),
         )
         for src_table, src_column, tgt_table, tgt_column, on_delete, on_update in (
             await conn.execute(_FOREIGN_KEYS)
