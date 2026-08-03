@@ -266,7 +266,7 @@ async def test_quote_uses_db_price_and_multipliers(
 
 
 @pytest.mark.asyncio
-async def test_wallet_balance_endpoint(api_client: AsyncClient) -> None:
+async def test_wallet_balance_endpoint(api_client: AsyncClient, catalog_settings: Settings) -> None:
     token = await _login(api_client, telegram_id=888004)
     response = await api_client.get(
         "/api/v1/wallet",
@@ -274,9 +274,10 @@ async def test_wallet_balance_endpoint(api_client: AsyncClient) -> None:
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["balance"] == 5
+    # The freshly registered wallet holds exactly the configured welcome bonus.
+    assert body["balance"] == catalog_settings.welcome_credits
     assert body["reserved"] == 0
-    assert body["available"] == 5
+    assert body["available"] == catalog_settings.welcome_credits
 
 
 @pytest.mark.asyncio

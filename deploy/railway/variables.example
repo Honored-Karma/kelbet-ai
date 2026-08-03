@@ -3,7 +3,7 @@
 
 APP_ENV=production
 LOG_LEVEL=INFO
-WELCOME_CREDITS=5
+WELCOME_CREDITS=60
 
 # Optional observability. Use Railway sealed variables for DSN/token values.
 SENTRY_ENABLED=false

@@ -55,6 +55,31 @@ class WalletRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_expired_held_reservations(
+        self,
+        *,
+        now: datetime,
+        limit: int = 100,
+    ) -> list[CreditReservation]:
+        """Holds whose deadline has passed and which nobody has finalised.
+
+        Oldest first, so a backlog drains in the order it accumulated. Locked
+        with skip_locked because the sweeper may run alongside the runner
+        finalising the very same reservation.
+        """
+
+        result = await self._session.execute(
+            select(CreditReservation)
+            .where(
+                CreditReservation.status == ReservationStatus.HELD.value,
+                CreditReservation.expires_at <= now,
+            )
+            .order_by(CreditReservation.expires_at.asc())
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        return list(result.scalars().all())
+
     async def add_transaction(
         self,
         *,

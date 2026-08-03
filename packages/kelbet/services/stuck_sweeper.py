@@ -1,4 +1,4 @@
-"""Recover stuck generation jobs past modality / submitting deadlines."""
+"""Recover stuck generation jobs past their modality, submitting or claim deadlines."""
 
 from __future__ import annotations
 
@@ -54,6 +54,8 @@ class StuckSweeper:
                 seconds=self._settings.stuck_submitting_seconds
             )
 
+            unclaimed_deadline = anchor + timedelta(seconds=self._settings.stuck_queued_seconds)
+
             should_timeout = False
             if status is GenerationStatus.RUNNING:
                 should_timeout = current >= modality_deadline
@@ -61,9 +63,20 @@ class StuckSweeper:
                 should_timeout = current >= min(modality_deadline, submitting_deadline)
             elif status is GenerationStatus.FINALIZING:
                 should_timeout = current >= modality_deadline
+            elif status in {GenerationStatus.CREATED, GenerationStatus.QUEUED}:
+                # No provider has been contacted yet, so the modality budget says
+                # nothing here: the job is waiting to be claimed at all.
+                should_timeout = current >= unclaimed_deadline
 
             if not should_timeout:
                 continue
+
+            # A job nobody claimed failed for a different reason than one a
+            # provider sat on, and only the former means the queue is dropping
+            # messages. Keeping the codes apart makes that visible in metrics
+            # instead of hiding an infrastructure fault inside provider noise.
+            unclaimed = status in {GenerationStatus.CREATED, GenerationStatus.QUEUED}
+            error_code = "stuck_unclaimed" if unclaimed else "stuck_timeout"
 
             if job.provider_job_id:
                 provider = resolve_provider(
@@ -89,7 +102,7 @@ class StuckSweeper:
                 job,
                 GenerationStatus.TIMED_OUT,
                 now=current,
-                error_code="stuck_timeout",
+                error_code=error_code,
                 error_class="timeout",
                 progress_stage="timed_out",
             )

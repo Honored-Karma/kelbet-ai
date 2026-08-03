@@ -80,7 +80,7 @@ async def test_me_requires_auth(api_client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_auth_telegram_and_me(api_client: AsyncClient) -> None:
+async def test_auth_telegram_and_me(api_client: AsyncClient, auth_settings: Settings) -> None:
     init_data = _signed_init_data()
     auth = await api_client.post("/api/v1/auth/telegram", json={"init_data": init_data})
     assert auth.status_code == 200, auth.text
@@ -98,9 +98,12 @@ async def test_auth_telegram_and_me(api_client: AsyncClient) -> None:
     assert me.status_code == 200
     me_body = me.json()
     assert me_body["telegram_id"] == 777001
-    assert me_body["balance"] == 5
+    # Derived from the configured bonus, not a copy of it: the welcome amount is
+    # a product decision that moves, and a hardcoded number here just fails
+    # later without saying anything about the endpoint under test.
+    assert me_body["balance"] == auth_settings.welcome_credits
     assert me_body["reserved"] == 0
-    assert me_body["available"] == 5
+    assert me_body["available"] == auth_settings.welcome_credits
 
 
 @pytest.mark.asyncio
