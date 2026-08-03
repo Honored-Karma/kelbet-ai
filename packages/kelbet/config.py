@@ -23,7 +23,10 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
-    welcome_credits: int = 5
+    # A new account has to be able to run something. The cheapest image route
+    # costs 10 credits, so the previous default of 5 left every arriving user
+    # with a balance that could not buy a single generation.
+    welcome_credits: int = 60
 
     # Observability is opt-in. Production secrets belong in the deployment environment.
     sentry_enabled: bool = False
@@ -181,6 +184,12 @@ class Settings(BaseSettings):
     # Hardening (Stage J)
     text_timeout_seconds: int = 120
     stuck_submitting_seconds: int = 180
+    # A queued job is waiting for a worker to claim it. If the queue message is
+    # lost the job stays queued forever, holding both its reservation and one of
+    # the user's concurrent slots, so queued work needs a deadline of its own.
+    # Kept well above any plausible backlog: waiting this long has already
+    # failed the user, and the recovery is to hand the credits back.
+    stuck_queued_seconds: int = 900
     rate_limit_enabled: bool = True
     rate_limit_auth_per_minute: int = 20
     rate_limit_generations_per_minute: int = 30

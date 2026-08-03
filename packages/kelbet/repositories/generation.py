@@ -224,12 +224,32 @@ class GenerationRepository:
         )
         return list(result.scalars().all())
 
+    async def get_by_reservation_id(self, reservation_id: UUID) -> GenerationJob | None:
+        """The job holding this reservation, looked up from the job's side of the link.
+
+        Both sides of the job/reservation link are written together, so this
+        normally agrees with `CreditReservation.generation_id`. It is queried
+        anyway before any hold is returned on a deadline: trusting a single
+        direction would mean a caller that set only one of them could get a
+        live job's credits handed back.
+        """
+
+        result = await self._session.execute(
+            select(GenerationJob).where(GenerationJob.reservation_id == reservation_id)
+        )
+        return result.scalars().first()
+
     async def list_active_for_sweep(self, *, limit: int = 50) -> list[GenerationJob]:
         result = await self._session.execute(
             select(GenerationJob)
             .where(
                 GenerationJob.status.in_(
                     [
+                        # Created and queued jobs are swept too: a job no worker
+                        # ever claimed is precisely the case that used to hold a
+                        # reservation and a concurrency slot indefinitely.
+                        GenerationStatus.CREATED.value,
+                        GenerationStatus.QUEUED.value,
                         GenerationStatus.SUBMITTING.value,
                         GenerationStatus.RUNNING.value,
                         GenerationStatus.FINALIZING.value,

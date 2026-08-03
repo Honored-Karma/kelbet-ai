@@ -20,7 +20,12 @@ from kelbet.domain.exceptions import (
 from kelbet.observability import get_metrics
 from kelbet.repositories.wallet import WalletRepository
 
-DEFAULT_RESERVATION_TTL = timedelta(hours=1)
+# Credits are captured when the job finishes, so this TTL has to outlast the
+# longest job budget — an extended Veo chain alone is allowed a full hour
+# (veo_extended_total_timeout_seconds). At the previous one hour the expiry and
+# the job deadline fell on the same instant, so enforcing expiry would have
+# raced legitimately running work and released credits from under it.
+DEFAULT_RESERVATION_TTL = timedelta(hours=6)
 
 
 def _record_wallet_operation(operation: str, *, applied: bool) -> None:
@@ -386,23 +391,60 @@ class WalletService:
         *,
         now: datetime | None = None,
     ) -> ReservationResult:
+        return await self._unhold(
+            reservation_id,
+            target=ReservationStatus.RELEASED,
+            operation="release",
+            now=now,
+        )
+
+    async def expire(
+        self,
+        reservation_id: UUID,
+        *,
+        now: datetime | None = None,
+    ) -> ReservationResult:
+        """Return a hold whose deadline passed with nothing left to capture it.
+
+        The wallet effect is identical to a release — the balance was never
+        debited — but the status is kept apart so that credits handed back by a
+        deadline stay distinguishable from credits handed back by a job that
+        reached a terminal state on its own.
+        """
+
+        return await self._unhold(
+            reservation_id,
+            target=ReservationStatus.EXPIRED,
+            operation="expire",
+            now=now,
+        )
+
+    async def _unhold(
+        self,
+        reservation_id: UUID,
+        *,
+        target: ReservationStatus,
+        operation: str,
+        now: datetime | None = None,
+    ) -> ReservationResult:
         reservation = await self._get_reservation_for_update(reservation_id)
         wallet = await self._get_wallet_for_update(reservation.wallet_id)
         finalized_at = now or datetime.now(UTC)
 
-        if reservation.status == ReservationStatus.RELEASED.value:
+        # Released and expired are both already-unheld outcomes, so arriving at
+        # either from either direction is idempotent rather than an error: a
+        # sweep racing the runner must not raise on work the runner finished.
+        if reservation.status in {
+            ReservationStatus.RELEASED.value,
+            ReservationStatus.EXPIRED.value,
+        }:
             result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
-            _record_wallet_operation("release", applied=False)
-            return result
-
-        if reservation.status == ReservationStatus.EXPIRED.value:
-            result = self._reservation_result(applied=False, reservation=reservation, wallet=wallet)
-            _record_wallet_operation("release", applied=False)
+            _record_wallet_operation(operation, applied=False)
             return result
 
         if reservation.status != ReservationStatus.HELD.value:
             raise InvalidReservationStateError(
-                f"Cannot release reservation {reservation_id} in status {reservation.status}"
+                f"Cannot {operation} reservation {reservation_id} in status {reservation.status}"
             )
 
         amount = reservation.amount
@@ -413,12 +455,12 @@ class WalletService:
 
         wallet.reserved -= amount
         wallet.version += 1
-        reservation.status = ReservationStatus.RELEASED.value
+        reservation.status = target.value
         reservation.finalized_at = finalized_at
         await self._session.flush()
 
         result = self._reservation_result(applied=True, reservation=reservation, wallet=wallet)
-        _record_wallet_operation("release", applied=True)
+        _record_wallet_operation(operation, applied=True)
         return result
 
     async def refund(

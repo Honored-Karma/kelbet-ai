@@ -27,6 +27,7 @@ from kelbet.services.notification import (
 from kelbet.services.payment_reconciliation import run_star_reconciliation
 from kelbet.services.payment_refund import process_due_refund
 from kelbet.services.referral import process_due_referral_rewards
+from kelbet.services.reservation_sweeper import ReservationSweeper
 from kelbet.services.stuck_sweeper import StuckSweeper
 from kelbet.services.subscription import process_due_subscriptions
 from kelbet.storage import build_object_storage
@@ -110,6 +111,19 @@ async def sweep_stuck_generations(ctx: dict[str, object]) -> int:
             return len(swept)
     finally:
         _record_worker_metrics("sweep_stuck_generations", "maintain", outcome, started)
+
+
+async def sweep_expired_reservations(ctx: dict[str, object]) -> int:
+    session_factory = ctx["session_factory"]
+    started = monotonic()
+    outcome = "failed"
+    try:
+        async with session_factory() as session, session.begin():  # type: ignore[operator]
+            expired = await ReservationSweeper(session).sweep(limit=100)
+            outcome = "succeeded" if expired else "empty"
+            return len(expired)
+    finally:
+        _record_worker_metrics("sweep_expired_reservations", "maintain", outcome, started)
 
 
 async def dispatch_generation_notifications(ctx: dict[str, object]) -> int:
@@ -271,6 +285,7 @@ class MaintainWorkerSettings:
     functions = [
         poll_due_generations,
         sweep_stuck_generations,
+        sweep_expired_reservations,
         dispatch_generation_notifications,
         process_star_refund,
         reconcile_star_payments,
@@ -280,6 +295,12 @@ class MaintainWorkerSettings:
     cron_jobs = [
         cron(poll_due_generations, second=set(range(0, 60, 5))),
         cron(sweep_stuck_generations, second={15, 45}),
+        # Hourly is deliberate. This is the backstop for holds the generation
+        # paths failed to finalise at all, and every candidate it finds is
+        # already hours past its deadline, so a tight schedule would only add
+        # empty queries. Frequent enough that a stranded balance is corrected
+        # the same session it happened.
+        cron(sweep_expired_reservations, minute={7}),
         cron(
             dispatch_generation_notifications,
             second={5, 15, 25, 35, 45, 55},

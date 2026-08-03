@@ -9,8 +9,24 @@ from kelbet.domain.enums import GenerationStatus
 from kelbet.domain.exceptions import InvalidGenerationTransitionError
 
 _ALLOWED: dict[GenerationStatus, frozenset[GenerationStatus]] = {
-    GenerationStatus.CREATED: frozenset({GenerationStatus.QUEUED, GenerationStatus.CANCELLED}),
-    GenerationStatus.QUEUED: frozenset({GenerationStatus.SUBMITTING, GenerationStatus.CANCELLED}),
+    # Created and queued jobs may time out. Neither state waits on a provider,
+    # so the only way out used to be a worker claiming the job — which left a
+    # job whose queue message was lost with no exit at all, and its reservation
+    # held forever.
+    GenerationStatus.CREATED: frozenset(
+        {
+            GenerationStatus.QUEUED,
+            GenerationStatus.CANCELLED,
+            GenerationStatus.TIMED_OUT,
+        }
+    ),
+    GenerationStatus.QUEUED: frozenset(
+        {
+            GenerationStatus.SUBMITTING,
+            GenerationStatus.CANCELLED,
+            GenerationStatus.TIMED_OUT,
+        }
+    ),
     GenerationStatus.SUBMITTING: frozenset(
         {
             GenerationStatus.RUNNING,
@@ -43,6 +59,21 @@ _ALLOWED: dict[GenerationStatus, frozenset[GenerationStatus]] = {
     GenerationStatus.TIMED_OUT: frozenset(),
     GenerationStatus.DEAD_LETTER: frozenset(),
 }
+
+
+# Derived from the table rather than listed by hand: a status is terminal
+# exactly when nothing follows it. A hand-kept copy would silently disagree with
+# the transitions the moment either side changed.
+TERMINAL_STATUSES: frozenset[GenerationStatus] = frozenset(
+    status for status, successors in _ALLOWED.items() if not successors
+)
+ACTIVE_STATUSES: frozenset[GenerationStatus] = frozenset(_ALLOWED) - TERMINAL_STATUSES
+
+
+def is_terminal(status: GenerationStatus) -> bool:
+    """True when the job can no longer change status, whatever the outcome."""
+
+    return status in TERMINAL_STATUSES
 
 
 def assert_transition(job: GenerationJob, to: GenerationStatus) -> None:
