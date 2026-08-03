@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any, Literal
 from uuid import UUID
 
@@ -33,6 +34,29 @@ class CreateGenerationRequest(BaseModel):
     template_inputs: dict[str, object] = Field(default_factory=dict)
 
 
+class GenerationPassportResponse(BaseModel):
+    """Receipt for a generation: which model actually served it, and at what size.
+
+    Named a passport because it travels with the result. `substituted` is the
+    field that earns the rest: it is set when the route that ran differs from the
+    route that was quoted, so a fallback is disclosed instead of being absorbed
+    silently into the same `model_slug` the user picked.
+    """
+
+    provider: str
+    provider_model_id: str
+    requested_provider: str
+    requested_provider_model_id: str
+    substituted: bool
+    credits_charged: int
+    attempts: int
+    aspect_ratio: str | None
+    resolution: str | None
+    duration_sec: int | None
+    width: int | None
+    height: int | None
+
+
 class GenerationResponse(BaseModel):
     id: str
     status: GenerationStatus
@@ -51,6 +75,7 @@ class GenerationResponse(BaseModel):
     template_slug: str | None
     template_version: int | None
     workflow: dict[str, int] | None
+    passport: GenerationPassportResponse | None = None
 
 
 class GenerationDraftResponse(BaseModel):
@@ -93,6 +118,9 @@ def _to_response(dto: object) -> GenerationResponse:
         template_slug=dto.template_slug,
         template_version=dto.template_version,
         workflow=dto.workflow,
+        passport=(
+            GenerationPassportResponse(**asdict(dto.passport)) if dto.passport is not None else None
+        ),
     )
 
 

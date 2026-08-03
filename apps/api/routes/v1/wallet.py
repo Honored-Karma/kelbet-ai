@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,50 @@ class QuoteResponse(BaseModel):
     template_slug: str | None
     template_version: int | None
     template_inputs: dict[str, Any]
+
+
+class CreditTransactionResponse(BaseModel):
+    id: str
+    type: str
+    reason: str
+    amount: int
+    balance_after: int
+    created_at: str
+    generation_id: str | None
+
+
+class CreditLedgerResponse(BaseModel):
+    items: list[CreditTransactionResponse]
+
+
+@router.get("/transactions", response_model=CreditLedgerResponse)
+async def list_wallet_transactions(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current: SessionUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> CreditLedgerResponse:
+    """Every credit movement on the caller's own wallet, newest first."""
+
+    rows = await WalletQueryService(session).list_transactions(
+        current.user_id,
+        limit=limit,
+        offset=offset,
+    )
+    return CreditLedgerResponse(
+        items=[
+            CreditTransactionResponse(
+                id=str(row.id),
+                type=row.type,
+                reason=row.reason,
+                amount=row.amount,
+                balance_after=row.balance_after,
+                created_at=row.created_at.isoformat(),
+                generation_id=str(row.generation_id) if row.generation_id else None,
+            )
+            for row in rows
+        ]
+    )
 
 
 @router.get("", response_model=WalletBalanceResponse)

@@ -81,6 +81,36 @@ class WalletBalanceDTO:
     available: int
 
 
+@dataclass(frozen=True, slots=True)
+class CreditTransactionDTO:
+    """One line of the wallet's own history, as the account holder sees it."""
+
+    id: UUID
+    type: str
+    reason: str
+    amount: int
+    balance_after: int
+    created_at: datetime
+    generation_id: UUID | None = None
+
+
+def _meta_uuid(meta: dict[str, Any] | None, key: str) -> UUID | None:
+    """Read an id the ledger recorded in free-form metadata, tolerating junk.
+
+    The capture path writes `generation_id` here, but `meta` is untyped JSON that
+    older rows may not carry at all, so a missing or malformed value has to read
+    as "no link" rather than break a history page.
+    """
+
+    raw = (meta or {}).get(key)
+    if not isinstance(raw, str):
+        return None
+    try:
+        return UUID(raw)
+    except ValueError:
+        return None
+
+
 def _routing_snapshot(model: CatalogModel, *, params: dict[str, Any]) -> dict[str, Any]:
     capabilities = dict(model.capabilities or {})
     fallback_raw = capabilities.get("fallback")
@@ -389,3 +419,35 @@ class WalletQueryService:
             reserved=wallet.reserved,
             available=wallet.balance - wallet.reserved,
         )
+
+    async def list_transactions(
+        self,
+        user_id: UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[CreditTransactionDTO]:
+        """The wallet's ledger, newest first, scoped to its owner.
+
+        The same rows an operator sees. Every movement of credits is already
+        recorded append-only, so showing it costs nothing and withholding it is
+        the only reason a user would have to guess where a balance went.
+        """
+
+        wallet = await self._wallets.get_by_user_id(user_id)
+        if wallet is None:
+            raise WalletNotFoundError(f"Wallet for user {user_id} not found")
+
+        rows = await self._wallets.list_transactions(wallet.id, limit=limit, offset=offset)
+        return [
+            CreditTransactionDTO(
+                id=row.id,
+                type=row.type,
+                reason=row.reason,
+                amount=row.amount,
+                balance_after=row.balance_after,
+                created_at=row.created_at,
+                generation_id=_meta_uuid(row.meta, "generation_id"),
+            )
+            for row in rows
+        ]
