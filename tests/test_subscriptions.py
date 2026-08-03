@@ -157,9 +157,17 @@ def test_grant_key_is_unique_per_period() -> None:
 
 
 def test_subscription_status_values_match_the_db_check_constraint() -> None:
-    """migrations/0023 pins these three literals in a CHECK constraint."""
+    """The CHECK constraint pins these literals, so the enum may not drift from them.
+
+    0023 allowed three; 0024 widened it to five for the billing flow: `pending` for a
+    subscription whose invoice link exists but which Telegram has not charged yet, and
+    `payment_failed` for a renewal Telegram could not collect. Adding a member here without
+    the matching migration would fail every insert at the database instead of at review.
+    """
     assert {member.value for member in SubscriptionStatus} == {
+        "pending",
         "active",
         "cancelling",
+        "payment_failed",
         "expired",
     }

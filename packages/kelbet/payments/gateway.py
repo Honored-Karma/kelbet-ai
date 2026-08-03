@@ -19,10 +19,25 @@ from aiogram.types import LabeledPrice, TransactionPartnerUser
 
 from kelbet.domain.exceptions import PaymentUnavailableError
 from kelbet.services.payment import PaymentOrderDTO
+from kelbet.services.subscription import SubscriptionCheckout
 
 
 class PaymentInvoiceGateway(Protocol):
     async def create_invoice_link(self, order: PaymentOrderDTO) -> str: ...
+
+
+class SubscriptionGateway(Protocol):
+    """The two Telegram calls a recurring subscription needs.
+
+    Declared apart from `StarsOperationsGateway` so a test can supply just these without
+    also faking refunds and star-transaction paging.
+    """
+
+    async def create_subscription_link(self, checkout: SubscriptionCheckout) -> str: ...
+
+    async def set_subscription_cancelled(
+        self, *, user_id: int, charge_id: str, cancelled: bool
+    ) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +87,42 @@ class AiogramStarsGateway:
                 )
             ],
         )
+
+    async def create_subscription_link(self, checkout: SubscriptionCheckout) -> str:
+        """Create a recurring invoice link.
+
+        `sendInvoice` has no `subscription_period` parameter, so a subscription can only be
+        offered as a link — which is why this exists instead of reusing `answer_invoice`.
+        """
+        try:
+            return await self._bot.create_invoice_link(
+                title=checkout.plan_name[:32],
+                description=checkout.plan_description[:255],
+                payload=checkout.invoice_payload,
+                currency=checkout.currency,
+                prices=[
+                    LabeledPrice(
+                        label=f"{checkout.credits_per_period} KELBET credits / 30 days",
+                        amount=checkout.stars,
+                    )
+                ],
+                subscription_period=checkout.subscription_period_seconds,
+            )
+        except TelegramAPIError as exc:
+            raise _safe_aiogram_error(exc) from None
+
+    async def set_subscription_cancelled(
+        self, *, user_id: int, charge_id: str, cancelled: bool
+    ) -> bool:
+        """Stop or resume renewal. Access runs to the end of the paid period either way."""
+        try:
+            return await self._bot.edit_user_star_subscription(
+                user_id=user_id,
+                telegram_payment_charge_id=charge_id,
+                is_canceled=cancelled,
+            )
+        except TelegramAPIError as exc:
+            raise _safe_aiogram_error(exc) from None
 
     async def refund_star_payment(self, user_id: int, charge_id: str) -> bool:
         try:
@@ -145,6 +196,14 @@ class DisabledPaymentGateway:
     async def create_invoice_link(self, order: PaymentOrderDTO) -> str:
         raise PaymentUnavailableError("Telegram Stars gateway is disabled")
 
+    async def create_subscription_link(self, checkout: SubscriptionCheckout) -> str:
+        raise PaymentUnavailableError("Telegram Stars subscription gateway is disabled")
+
+    async def set_subscription_cancelled(
+        self, *, user_id: int, charge_id: str, cancelled: bool
+    ) -> bool:
+        raise PaymentUnavailableError("Telegram Stars subscription gateway is disabled")
+
     async def refund_star_payment(self, user_id: int, charge_id: str) -> bool:
         raise PaymentUnavailableError("Telegram Stars refund gateway is disabled")
 
@@ -157,6 +216,16 @@ class DisabledPaymentGateway:
 class MockPaymentGateway:
     async def create_invoice_link(self, order: PaymentOrderDTO) -> str:
         return f"https://t.me/$kelbet_{order.id.hex}"
+
+    async def create_subscription_link(self, checkout: SubscriptionCheckout) -> str:
+        return f"https://t.me/$kelbet_sub_{checkout.subscription_id.hex}"
+
+    async def set_subscription_cancelled(
+        self, *, user_id: int, charge_id: str, cancelled: bool
+    ) -> bool:
+        """Accept the call. Telegram's real effect is on the *next* renewal, which a fake
+        cannot model; the state the tests assert on is the row the service already wrote."""
+        return True
 
 
 class FakeStarsGateway(MockPaymentGateway):

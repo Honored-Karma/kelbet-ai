@@ -158,4 +158,41 @@ TEXTS: dict[str, str] = {
         "⏳ Telegram подтвердил оплату, но начисление требует проверки.\n"
         "Напишите в /paysupport — платёж сохранён."
     ),
+    Msg.SUBSCRIPTION_UNAVAILABLE: ("Подписки пока недоступны. Кредиты можно купить пакетом: /buy"),
+    Msg.SUBSCRIPTION_CHOOSE: (
+        "Подписка списывает звёзды раз в 30 дней и каждый раз начисляет кредиты. "
+        "Отменить можно в любой момент — доступ останется до конца оплаченного периода. "
+        "Неиспользованные кредиты не сгорают.\n\nВыберите тариф:"
+    ),
+    Msg.SUBSCRIPTION_PLAN_BUTTON: "{name} · {credits} 💎/мес · {stars} ⭐",
+    Msg.SUBSCRIPTION_OPEN_PAYMENT: (
+        "Тариф «{name}»: {credits} кредитов каждые 30 дней за {stars} ⭐.\n"
+        "Нажмите кнопку ниже, чтобы оформить подписку."
+    ),
+    Msg.SUBSCRIPTION_PAY_BUTTON: "Оформить за {stars} ⭐",
+    Msg.SUBSCRIPTION_ACTIVE: (
+        "Тариф «{name}»: {credits} кредитов каждые 30 дней.\nСледующее списание: {until}."
+    ),
+    Msg.SUBSCRIPTION_NONE: "Активной подписки нет. Посмотреть тарифы: /subscribe",
+    Msg.SUBSCRIPTION_STARTED: (
+        "Подписка «{name}» оформлена. Начислено {credits} кредитов, на счету {balance}.\n"
+        "Следующее списание: {until}."
+    ),
+    Msg.SUBSCRIPTION_RENEWED: (
+        "Подписка «{name}» продлена. Начислено {credits} кредитов, на счету {balance}.\n"
+        "Следующее списание: {until}."
+    ),
+    Msg.SUBSCRIPTION_REVIEW: (
+        "Платёж получен, но подписку нужно проверить. Мы уже разбираемся, деньги не "
+        "потеряются. Поддержка: /paysupport"
+    ),
+    Msg.SUBSCRIPTION_CANCEL_BUTTON: "Отменить продление",
+    Msg.SUBSCRIPTION_CANCELLED: (
+        "Продление отключено. Тариф и кредиты остаются до {until} — этот период уже оплачен."
+    ),
+    Msg.SUBSCRIPTION_RENEWAL_FAILED: (
+        "Не удалось списать звёзды за продление тарифа «{name}». Доступ работает до "
+        "{until}. Пополните баланс звёзд, чтобы не потерять тариф."
+    ),
+    Msg.CMD_SUBSCRIBE: "подписка с кредитами каждый месяц",
 }
