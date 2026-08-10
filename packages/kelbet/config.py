@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     # deployed together: billing without the sweep leaves users on a paid tier after their
     # period ends, and without cancel they cannot stop paying.
     subscriptions_enabled: bool = False
+    telegram_update_inbox_batch_size: int = 25
+    telegram_update_inbox_max_attempts: int = 10
+    telegram_update_inbox_stale_seconds: int = 120
 
     # Referral MVP. The DB feature flag `referrals` is the rollout/kill switch.
     referral_bot_username: str = ""

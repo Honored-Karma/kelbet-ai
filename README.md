@@ -86,7 +86,7 @@ Health: `GET http://localhost:8000/health`
 - `packages/kelbet` — models, repositories, services, i18n
 - Wallet balance is a cache; `credit_transactions` is the immutable ledger
 - Soft-hold: `wallets.reserved`; `available = balance - reserved`
-- Welcome bonus: 5 credits once via idempotency key `welcome:{user_id}`
+- Welcome bonus: 60 credits once via idempotency key `welcome:{user_id}`
 - AI chat: `ChatService` + `ChatProvider` (`mock` / `openrouter`); debit `chat:{request_id}` after successful reply
 - Prompt Lab: localized RU/KK image-prompt improvement with successful-result billing and idempotent replay
 - Visual history: secure batch preview URLs for the current user's generation archive
@@ -96,7 +96,10 @@ Health: `GET http://localhost:8000/health`
 - Video completion: signed Google callbacks plus provider-safe Runway polling
 - Image providers: opt-in Google and OpenAI GPT Image 2 routes, each disabled until its own canary
 - Video production gate: machine-readable 100-job lifecycle and financial reconciliation
-- Telegram Stars: gated XTR invoices, validated checkout, durable receipts, and idempotent credit delivery
+- Telegram Stars: gated XTR invoices, validated checkout, durable update intake/receipts, replay,
+  and idempotent credit delivery
+- Stars subscriptions: recurring Telegram-native billing and idempotent period grants; API/bot/worker
+  are implemented, while the Mini App and production rollout remain disabled
 
 See `docs/architecture/KELBET_V03_PLAN.md` for the approved v0.3 plan.
 See `docs/architecture/STUDIO_VIDEO_OPERATIONS.md` for the Video MVP provider,

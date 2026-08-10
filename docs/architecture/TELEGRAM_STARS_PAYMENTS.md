@@ -1,8 +1,8 @@
 # KELBET AI — Telegram Stars: платежи, refunds и reconciliation
 
-**Статус:** технический контур реализован локально через migration `0015_stars_refunds`; production gate не
+**Статус:** технический контур реализован локально через migration `0026_telegram_update_inbox`; production gate не
 подтверждён, все внешние возможности выключены по умолчанию.  
-**Обновлено:** 1 августа 2026.
+**Обновлено:** 10 августа 2026.
 
 ## Неизменяемые правила
 
@@ -48,12 +48,20 @@ STARS_CANARY_TELEGRAM_IDS=
 ```text
 product → terms acceptance → durable order/snapshot → XTR invoice
         → pre_checkout validation → successful_payment
-        → durable receipt → idempotent ledger credit → paid order
+        → normalized durable inbox → durable receipt
+        → idempotent ledger credit → paid order
 ```
 
 Pre-checkout проверяет buyer Telegram ID, `XTR`, точную сумму, срок и состояние order. Credits
 выдаются только после durable `successful_payment`. Неизвестный payload или несовпадение
 сохраняются как rejected receipt без ledger credit.
+
+Bot middleware до business handler сохраняет минимальный replay payload в
+`telegram_update_inbox`. Уникальный Telegram `update_id` подавляет повторную доставку; failed и
+stale-processing записи забирает maintain worker с ограниченным backoff/attempt count. Inbox не
+сохраняет message text, имена, username, shipping/order details или сырой Telegram update.
+Pre-checkout в inbox не входит: он должен получить быстрый ответ в окне Telegram, а его потеря не
+списывает деньги.
 
 ## Refund state machine
 

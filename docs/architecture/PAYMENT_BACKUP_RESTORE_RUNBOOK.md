@@ -9,7 +9,7 @@ encryption, tested RPO/RTO, and the latest restore drill. PITR is an external li
 1. Set `PAYMENTS_ENABLED=false` to stop new invoices. Keep successful-payment handling deployed.
 2. Identify a consistent PostgreSQL backup and record its timestamp and provider backup ID.
 3. Restore into an isolated database, never over production, and migrate through
-   `0022_payment_hardening`.
+   `0026_telegram_update_inbox`.
 4. Compare counts and invariants for orders, receipts, payment ledger rows, refunds, normalized
    Star observations, and unresolved reconciliation issues.
 5. Run an isolated reconciliation with refunds disabled. A run marked
@@ -20,9 +20,12 @@ encryption, tested RPO/RTO, and the latest restore drill. PITR is an external li
 7. Record achieved RPO/RTO, evidence links, unresolved cases, finance approval, and support approval.
    Re-enable only the canary Telegram IDs after sign-off.
 
-Transaction-history recovery can reconstruct a proven missing receipt and credit idempotently.
-It is not a durable Telegram update inbox; webhook/update durability remains a separate production
-work item and must stay on the operational risk register.
+Migration `0026_telegram_update_inbox` provides durable normalized intake and bounded replay for
+successful-payment and subscription-state updates. During the drill, also compare inbox counts by
+status, verify that no row is stranded in `processing` beyond
+`TELEGRAM_UPDATE_INBOX_STALE_SECONDS`, and replay only through the maintenance worker. Telegram
+transaction-history reconciliation remains the independent backstop for updates that never reached
+the bot at all.
 
 ## Downgrading past 0022
 

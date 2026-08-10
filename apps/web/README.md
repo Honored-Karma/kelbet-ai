@@ -21,4 +21,5 @@ Prices always come from `POST /wallet/quote` (or mock quote). The client never i
 
 ## Pages
 
-Home, Create, Generation, History, Plans (stub), Profile (ru/kk).
+Home, Create, Generation, History, credit packs, Profile (ru/kk). Recurring subscription
+checkout is not exposed in the Mini App yet and remains disabled server-side.

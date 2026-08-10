@@ -439,6 +439,8 @@ class PrometheusMetrics:
 def classify_provider_failure(error_code: str | None, http_status: int | None = None) -> str:
     """Map internal/provider errors to a small, non-sensitive classification."""
     code = (error_code or "").strip().lower()
+    if code == "provider_unsupported":
+        return "configuration"
     if "timeout" in code:
         return "timeout"
     if http_status in {401, 403} or code in {"unauthorized", "authentication_failed"}:

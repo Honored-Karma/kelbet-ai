@@ -12,15 +12,39 @@ question. That immunity is exactly why this test is needed: with the symptom gon
 else would ever notice the models and migrations disagreeing again.
 """
 
+import subprocess
+import sys
+
 import pytest
 from scripts.schema_drift import (
     InsufficientPrivilege,
     Snapshot,
     _fk_action,
+    _run_alembic,
     compare,
     detect_drift,
     preflight,
 )
+
+
+def test_alembic_uses_the_active_python_interpreter(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured["command"] = command
+        captured["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("scripts.schema_drift.subprocess.run", fake_run)
+
+    url = "postgresql+asyncpg://kelbet:kelbet@localhost:5433/kelbet_test"
+    _run_alembic(url)
+
+    assert captured["command"] == [sys.executable, "-m", "alembic", "upgrade", "head"]
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["DATABASE_URL"] == url
+    assert env["TEST_DATABASE_URL"] == url
 
 
 def _snapshot(*, on_delete: str = "SET NULL", nullable: bool = True) -> Snapshot:

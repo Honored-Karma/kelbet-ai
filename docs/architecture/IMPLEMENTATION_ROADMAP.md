@@ -1,6 +1,6 @@
 # KELBET AI — implementation roadmap
 
-**Статус:** актуализировано по коду, миграциям и тестам 1 августа 2026 года
+**Статус:** актуализировано по коду, миграциям и локальным тестам 10 августа 2026 года
 
 **Назначение:** порядок доведения текущего v0.3-контура до безопасной платной beta
 
@@ -13,15 +13,15 @@
 - **Не реализовано** — в production-коде нет соответствующего сервиса, API или схемы данных.
 - **Не подтверждено во внешней среде** — репозиторий не содержит проверяемого результата live/staging, юридического или финансового согласования.
 
-Проверенная база на 1 августа 2026 года:
+Проверенная база на 10 августа 2026 года:
 
-- миграционная цепочка: `0001_initial` → `0017_referral_mvp`;
+- миграционная цепочка: `0001_initial` → `0026_telegram_update_inbox`;
 - backend: целевые контракты этапов 1–7, Ruff и mypy проходят локально;
 - Mini App: tests, lint, TypeScript typecheck и production build проходят локально;
 - CI проверяет Ruff, форматирование, полный mypy, цепочку Alembic upgrade/downgrade/re-upgrade, pytest, OpenAPI drift, а для Mini App — typecheck, tests, production build и lint; OpenAPI baseline, deployment manifests и локальные UI evidence-артефакты существуют;
 - upgrade/downgrade миграций проверяется на отдельной локальной test DB; реальные provider/payment keys, live canary и юридические согласования не подтверждались.
 
-`DATA_MODEL.md` синхронизирован с additive-цепочкой до `0017_referral_mvp`.
+`DATA_MODEL.md` синхронизирован с additive-цепочкой до `0026_telegram_update_inbox`.
 
 ## Фактический срез
 
@@ -31,9 +31,11 @@
 | Admin/operator | Технический minimum реализован: server-only `/api/v1/admin`, RBAC `support`/`admin`, env bootstrap, append-only audit, ledger-backed grant/generation refund, block/unblock, catalog/flag/payment SKU controls и внутренний `/admin`. Контур выключен по умолчанию; production bootstrap/smoke test не подтверждены. |
 | Moderation/consent | Локальный technical minimum реализован: versioned privacy-safe decisions, RU/KK/EN baseline, optional official text adapter, pre-debit checks, photo-rights consent и support/admin review. Внешний report-mode canary не выполнен; semantic image/output moderation не заявляется. |
 | Локальные шаблоны | Реализованы локально: server catalog из 6 image + 5 video RU/KK шаблонов, typed inputs, immutable quote/job snapshots, admin controls, history reuse и deterministic product-card/toi compositor с лицензированным Noto Sans. Client arrays остались только явным mock/dev fallback. |
-| Telegram Stars | Технический контур реализован локально: XTR invoice, durable receipt/ledger, operator-only recoverable refunds, reverse ledger, `getStarTransactions` reconciliation, refund/chargeback/dispute classification, limits, admin diagnostics, alerts и runbook. Все rollout-флаги выключены; legal/finance/support и Telegram live canary не подтверждены. |
+| Telegram Stars | Технический контур реализован локально: XTR invoice, durable receipt/ledger, durable normalized update inbox с retry/recovery, operator-only recoverable refunds, reverse ledger, `getStarTransactions` reconciliation, refund/chargeback/dispute classification, limits, admin diagnostics, alerts и runbook. Все rollout-флаги выключены; legal/finance/support и Telegram live canary не подтверждены. |
+| Stars subscriptions | Backend, API, bot handlers, Telegram-native recurring charge processing, expiration worker и idempotent period grants реализованы миграциями `0023`–`0024`. `SUBSCRIPTIONS_ENABLED=false`; Mini App checkout/status/cancel UI, deployment runbook и live canary отсутствуют. Включение запрещено до прохождения общего payment gate. |
 | Второй image-provider | Реализован локально для generation/edit: Google Gemini native image adapter, обезличенные contract fixtures, immutable routing snapshot и общий transient-only cost-bounded fallback. Upscale честно не маршрутизируется в Google. `google_image` и `image_fallback` выключены; реальный provider canary не выполнялся. |
 | Referral | MVP реализован локально: immutable new-user attribution, reconciliation-confirmed first purchase, ledger-backed reward states, limits/review, `/invite`, Mini App RU/KK, read-only admin и bounded metrics. `referrals=false`; production payment gate и live canary не подтверждены. |
+| Generation reliability и новые video routes | Добавлены recovery для orphaned reservations/stuck jobs, открытый generation ledger/passport API, выбор video-моделей, durable Veo extended workflow и отдельный Veo consistency SKU. Новые Veo flags выключены; live provider canary и cost reconciliation не подтверждены. Неизвестное имя provider теперь fail-closed и не подменяется mock-результатом. |
 
 ## Обязательный dependency order
 
@@ -129,15 +131,15 @@
 
 | Обязательный пункт | Решение |
 |---|---|
-| 1. Фактический статус | **Технически реализовано локально, rollout выключен.** `0011` создаёт products/orders/receipts, `0015` — refund state machine, нормализованные Stars observations и reconciliation runs/issues. Bot/Mini App/API поддерживают XTR invoice, terms acceptance, pre-checkout, durable receipt, idempotent ledger credit и history. Admin-only refund восстанавливается после неизвестного внешнего результата, reverse ledger идемпотентен; reconciliation классифицирует missing/duplicate/reversal cases без raw Telegram payload. |
+| 1. Фактический статус | **Технически реализовано локально, rollout выключен.** `0011` создаёт products/orders/receipts, `0015` — refund state machine и reconciliation, `0022` усиливает checkout/recovery, `0026` добавляет normalized durable update intake/replay. Bot/Mini App/API поддерживают XTR invoice, terms acceptance, pre-checkout, durable receipt, idempotent ledger credit и history. Admin-only refund восстанавливается после неизвестного внешнего результата, reverse ledger идемпотентен; reconciliation классифицирует missing/duplicate/reversal cases без raw Telegram payload. |
 | 2. Точки расширения | `PaymentService`, `PaymentRefundService`, `reconcile_star_transactions`, gateway `refund_star_payment`/`get_star_transactions`, worker recovery jobs, `WalletService`, charge-ID uniqueness, admin/audit, metrics/alerts, `/paysupport` и payment snapshots. |
 | 3. Недостающая функциональность | Только внешние gates: реальные Telegram test/live вызовы и canary, опубликованные legal/refund/privacy документы, finance/seller/support подтверждение и operational drill. |
 | 4. Зависимости | Observability + admin/audit обязательны. Moderation/consent и templates должны быть готовы до публичной платной beta по зафиксированному порядку. Referral ждёт завершённой reconciliation и confirmed non-reversed first purchase. |
-| 5. Миграции и внешние интеграции | Additive `0015_stars_refunds`: `payment_refunds`, `star_transaction_observations`, `payment_reconciliation_runs`, `payment_reconciliation_issues`, uniqueness/state constraints и due indexes. Gateway основан на текущем Bot API surface; fake gateway покрывает recovery без внешних вызовов. |
-| 6. Feature flags/config | Реализованы независимые `PAYMENTS_ENABLED=false`, `STARS_REFUNDS_ENABLED=false`, `STARS_RECONCILIATION_ENABLED=false`, `STARS_CANARY_TELEGRAM_IDS` и bounded user/operator/retry limits. Включение требует опубликованных URL/version, seller identity, finance review и support contact. |
+| 5. Миграции и внешние интеграции | Additive `0015_stars_refunds`: refund/reconciliation state; `0022_payment_hardening`: checkout ownership и coverage cursors; `0026_telegram_update_inbox`: минимальный replay payload, unique update ID, claim/retry state и due index. Gateway основан на текущем Bot API surface; fake gateway покрывает recovery без внешних вызовов. |
+| 6. Feature flags/config | Реализованы независимые `PAYMENTS_ENABLED=false`, `STARS_REFUNDS_ENABLED=false`, `STARS_RECONCILIATION_ENABLED=false`, `STARS_CANARY_TELEGRAM_IDS` и bounded refund/inbox retry limits. Включение требует опубликованных URL/version, seller identity, finance review и support contact. |
 | 7. Риски и rollback | Telegram API и DB не образуют одну atomic transaction; timeout после внешнего refund; повтор/concurrent refunds; reverse ledger без внешнего refund; chargeback после траты кредитов. Rollback: выключить новые invoices/refund initiation, продолжить reconciliation/read-only support, переводить неоднозначные случаи в `needs_review`, не удалять receipts/audit. |
 | 8. Definition of Done | **Локальный technical DoD выполнен:** повторы/concurrency не удваивают credit/refund; сбой Telegram↔ledger восстанавливается; reconciliation находит заданные классы; operator action audited; alerts/runbook/rollback описаны. Production gate остаётся **не пройден**, пока нет legal/finance/seller/support evidence и успешного live canary. |
-| 9. Обязательные тесты | Реализованы order/pre-checkout/receipt idempotency, refund state/replay/concurrency, external-success+DB-failure recovery, timeout/unknown result, reverse ledger, reconciliation fixtures, missing/duplicate/reversal/chargeback, limits/review, audit/redaction, disabled flags и fake gateway. |
+| 9. Обязательные тесты | Реализованы order/pre-checkout/receipt idempotency, durable update persistence-before-handler/dedup/stale recovery, refund state/replay/concurrency, external-success+DB-failure recovery, timeout/unknown result, reverse ledger, reconciliation fixtures, missing/duplicate/reversal/chargeback, limits/review, audit/redaction, disabled flags и fake gateway. |
 | 10. Порядок внутри этапа | 1–8 выполнены локально: official surface → migration/state machines → admin request → external recovery → reverse ledger → reconciliation/issues → limits/review → metrics/admin/runbook. Остались 9) Telegram test environment; 10) legal/finance/support evidence + small live canary. |
 
 ---

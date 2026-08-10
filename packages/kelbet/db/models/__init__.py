@@ -34,6 +34,7 @@ from kelbet.db.models.subscription import (
     SubscriptionPlan,
     UserSubscription,
 )
+from kelbet.db.models.telegram_update import TelegramUpdateInbox
 from kelbet.db.models.user import User
 from kelbet.db.models.wallet import Wallet
 
@@ -72,4 +73,5 @@ __all__ = [
     "SubscriptionPlan",
     "UserSubscription",
     "SubscriptionGrant",
+    "TelegramUpdateInbox",
 ]

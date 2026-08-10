@@ -11,9 +11,13 @@ from typing import cast
 from uuid import UUID
 
 from aiogram import Bot
+from aiogram.types import BotSubscriptionUpdated, Message
 from arq import cron
 from arq.connections import RedisSettings
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from apps.bot.handlers import payments as payment_handlers
+from apps.bot.handlers import subscriptions as subscription_handlers
 from kelbet.config import Settings, get_settings
 from kelbet.db.session import build_session_factory
 from kelbet.observability import correlation_context, get_metrics, initialize_observability
@@ -29,7 +33,11 @@ from kelbet.services.payment_refund import process_due_refund
 from kelbet.services.referral import process_due_referral_rewards
 from kelbet.services.reservation_sweeper import ReservationSweeper
 from kelbet.services.stuck_sweeper import StuckSweeper
-from kelbet.services.subscription import process_due_subscriptions
+from kelbet.services.subscription import is_subscription_payload, process_due_subscriptions
+from kelbet.services.telegram_update_inbox import (
+    ClaimedTelegramUpdate,
+    TelegramUpdateInboxService,
+)
 from kelbet.storage import build_object_storage
 
 logger = logging.getLogger(__name__)
@@ -232,6 +240,115 @@ async def expire_due_subscriptions(ctx: dict[str, object]) -> int:
         _record_worker_metrics("expire_due_subscriptions", "maintain", outcome, started)
 
 
+def _payment_message(bot: Bot, payload: dict[str, object]) -> Message:
+    return Message.model_validate(
+        {
+            "message_id": payload["message_id"],
+            "date": payload["message_date"],
+            "chat": {"id": payload["chat_id"], "type": "private"},
+            "from": {
+                "id": payload["telegram_id"],
+                "is_bot": False,
+                "first_name": "Telegram user",
+            },
+            "successful_payment": {
+                "currency": payload["currency"],
+                "total_amount": payload["total_amount"],
+                "invoice_payload": payload["invoice_payload"],
+                "telegram_payment_charge_id": payload["telegram_payment_charge_id"],
+                "provider_payment_charge_id": payload["provider_payment_charge_id"],
+                "subscription_expiration_date": payload.get("subscription_expiration_date"),
+            },
+        },
+        context={"bot": bot},
+    )
+
+
+def _subscription_event(bot: Bot, payload: dict[str, object]) -> BotSubscriptionUpdated:
+    return BotSubscriptionUpdated.model_validate(
+        {
+            "user": {
+                "id": payload["telegram_id"],
+                "is_bot": False,
+                "first_name": "Telegram user",
+            },
+            "invoice_payload": payload["invoice_payload"],
+            "state": payload["state"],
+        },
+        context={"bot": bot},
+    )
+
+
+async def _replay_telegram_update(
+    item: ClaimedTelegramUpdate,
+    *,
+    bot: Bot,
+    session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> None:
+    async with session_factory() as session:
+        try:
+            if item.event_type == "successful_payment":
+                message = _payment_message(bot, item.payload)
+                payload = str(item.payload["invoice_payload"])
+                if is_subscription_payload(payload):
+                    await subscription_handlers.on_successful_payment(message, session, settings)
+                else:
+                    await payment_handlers.on_successful_payment(message, session, settings)
+            elif item.event_type == "subscription_state":
+                event = _subscription_event(bot, item.payload)
+                await subscription_handlers.on_subscription_state(event, session, settings)
+            else:
+                raise ValueError("unsupported Telegram inbox event type")
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+async def replay_telegram_payment_updates(ctx: dict[str, object]) -> int:
+    started = monotonic()
+    outcome = "failed"
+    bot = ctx.get("bot")
+    if not isinstance(bot, Bot):
+        _record_worker_metrics("replay_telegram_payment_updates", "maintain", "skipped", started)
+        return 0
+    settings = cast(Settings, ctx.get("settings") or get_settings())
+    session_factory = cast(async_sessionmaker[AsyncSession], ctx["session_factory"])
+    async with session_factory() as session, session.begin():
+        items = await TelegramUpdateInboxService(session).claim_due(
+            limit=settings.telegram_update_inbox_batch_size,
+            stale_after_seconds=settings.telegram_update_inbox_stale_seconds,
+            max_attempts=settings.telegram_update_inbox_max_attempts,
+        )
+    processed = 0
+    for item in items:
+        try:
+            await _replay_telegram_update(
+                item,
+                bot=bot,
+                session_factory=session_factory,
+                settings=settings,
+            )
+        except Exception:
+            logger.exception(
+                "telegram_update_replay_failed update_id=%s event_type=%s",
+                item.update_id,
+                item.event_type,
+            )
+            async with session_factory() as session, session.begin():
+                await TelegramUpdateInboxService(session).mark_failed(
+                    item.update_id, error_code="replay_error"
+                )
+        else:
+            async with session_factory() as session, session.begin():
+                await TelegramUpdateInboxService(session).mark_processed(item.update_id)
+            processed += 1
+    outcome = "succeeded" if processed else "empty"
+    _record_worker_metrics("replay_telegram_payment_updates", "maintain", outcome, started)
+    return processed
+
+
 def _record_worker_metrics(job: str, queue: str, outcome: str, started: float) -> None:
     tags = {"queue": queue, "job": job, "outcome": outcome}
     metrics = get_metrics()
@@ -291,6 +408,7 @@ class MaintainWorkerSettings:
         reconcile_star_payments,
         process_referral_rewards,
         expire_due_subscriptions,
+        replay_telegram_payment_updates,
     ]
     cron_jobs = [
         cron(poll_due_generations, second=set(range(0, 60, 5))),
@@ -316,6 +434,7 @@ class MaintainWorkerSettings:
         # so a few minutes of overshoot is invisible and a tighter schedule only adds
         # empty queries.
         cron(expire_due_subscriptions, minute=set(range(0, 60, 5)), second={20}),
+        cron(replay_telegram_payment_updates, second={2, 12, 22, 32, 42, 52}),
     ]
     on_startup = startup
     on_shutdown = shutdown

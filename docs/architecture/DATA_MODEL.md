@@ -1,6 +1,6 @@
 # KELBET AI v0.3 — Data Model (ER)
 
-**Status:** Implemented locally through additive migration `0017_referral_mvp`; external
+**Status:** Implemented locally through additive migration `0026_telegram_update_inbox`; external
 deployment remains unverified.
 **Source of truth:** PostgreSQL  
 **Constraint:** Migration `0001_initial` is immutable; all changes are additive revisions.
@@ -483,6 +483,37 @@ flag GPT Image 2 generation models. The existing immutable quote and routing sna
 authority for price and provider selection; no new job columns are required. Image editing stays
 adapter-capable but has no public catalog SKU until its variable input-image costs are reconciled.
 
+### 3.19 Catalog and workflow additions (0019–0021)
+
+`0019_quality_auto_ratios` refreshes the Quality image catalog choices without adding tables.
+`0020_video_model_selection` exposes independent Runway and Veo video routes in the server-owned
+catalog. `0021_veo_extended_workflow` adds `generation_workflow_steps`, a durable per-step state
+machine for multi-part Veo generation, and seeds the disabled `veo_extended` feature flag.
+
+### 3.20 Payment hardening and subscriptions (0022–0024)
+
+`0022_payment_hardening` adds durable pre-checkout ownership, invoice-open counters, normalized
+Telegram transaction identity and reconciliation coverage cursors. `0023_subscriptions` adds
+`subscription_plans`, one `user_subscriptions` row per user and `subscription_grants`; unique
+period and ledger references prevent double credit. `0024_telegram_native_subs` binds renewals to
+Telegram invoice payloads and charge IDs, adds pending/payment-failed states, and makes Telegram —
+not a local clock — the billing authority. The application flag remains disabled by default.
+
+### 3.21 Veo consistency catalog gate (0025)
+
+The migration adds a separate reference-image/first-last-frame Veo SKU and seeds
+`veo_consistency=false`. It changes catalog data only; rollout still requires a live provider
+contract check and cost reconciliation.
+
+### 3.22 Durable Telegram payment update inbox (0026)
+
+`telegram_update_inbox` records a normalized successful-payment or subscription-state event in a
+separate transaction before its business handler runs. Unique `update_id` deduplicates Telegram
+redelivery; status, attempt count, claim time and bounded retry time let the maintenance worker
+recover failed handlers and processes that died mid-update. The JSON payload contains only fields
+required for replay and excludes message text, names, usernames, shipping/order details and the
+raw Telegram update.
+
 ---
 
 ## 4. Relationship diagram (Mermaid)
@@ -521,6 +552,10 @@ erDiagram
   referral_attributions ||--|| referral_rewards : rewards
   payment_orders ||--o| referral_rewards : qualifies
   credit_transactions ||--o| referral_rewards : credits
+  users ||--o| user_subscriptions : subscribes
+  subscription_plans ||--o{ user_subscriptions : selects
+  user_subscriptions ||--o{ subscription_grants : grants
+  generation_jobs ||--o{ generation_workflow_steps : advances
 ```
 
 ---
@@ -568,5 +603,13 @@ erDiagram
 | `0016_image_fallback` | immutable generation routing snapshot, opt-in Google image route and fallback catalog controls |
 | `0017_referral_mvp` | personal codes, immutable new-user attribution and ledger-backed referral reward states |
 | `0018_openai_image_provider` | disabled-by-default OpenAI GPT Image 2 catalog candidates and feature flag |
+| `0019_quality_auto_ratios` | provider-supported automatic composition choices for Quality image catalog rows |
+| `0020_video_model_selection` | independent Runway/Veo video model catalog choices |
+| `0021_veo_extended_workflow` | durable multi-step Veo workflow state and disabled feature flag |
+| `0022_payment_hardening` | checkout ownership, invoice-open diagnostics and reconciliation coverage fields |
+| `0023_subscriptions` | recurring plans, per-user subscription state and idempotent period grants |
+| `0024_telegram_native_subs` | Telegram invoice/charge identity and renewal failure states |
+| `0025_veo_consistency_video` | disabled reference-image/first-last-frame Veo catalog route |
+| `0026_telegram_update_inbox` | normalized durable intake, deduplication and replay state for payment/subscription updates |
 
 > The migration chain is additive; do not rewrite older applied revisions.

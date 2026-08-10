@@ -619,7 +619,7 @@ Mini App ─────┘       │          │
    - brand kit;
    - team workspace.
 
-### Фактический статус таблиц следующего цикла на 1 августа 2026
+### Фактический статус таблиц следующего цикла на 10 августа 2026
 
 Уже реализованы миграциями:
 
@@ -634,8 +634,14 @@ Mini App ─────┘       │          │
 - `notification_outbox` и настройка уведомлений в `users.notify_generation_ready` —
   migration `0008`;
 - `feature_flags` и DB-backed catalog — migration `0004`.
+- `generation_workflow_steps` для durable Veo extended flow — migration `0021`;
+- payment checkout/reconciliation hardening — migration `0022`;
+- `subscription_plans`, `user_subscriptions`, `subscription_grants` и Telegram-native renewal
+  identity — migrations `0023`–`0024`;
+- Veo consistency catalog route и disabled feature flag — migration `0025`.
+- durable normalized Telegram payment/subscription update inbox — migration `0026`.
 
-Ещё отсутствуют и должны добавляться только additive revisions после `0017`:
+Ещё отсутствуют и должны добавляться только additive revisions после `0026`:
 
 - отдельный `payment_attempts`, если reconciliation/refund state machine потребует
   историю попыток помимо durable receipts;
@@ -1145,7 +1151,8 @@ Production rollout разрешён только после payment live gate и
 - presets;
 - remix/upscale;
 - provider quality dashboard;
-- subscription;
+- subscription Mini App flow и production rollout (backend/API/bot/worker уже реализованы,
+  feature flag выключен);
 - расширенная галерея;
 - локальные бизнес-шаблоны;
 - A/B onboarding и pricing.

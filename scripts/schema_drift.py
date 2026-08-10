@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
+import sys
 from dataclasses import dataclass, field
 
 from sqlalchemy import text
@@ -279,7 +280,7 @@ async def preflight() -> None:
 def _run_alembic(url: str) -> None:
     """Run `alembic upgrade head` against an explicit database URL."""
     result = subprocess.run(  # noqa: S603
-        ["alembic", "upgrade", "head"],  # noqa: S607
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
         env={**os.environ, "DATABASE_URL": url, "TEST_DATABASE_URL": url},
         capture_output=True,
         text=True,

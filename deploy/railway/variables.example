@@ -85,6 +85,11 @@ S3_PRESIGN_TTL_SECONDS=600
 
 # Keep Stars disabled until a real public terms/refund page and support are ready.
 PAYMENTS_ENABLED=false
+# Enable only after the payment gate and subscription canary both pass.
+SUBSCRIPTIONS_ENABLED=false
+TELEGRAM_UPDATE_INBOX_BATCH_SIZE=25
+TELEGRAM_UPDATE_INBOX_MAX_ATTEMPTS=10
+TELEGRAM_UPDATE_INBOX_STALE_SECONDS=120
 PAYMENT_TERMS_URL=
 PAYMENT_TERMS_VERSION=2026-07-30
 PAYMENT_REFUND_POLICY_URL=
