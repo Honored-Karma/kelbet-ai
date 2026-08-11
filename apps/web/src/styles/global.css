@@ -76,6 +76,10 @@
   --kelbet-shadow-up: 0 -18px 40px rgba(0, 0, 0, 0.3);
   /* Кольцо фокуса и выделения: ширина одна на весь проект, цвет по смыслу */
   --kelbet-ring-width: 3px;
+
+  /* Свечение — только для состояния, не для украшения. Две роли, два токена. */
+  --kelbet-glow-selected: 0 0 16px color-mix(in srgb, var(--kelbet-accent) 7%, transparent);
+  --kelbet-glow-dot: 0 0 9px color-mix(in srgb, var(--kelbet-accent) 70%, transparent);
   --kelbet-shadow: var(--kelbet-shadow-lg); /* DEPRECATED: использовать -lg */
 
   /* --- Слои: z-index только отсюда --- */
@@ -193,13 +197,13 @@ body {
   overflow-x: clip;
   font-family: var(--kelbet-font-body);
   color: var(--tg-theme-text-color);
-  background:
-    radial-gradient(120% 80% at 10% -10%, color-mix(in srgb, var(--kelbet-accent) 18%, transparent), transparent 55%),
-    radial-gradient(90% 70% at 100% 0%, color-mix(in srgb, var(--kelbet-sand) 12%, transparent), transparent 45%),
-    linear-gradient(180deg, #071412 0%, var(--tg-theme-bg-color) 42%, #0a1715 100%);
+  background: radial-gradient(90% 60% at 5% -10%, color-mix(in srgb, var(--kelbet-accent) 12%, transparent), transparent 62%),
+    radial-gradient(72% 48% at 100% 4%, color-mix(in srgb, var(--kelbet-gold) 10%, transparent), transparent 58%),
+    linear-gradient(180deg, var(--kelbet-ink), #091916 55%, #071310);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  min-width: 320px;
 }
 
 body::before {
@@ -207,12 +211,11 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.18;
-  background-image:
-    linear-gradient(120deg, transparent 0 48%, color-mix(in srgb, var(--kelbet-sand) 6%, transparent) 49% 50%, transparent 51%),
-    linear-gradient(30deg, transparent 0 48%, color-mix(in srgb, var(--kelbet-accent) 5%, transparent) 49% 50%, transparent 51%);
-  background-size: 54px 94px;
-  mask-image: linear-gradient(to bottom, black, transparent 58%);
+  opacity: 0.12;
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--kelbet-sand) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--kelbet-sand) 5%, transparent) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
 }
 
 button,
@@ -946,7 +949,7 @@ a {
   color: var(--kelbet-accent);
   background: color-mix(in srgb, var(--kelbet-accent) 10%, transparent);
   border-color: color-mix(in srgb, var(--kelbet-accent) 50%, transparent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--kelbet-accent) 8%, transparent);
+  box-shadow: var(--kelbet-glow-selected);
 }
 
 .aspect-shape {
@@ -1040,7 +1043,7 @@ a {
 .model-list > button.selected {
   border-color: var(--kelbet-accent);
   background: color-mix(in srgb, var(--kelbet-accent) 9%, transparent);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--kelbet-accent) 6%, transparent);
+  box-shadow: var(--kelbet-glow-selected);
 }
 
 .model-list strong,
@@ -3861,7 +3864,7 @@ a {
   flex: 0 0 auto;
   background: var(--kelbet-accent);
   border-radius: 50%;
-  box-shadow: 0 0 9px color-mix(in srgb, var(--kelbet-accent) 70%, transparent);
+  box-shadow: var(--kelbet-glow-dot);
 }
 
 .precision-promise {
@@ -4090,7 +4093,7 @@ a {
 
 .pro-disclosure[open] .pro-toggle-light {
   background: var(--kelbet-accent);
-  box-shadow: 0 0 9px color-mix(in srgb, var(--kelbet-accent) 75%, transparent);
+  box-shadow: var(--kelbet-glow-dot);
 }
 
 .pro-state {
@@ -4616,7 +4619,7 @@ a {
 .video-recipe-rail button.selected {
   background: color-mix(in srgb, var(--kelbet-accent) 8%, transparent);
   border-color: var(--kelbet-accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--kelbet-accent) 6%, transparent);
+  box-shadow: var(--kelbet-glow-selected);
 }
 
 .video-recipe-rail button.selected .video-recipe-marker {
@@ -4894,7 +4897,7 @@ a {
   height: 6px;
   flex: 0 0 auto;
   background: var(--kelbet-accent);
-  box-shadow: 0 0 9px color-mix(in srgb, var(--kelbet-accent) 72%, transparent);
+  box-shadow: var(--kelbet-glow-dot);
 }
 
 .video-simple-controls {
@@ -5703,23 +5706,6 @@ a {
   font-size: var(--kelbet-text-sm);
 }
 
-
-body {
-  min-width: 320px;
-  background:
-    radial-gradient(90% 60% at 5% -10%, color-mix(in srgb, var(--kelbet-accent) 12%, transparent), transparent 62%),
-    radial-gradient(72% 48% at 100% 4%, color-mix(in srgb, var(--kelbet-gold) 10%, transparent), transparent 58%),
-    linear-gradient(180deg, var(--kelbet-ink), #091916 55%, #071310);
-}
-
-body::before {
-  opacity: 0.12;
-  background-image:
-    linear-gradient(90deg, color-mix(in srgb, var(--kelbet-sand) 8%, transparent) 1px, transparent 1px),
-    linear-gradient(color-mix(in srgb, var(--kelbet-sand) 5%, transparent) 1px, transparent 1px);
-  background-size: 96px 96px;
-  mask-image: linear-gradient(to bottom, black, transparent 72%);
-}
 
 button,
 a,
