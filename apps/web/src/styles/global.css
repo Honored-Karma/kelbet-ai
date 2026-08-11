@@ -95,6 +95,10 @@
   --kelbet-duration-fast: 120ms;
   --kelbet-duration-base: 200ms;
 
+  /* Запас снизу для экранов с плавающей панелью действия поверх навигации.
+     Без него последняя карточка уезжает под панель цены. */
+  --kelbet-action-clearance: 48px;
+
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -246,7 +250,7 @@ a {
 
 .app-main {
   min-width: 0;
-  padding: 16px 16px calc(88px + var(--safe-bottom));
+  padding: 16px 16px calc(106px + var(--safe-bottom));
 }
 
 :focus-visible {
@@ -371,14 +375,17 @@ a {
   left: 50%;
   transform: translateX(-50%);
   bottom: 0;
-  width: min(480px, 100%);
+  width: min(520px, 100%);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: var(--kelbet-space-2);
-  padding: 10px 10px calc(10px + var(--safe-bottom));
-  background: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 92%, transparent);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--kelbet-space-1);
+  padding: 8px 8px calc(8px + var(--safe-bottom));
+  background: rgba(6, 20, 17, 0.96);
   border-top: 1px solid color-mix(in srgb, var(--kelbet-accent) 14%, transparent);
   backdrop-filter: blur(14px);
+  z-index: var(--kelbet-z-nav);
+  border-top-color: color-mix(in srgb, var(--kelbet-sand) 15%, transparent);
+  box-shadow: var(--kelbet-shadow-up);
 }
 
 .nav-link {
@@ -545,7 +552,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: var(--kelbet-space-4);
-  padding-bottom: var(--kelbet-space-3);
+  padding-bottom: calc(var(--kelbet-action-clearance) + var(--kelbet-space-3));
 }
 
 .create-studio > * {
@@ -4365,7 +4372,7 @@ a {
 .video-studio {
   width: 100%;
   min-width: 0;
-  padding-bottom: var(--kelbet-space-3);
+  padding-bottom: calc(var(--kelbet-action-clearance) + var(--kelbet-space-3));
 }
 
 .video-studio-header {
@@ -5739,10 +5746,6 @@ button,
   border-inline: 1px solid color-mix(in srgb, var(--kelbet-sand) 5%, transparent);
 }
 
-.app-main {
-  padding: 16px 16px calc(106px + var(--safe-bottom));
-}
-
 .app-top-rail {
   min-height: 56px;
   display: grid;
@@ -5801,17 +5804,6 @@ button,
   border: 1px solid color-mix(in srgb, var(--kelbet-sand) 20%, transparent);
   border-radius: var(--kelbet-radius-sm);
   font-size: var(--kelbet-text-sm);
-}
-
-.bottom-nav {
-  z-index: var(--kelbet-z-nav);
-  width: min(520px, 100%);
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--kelbet-space-1);
-  padding: 8px 8px calc(8px + var(--safe-bottom));
-  background: rgba(6, 20, 17, 0.96);
-  border-top-color: color-mix(in srgb, var(--kelbet-sand) 15%, transparent);
-  box-shadow: var(--kelbet-shadow-up);
 }
 
 .nav-link {
