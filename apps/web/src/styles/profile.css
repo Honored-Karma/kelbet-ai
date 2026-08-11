@@ -44,7 +44,7 @@
   color: var(--kelbet-gold, var(--kelbet-gold));
   border: 1px solid color-mix(in srgb, var(--kelbet-gold) 30%, transparent);
   background: color-mix(in srgb, var(--kelbet-gold) 10%, transparent);
-  border-radius: 999px;
+  border-radius: var(--kelbet-radius-pill);
   padding: 4px 10px;
   white-space: nowrap;
 }
@@ -75,7 +75,7 @@
   display: flex;
   height: 6px;
   margin: 14px 0 10px;
-  border-radius: 999px;
+  border-radius: var(--kelbet-radius-pill);
   overflow: hidden;
   background: color-mix(in srgb, var(--kelbet-paper) 9%, transparent);
 }
@@ -120,7 +120,7 @@
 .pf-wallet-legend dt i {
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--kelbet-radius-pill);
   background: color-mix(in srgb, var(--kelbet-paper) 20%, transparent);
 }
 
@@ -152,7 +152,7 @@
   flex: 1;
   padding: 11px 10px;
   border: 1px solid color-mix(in srgb, var(--kelbet-paper) 16%, transparent);
-  border-radius: 12px;
+  border-radius: var(--kelbet-radius-sm);
   font-size: var(--kelbet-text-md);
   font-weight: 600;
   text-align: center;
@@ -203,7 +203,7 @@
 
 .pf-stats > div {
   padding: 12px 8px;
-  border-radius: 12px;
+  border-radius: var(--kelbet-radius-sm);
   text-align: center;
   background: color-mix(in srgb, var(--kelbet-ink) 45%, transparent);
 }
@@ -237,7 +237,7 @@
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--kelbet-paper) 10%, transparent);
-  border-radius: 10px;
+  border-radius: var(--kelbet-radius-sm);
   background: color-mix(in srgb, var(--kelbet-ink) 50%, transparent);
 }
 
@@ -269,7 +269,7 @@
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 6px;
+  border-radius: var(--kelbet-radius-sm);
   background: color-mix(in srgb, var(--kelbet-ink) 72%, transparent);
   color: var(--kelbet-paper, var(--kelbet-paper));
 }
@@ -285,7 +285,7 @@
   margin-block-start: 14px;
   padding: 18px 14px;
   border: 1px dashed color-mix(in srgb, var(--kelbet-paper) 16%, transparent);
-  border-radius: 12px;
+  border-radius: var(--kelbet-radius-sm);
   text-align: center;
 }
 
@@ -326,7 +326,7 @@
   margin-block-start: 12px;
   padding: 9px 10px;
   border: 1px solid color-mix(in srgb, var(--kelbet-paper) 10%, transparent);
-  border-radius: 10px;
+  border-radius: var(--kelbet-radius-sm);
   background: color-mix(in srgb, var(--kelbet-ink) 50%, transparent);
 }
 
