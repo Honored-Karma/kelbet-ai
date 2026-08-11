@@ -434,7 +434,7 @@ a {
 .offline-banner {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: var(--kelbet-z-sticky);
   padding: 10px 14px;
   background: color-mix(in srgb, var(--kelbet-danger) 18%, var(--tg-theme-bg-color));
   color: var(--kelbet-danger);
@@ -1076,7 +1076,7 @@ a {
 
 .create-action {
   position: fixed;
-  z-index: 15;
+  z-index: var(--kelbet-z-sticky);
   left: 50%;
   bottom: calc(72px + var(--safe-bottom));
   width: min(480px, 100%);
@@ -2438,17 +2438,6 @@ a {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
 /* ---------------------------------------------------------------- */
 /* KELBET OPS — protected operator workspace                        */
 /* ---------------------------------------------------------------- */
@@ -2964,7 +2953,7 @@ a {
 .admin-outcome p { display: grid; gap: 3px; margin: 0; font-size: var(--kelbet-text-xs); }
 .admin-outcome button { width: 36px; height: 36px; color: #9db0aa; background: transparent; border: 0; font-size: var(--kelbet-text-2xl); }
 
-.admin-confirm-layer { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(1, 8, 7, 0.82); backdrop-filter: blur(6px); }
+.admin-confirm-layer { position: fixed; z-index: var(--kelbet-z-modal); inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(1, 8, 7, 0.82); backdrop-filter: blur(6px); }
 .admin-confirm { position: static; width: min(100%, 440px); margin: 0; padding: 24px; color: var(--kelbet-paper); background: #0c241f; border: 1px solid color-mix(in srgb, var(--kelbet-danger) 42%, transparent); border-radius: var(--kelbet-radius-xs) var(--kelbet-radius-lg) var(--kelbet-radius-lg); box-shadow: var(--kelbet-shadow-lg); }
 .admin-confirm-mark { width: 38px; height: 42px; display: grid; place-items: center; float: right; color: #ffe9e7; background: color-mix(in srgb, var(--kelbet-danger) 13%, transparent); border: 1px solid color-mix(in srgb, var(--kelbet-danger) 50%, transparent); border-radius: var(--kelbet-radius-xs) var(--kelbet-radius-sm) var(--kelbet-radius-sm); font-family: var(--kelbet-font-display); font-weight: 900; }
 .admin-confirm h2 { margin: 0; font-family: var(--kelbet-font-display); font-size: var(--kelbet-text-3xl); }
@@ -2975,7 +2964,7 @@ a {
 
 @media (max-width: 980px) {
   .admin-shell-grid { grid-template-columns: 1fr; }
-  .admin-nav { position: sticky; z-index: 20; top: 0; flex-direction: row; padding: 8px 12px; background: rgba(5, 18, 15, 0.97); border-right: 0; border-bottom: 1px solid var(--admin-line); overflow-x: auto; }
+  .admin-nav { position: sticky; z-index: var(--kelbet-z-sticky); top: 0; flex-direction: row; padding: 8px 12px; background: rgba(5, 18, 15, 0.97); border-right: 0; border-bottom: 1px solid var(--admin-line); overflow-x: auto; }
   .admin-nav button { min-width: 145px; border-left: 0; border-bottom: 2px solid transparent; }
   .admin-nav button.is-active { border-left: 0; border-bottom-color: var(--kelbet-accent); }
   .admin-back-link { min-width: 110px; margin: 0 0 0 auto; }
@@ -5263,7 +5252,7 @@ a {
 
 .video-transaction-tray {
   position: fixed;
-  z-index: 25;
+  z-index: var(--kelbet-z-sticky);
   right: 12px;
   bottom: calc(76px + var(--safe-bottom));
   left: 12px;
@@ -5829,7 +5818,7 @@ button,
 }
 
 .bottom-nav {
-  z-index: 50;
+  z-index: var(--kelbet-z-nav);
   width: min(520px, 100%);
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
@@ -7456,7 +7445,7 @@ button,
 }
 
 .offline-banner {
-  z-index: 80;
+  z-index: var(--kelbet-z-overlay);
   min-height: 42px;
   display: flex;
   align-items: center;
@@ -8141,13 +8130,3 @@ button,
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
