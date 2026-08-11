@@ -1,5 +1,12 @@
+/* =========================================================================
+   KELBET — ЕДИНЫЙ ТОКЕН-СЛОЙ
+   Правила: DESIGN_SYSTEM.md. Не добавляй цвета, радиусы, тени и размеры
+   мимо этого блока — только новые токены здесь.
+   ========================================================================= */
 :root {
-  color-scheme: dark light;
+  color-scheme: dark;
+
+  /* --- Telegram Mini App: значения-фолбэки, клиент переопределяет их сам --- */
   --tg-theme-bg-color: #0b1c1a;
   --tg-theme-secondary-bg-color: #122825;
   --tg-theme-text-color: #f2f7f5;
@@ -9,15 +16,84 @@
   --tg-theme-button-text-color: #041210;
   --tg-theme-destructive-text-color: #ff7b72;
 
-  --kelbet-accent: #3dcfb6;
+  /* --- Палитра: единственный источник цвета в проекте --- */
+  --kelbet-ink: #06110f;
+  --kelbet-forest: #0b1c19;
+  --kelbet-forest-raised: #102923;
+  --kelbet-paper: #f2f4ed;
+  --kelbet-accent: #58e2bd;
+  --kelbet-accent-strong: #36cfa6;
   --kelbet-accent-dim: rgba(61, 207, 182, 0.16);
-  --kelbet-sand: #d8c3a1;
   --kelbet-glow: rgba(61, 207, 182, 0.28);
+  --kelbet-sand: #d8c19b;
+  --kelbet-gold: #c7a666;
+  --kelbet-line: rgba(216, 193, 155, 0.19);
+  --kelbet-line-cool: rgba(148, 177, 168, 0.18);
   --kelbet-danger: var(--tg-theme-destructive-text-color, #ff7b72);
-  --kelbet-radius: 18px;
-  --kelbet-font-display: "Syne", sans-serif;
-  --kelbet-font-body: "Manrope", sans-serif;
+
+  /* --- Типографика --- */
+  --kelbet-font-display: "Syne", "Segoe UI Variable Display", "Noto Sans", sans-serif;
+  --kelbet-font-body: "Manrope", "Segoe UI Variable Text", "Noto Sans", sans-serif;
+  --kelbet-font-mono: ui-monospace, "Cascadia Code", monospace;
+
+  /* Шкала кеглей. Нижняя граница 11px — ниже текст нечитаем на мобильном. */
+  --kelbet-text-xs: 11px;
+  --kelbet-text-sm: 12px;
+  --kelbet-text-md: 13px;
+  --kelbet-text-lg: 15px;
+  --kelbet-text-xl: 18px;
+  --kelbet-text-2xl: 22px;
+  --kelbet-text-3xl: 28px;
+
+  /* --- Шкала отступов, шаг 4px --- */
+  --kelbet-space-1: 2px;
+  --kelbet-space-2: 4px;
+  --kelbet-space-3: 8px;
+  --kelbet-space-4: 12px;
+  --kelbet-space-5: 16px;
+  --kelbet-space-6: 20px;
+  --kelbet-space-7: 24px;
+  --kelbet-space-8: 32px;
+
+  /* --- Радиусы --- */
+  --kelbet-radius-xs: 4px;
+  --kelbet-radius-sm: 10px;
+  --kelbet-radius-md: 16px;
+  --kelbet-radius-lg: 24px;
+  --kelbet-radius-pill: 999px;
+  --kelbet-radius: 18px; /* DEPRECATED: остаток старой шкалы, схлопнуть на -md/-lg */
+
+  /* --- Тени: ровно три ступени --- */
+  --kelbet-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --kelbet-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --kelbet-shadow-lg: 0 26px 70px rgba(0, 0, 0, 0.34);
+  --kelbet-shadow: var(--kelbet-shadow-lg); /* DEPRECATED: использовать -lg */
+
+  /* --- Слои: z-index только отсюда --- */
+  --kelbet-z-base: 1;
+  --kelbet-z-sticky: 20;
+  --kelbet-z-nav: 40;
+  --kelbet-z-overlay: 60;
+  --kelbet-z-modal: 80;
+  --kelbet-z-toast: 100;
+
+  /* --- Движение --- */
+  --kelbet-ease: cubic-bezier(0.2, 0, 0, 1);
+  --kelbet-duration-fast: 120ms;
+  --kelbet-duration-base: 200ms;
+
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Referral MVP */
@@ -5629,28 +5705,6 @@ a {
   font-size: 12px;
 }
 
-/* Steppe Editorial Atelier — unified product shell */
-:root {
-  --kelbet-ink: #06110f;
-  --kelbet-forest: #0b1c19;
-  --kelbet-forest-raised: #102923;
-  --kelbet-paper: #f2f4ed;
-  --kelbet-accent: #58e2bd;
-  --kelbet-accent-strong: #36cfa6;
-  --kelbet-sand: #d8c19b;
-  --kelbet-gold: #c7a666;
-  --kelbet-line: rgba(216, 193, 155, 0.19);
-  --kelbet-line-cool: rgba(148, 177, 168, 0.18);
-  --kelbet-radius-xs: 4px;
-  --kelbet-radius-sm: 10px;
-  --kelbet-radius-md: 16px;
-  --kelbet-radius-lg: 24px;
-  --kelbet-shadow: 0 26px 70px rgba(0, 0, 0, 0.34);
-  --kelbet-font-display: "Aptos Display", "Segoe UI Variable Display", "Segoe UI",
-    "Noto Sans", sans-serif;
-  --kelbet-font-body: "Aptos", "Segoe UI Variable Text", "Segoe UI", "Noto Sans",
-    sans-serif;
-}
 
 body {
   min-width: 320px;
