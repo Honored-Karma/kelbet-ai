@@ -16,7 +16,7 @@
   background: var(--kelbet-surface, #102723);
   border: 1px solid color-mix(in srgb, var(--kelbet-paper) 10%, transparent);
   border-radius: var(--kelbet-radius-md, 16px);
-  padding: 18px 16px;
+  padding: var(--kelbet-space-5) var(--kelbet-space-5);
   margin-block-start: 14px;
 }
 
@@ -34,7 +34,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--kelbet-space-4);
 }
 
 .pf-wallet-active {
@@ -45,7 +45,7 @@
   border: 1px solid color-mix(in srgb, var(--kelbet-gold) 30%, transparent);
   background: color-mix(in srgb, var(--kelbet-gold) 10%, transparent);
   border-radius: var(--kelbet-radius-pill);
-  padding: 4px 10px;
+  padding: var(--kelbet-space-2) var(--kelbet-space-3);
   white-space: nowrap;
 }
 
@@ -54,8 +54,8 @@
 .pf-wallet-figure {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 14px 0 0;
+  gap: var(--kelbet-space-3);
+  margin: var(--kelbet-space-4) 0 0;
 }
 
 .pf-wallet-figure strong {
@@ -74,7 +74,7 @@
 .pf-meter {
   display: flex;
   height: 6px;
-  margin: 14px 0 10px;
+  margin: var(--kelbet-space-4) 0 var(--kelbet-space-3);
   border-radius: var(--kelbet-radius-pill);
   overflow: hidden;
   background: color-mix(in srgb, var(--kelbet-paper) 9%, transparent);
@@ -99,20 +99,20 @@
 .pf-wallet-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
+  gap: var(--kelbet-space-2) var(--kelbet-space-5);
   margin: 0;
 }
 
 .pf-wallet-legend > div {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--kelbet-space-2);
 }
 
 .pf-wallet-legend dt {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--kelbet-space-2);
   font-size: var(--kelbet-text-xs);
   color: color-mix(in srgb, var(--kelbet-paper) 58%, transparent);
 }
@@ -132,7 +132,7 @@
 }
 
 .pf-wallet-hint {
-  margin: 12px 0 0;
+  margin: var(--kelbet-space-4) 0 0;
   padding-block-start: 11px;
   border-block-start: 1px dashed color-mix(in srgb, var(--kelbet-paper) 16%, transparent);
   font-size: var(--kelbet-text-sm);
@@ -144,13 +144,13 @@
 
 .pf-wallet-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--kelbet-space-3);
   margin-block-start: 14px;
 }
 
 .pf-btn {
   flex: 1;
-  padding: 11px 10px;
+  padding: var(--kelbet-space-4) var(--kelbet-space-3);
   border: 1px solid color-mix(in srgb, var(--kelbet-paper) 16%, transparent);
   border-radius: var(--kelbet-radius-sm);
   font-size: var(--kelbet-text-md);
@@ -179,7 +179,7 @@
   margin-inline-start: auto;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--kelbet-space-2);
   font-size: var(--kelbet-text-sm);
   font-weight: 600;
   text-decoration: none;
@@ -197,12 +197,12 @@
 .pf-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 9px;
+  gap: var(--kelbet-space-3);
   margin-block-start: 14px;
 }
 
 .pf-stats > div {
-  padding: 12px 8px;
+  padding: var(--kelbet-space-4) var(--kelbet-space-3);
   border-radius: var(--kelbet-radius-sm);
   text-align: center;
   background: color-mix(in srgb, var(--kelbet-ink) 45%, transparent);
@@ -227,7 +227,7 @@
 .pf-works {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: var(--kelbet-space-3);
   margin-block-start: 10px;
 }
 
@@ -283,14 +283,14 @@
 
 .pf-activity-empty {
   margin-block-start: 14px;
-  padding: 18px 14px;
+  padding: var(--kelbet-space-5) var(--kelbet-space-4);
   border: 1px dashed color-mix(in srgb, var(--kelbet-paper) 16%, transparent);
   border-radius: var(--kelbet-radius-sm);
   text-align: center;
 }
 
 .pf-activity-empty p {
-  margin: 0 0 12px;
+  margin: 0 0 var(--kelbet-space-4);
   font-size: var(--kelbet-text-md);
   color: color-mix(in srgb, var(--kelbet-paper) 58%, transparent);
 }
@@ -314,7 +314,7 @@
 .pf-activity-empty .pf-btn {
   display: inline-block;
   flex: none;
-  padding-inline: 20px;
+  padding-inline: var(--kelbet-space-6);
 }
 
 /* ── Referral ────────────────────────────────────────── */
@@ -322,9 +322,9 @@
 .pf-invite-link {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--kelbet-space-3);
   margin-block-start: 12px;
-  padding: 9px 10px;
+  padding: var(--kelbet-space-3) var(--kelbet-space-3);
   border: 1px solid color-mix(in srgb, var(--kelbet-paper) 10%, transparent);
   border-radius: var(--kelbet-radius-sm);
   background: color-mix(in srgb, var(--kelbet-ink) 50%, transparent);
@@ -351,7 +351,7 @@
 }
 
 .pf-referral-terms {
-  margin: 10px 0 0;
+  margin: var(--kelbet-space-3) 0 0;
   font-size: var(--kelbet-text-xs);
   line-height: 1.55;
   color: color-mix(in srgb, var(--kelbet-paper) 50%, transparent);
