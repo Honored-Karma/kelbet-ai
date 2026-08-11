@@ -38,7 +38,7 @@
 }
 
 .pf-wallet-active {
-  font-size: 11px;
+  font-size: var(--kelbet-text-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--kelbet-gold, #c7a666);
@@ -67,7 +67,7 @@
 }
 
 .pf-wallet-figure span {
-  font-size: 13px;
+  font-size: var(--kelbet-text-md);
   color: rgba(242, 244, 237, 0.58);
 }
 
@@ -113,7 +113,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--kelbet-text-xs);
   color: rgba(242, 244, 237, 0.58);
 }
 
@@ -126,7 +126,7 @@
 
 .pf-wallet-legend dd {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--kelbet-text-sm);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -135,7 +135,7 @@
   margin: 12px 0 0;
   padding-block-start: 11px;
   border-block-start: 1px dashed rgba(242, 244, 237, 0.16);
-  font-size: 12px;
+  font-size: var(--kelbet-text-sm);
   line-height: 1.5;
   color: rgba(242, 244, 237, 0.58);
 }
@@ -153,7 +153,7 @@
   padding: 11px 10px;
   border: 1px solid rgba(242, 244, 237, 0.16);
   border-radius: 12px;
-  font-size: 13.5px;
+  font-size: var(--kelbet-text-md);
   font-weight: 600;
   text-align: center;
   text-decoration: none;
@@ -180,7 +180,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--kelbet-text-sm);
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
@@ -210,7 +210,7 @@
 
 .pf-stats strong {
   display: block;
-  font-size: 21px;
+  font-size: var(--kelbet-text-2xl);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -218,7 +218,7 @@
 }
 
 .pf-stats span {
-  font-size: 10.5px;
+  font-size: var(--kelbet-text-xs);
   color: rgba(242, 244, 237, 0.5);
 }
 
@@ -291,7 +291,7 @@
 
 .pf-activity-empty p {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: var(--kelbet-text-md);
   color: rgba(242, 244, 237, 0.58);
 }
 
@@ -301,14 +301,14 @@
 
 .pf-activity-empty strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--kelbet-text-lg);
   color: var(--kelbet-paper, #f2f4ed);
 }
 
 .pf-activity-empty small {
   display: block;
   margin-block-start: 4px;
-  font-size: 12px;
+  font-size: var(--kelbet-text-sm);
 }
 
 .pf-activity-empty .pf-btn {
@@ -333,7 +333,7 @@
 .pf-invite-link code {
   flex: 1;
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--kelbet-text-xs);
   white-space: nowrap;
   text-overflow: ellipsis;
   color: rgba(242, 244, 237, 0.58);
@@ -343,7 +343,7 @@
   flex: none;
   border: 0;
   background: none;
-  font-size: 12px;
+  font-size: var(--kelbet-text-sm);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -352,7 +352,7 @@
 
 .pf-referral-terms {
   margin: 10px 0 0;
-  font-size: 11.5px;
+  font-size: var(--kelbet-text-xs);
   line-height: 1.55;
   color: rgba(242, 244, 237, 0.5);
 }
