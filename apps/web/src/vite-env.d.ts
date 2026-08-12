@@ -1,3 +1,5 @@
+declare const __KELBET_BUILD__: { commit: string; builtAt: string };
+
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
