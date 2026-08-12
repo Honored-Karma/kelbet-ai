@@ -270,6 +270,9 @@ type MessageKey =
   | "generation.routeImage"
   | "generation.routeVideo"
   | "generation.routeUpscale"
+  | "crash.title"
+  | "crash.body"
+  | "crash.action"
   | "wallet.eyebrow"
   | "wallet.title"
   | "wallet.subtitle"
@@ -698,6 +701,9 @@ const ru: Record<MessageKey, string> = {
   "generation.routeImage": "KELBET Image",
   "generation.routeVideo": "KELBET Motion",
   "generation.routeUpscale": "KELBET Upscale",
+  "crash.title": "Экран не открылся",
+  "crash.body": "Сбой произошёл в самом приложении, а не в вашей работе. Все генерации и кредиты на месте — перезагрузка обычно возвращает всё на место.",
+  "crash.action": "Перезагрузить",
   "wallet.eyebrow": "KELBET / КОШЕЛЁК",
   "wallet.title": "Каждый кредит",
   "wallet.subtitle": "Полная выписка по кошельку. В каждой строке — остаток после операции, поэтому арифметику можно проверить, а не принимать на слово.",
@@ -1130,6 +1136,9 @@ const kk: Record<MessageKey, string> = {
   "generation.routeImage": "KELBET Image",
   "generation.routeVideo": "KELBET Motion",
   "generation.routeUpscale": "KELBET Upscale",
+  "crash.title": "Экран ашылмады",
+  "crash.body": "Ақаулық қосымшаның өзінде болды, сіздің жұмысыңызда емес. Барлық генерация мен кредит орнында — қайта жүктеу әдетте бәрін қалпына келтіреді.",
+  "crash.action": "Қайта жүктеу",
   "wallet.eyebrow": "KELBET / ӘМИЯН",
   "wallet.title": "Әрбір кредит",
   "wallet.subtitle": "Әмиян бойынша толық көшірме. Әр жолда операциядан кейінгі қалдық берілген, сондықтан есепті сеніп қалмай тексеруге болады.",
