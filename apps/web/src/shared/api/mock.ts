@@ -6,6 +6,7 @@ import type {
   Generation,
   GenerationDraft,
   GenerationDraftMode,
+  GenerationPassport,
   GenerationTemplate,
   HistoryItem,
   Language,
@@ -1255,6 +1256,10 @@ export const mockApi = {
     if (["queued", "created", "submitting", "running", "finalizing"].includes(generation.status)) {
       startSimulation(id, generation.user_credit_price);
     }
+    if (generation.status === "succeeded" && !generation.passport) {
+      generation.passport = mockPassport(generation);
+      persistGenerations();
+    }
     return generation;
   },
 
@@ -1345,6 +1350,38 @@ export const mockApi = {
       }));
   },
 };
+
+/**
+ * Паспорт для mock-режима. Значения выведены из самой работы, а подмена
+ * маршрута выставляется детерминированно для части идентификаторов — иначе
+ * раскрытие подмены нельзя было бы увидеть без живого фолбэка провайдера.
+ */
+function mockPassport(generation: Generation): GenerationPassport {
+  const isVideo = generation.modality === "video";
+  const fingerprint = generation.id.replace(/[^0-9a-f]/g, "").charCodeAt(0) || 0;
+  const substituted = fingerprint % 3 === 0;
+  const served = isVideo
+    ? { provider: "google", model: "veo-3.1-fast" }
+    : { provider: "google", model: "gemini-2.5-flash-image" };
+  const requested = isVideo
+    ? { provider: "runway", model: "gen4_turbo" }
+    : { provider: "runway", model: "gen4_image" };
+  const primary = substituted ? served : requested;
+  return {
+    provider: primary.provider,
+    provider_model_id: primary.model,
+    requested_provider: requested.provider,
+    requested_provider_model_id: requested.model,
+    substituted,
+    credits_charged: generation.user_credit_price,
+    attempts: substituted ? 2 : 1,
+    aspect_ratio: isVideo ? "9:16" : "1:1",
+    resolution: isVideo ? "720p" : "1024x1024",
+    duration_sec: isVideo ? 8 : null,
+    width: isVideo ? 720 : 1024,
+    height: isVideo ? 1280 : 1024,
+  };
+}
 
 function startSimulation(id: string, price: number): void {
   if (simulatingGenerationIds.has(id)) return;
