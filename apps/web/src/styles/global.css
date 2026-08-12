@@ -8234,3 +8234,42 @@ button,
   color: var(--kelbet-accent);
   font-size: var(--kelbet-text-xs);
 }
+
+/* ==========================================================================
+   Граница ошибок: то, что видно вместо белого экрана
+   ========================================================================== */
+
+.app-crash {
+  min-height: 70vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--kelbet-space-4);
+  padding: var(--kelbet-space-6) var(--kelbet-space-5);
+  text-align: center;
+}
+
+.app-crash-mark {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--kelbet-line);
+  border-radius: var(--kelbet-radius-xs) var(--kelbet-radius-md) var(--kelbet-radius-md);
+  color: var(--kelbet-mist);
+  font-family: var(--kelbet-font-display);
+  font-size: var(--kelbet-text-xl);
+  font-weight: 800;
+}
+
+.app-crash h1 {
+  margin: 0;
+  font-size: var(--kelbet-text-xl);
+}
+
+.app-crash p {
+  margin: 0;
+  max-width: 38ch;
+  color: var(--kelbet-mist);
+  font-size: var(--kelbet-text-sm);
+}

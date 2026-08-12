@@ -46,6 +46,17 @@ import { z } from "zod";
 
 const TOKEN_KEY = "kelbet.access_token";
 
+/**
+ * Сессия признана недействительной сервером. Слушатель живёт внутри роутера и
+ * отправляет пользователя на /boot, где initData обменивается на новый токен.
+ * Событие, а не прямой вызов навигации, — чтобы транспортный слой не зависел от
+ * react-router.
+ */
+export const UNAUTHORIZED_EVENT = "kelbet:unauthorized";
+
+/** Единственный путь, которому позволено отвечать 401 без сброса сессии. */
+const AUTH_PATH_PREFIX = "/api/v1/auth/";
+
 export function getApiMode(): "mock" | "live" {
   const mode = import.meta.env.VITE_API_MODE;
   if (mode === "live" || mode === "mock") {
@@ -101,6 +112,15 @@ async function liveRequest<T>(
     });
   } catch {
     throw new ApiError("network_error", "KELBET API is unreachable", 0);
+  }
+  if (response.status === 401 && !path.startsWith(AUTH_PATH_PREFIX)) {
+    // Протухший или отозванный токен раньше превращался в ошибку внутри
+    // карточки: пользователь видел «что-то пошло не так» на каждом экране и
+    // ничего не мог сделать, потому что переавторизации не существовало.
+    setToken(null);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
   }
   const payload: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {

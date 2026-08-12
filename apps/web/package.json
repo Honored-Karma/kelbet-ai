@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --test --experimental-strip-types tests/navigation.test.ts tests/admin-permissions.test.ts tests/admin-capability-render.test.ts tests/admin-reconciliation.test.ts tests/moderation-contract.test.ts tests/support-contract.test.ts tests/template-contract.test.ts tests/referral-contract.test.ts tests/generation-recovery.test.ts tests/generation-passport.test.ts tests/wallet-ledger.test.ts",
+    "test": "node --test --experimental-strip-types tests/navigation.test.ts tests/admin-permissions.test.ts tests/admin-capability-render.test.ts tests/admin-reconciliation.test.ts tests/moderation-contract.test.ts tests/support-contract.test.ts tests/template-contract.test.ts tests/referral-contract.test.ts tests/generation-recovery.test.ts tests/generation-passport.test.ts tests/wallet-ledger.test.ts tests/session-guard.test.ts",
     "typecheck": "tsc -b --pretty false",
     "lint": "oxlint",
     "preview": "vite preview"
