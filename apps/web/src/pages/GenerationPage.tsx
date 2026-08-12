@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../shared/api/client";
 import { ApiError } from "../shared/api/types";
 import { useI18n } from "../shared/i18n/runtime";
+import { hapticNotify } from "../shared/telegram/webapp";
 import { ErrorState } from "../shared/ui/ErrorState";
 import { Icon } from "../shared/ui/Icon";
 import { SkeletonBlock } from "../shared/ui/Skeleton";
@@ -79,6 +80,9 @@ export function GenerationPage() {
     const status = generation?.status;
     if (!status || !TERMINAL.has(status) || invalidatedStatusRef.current === status) return;
     invalidatedStatusRef.current = status;
+    // Момент, ради которого тактильная отдача вообще нужна: пользователь ушёл из
+    // приложения на время генерации и возвращается к готовому результату.
+    hapticNotify(status === "succeeded" ? "success" : "error");
     void queryClient.invalidateQueries({ queryKey: ["me"] });
     void queryClient.invalidateQueries({ queryKey: ["history"] });
   }, [generation?.status, queryClient]);
