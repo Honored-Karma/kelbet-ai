@@ -171,6 +171,29 @@ export const assetDownloadSchema = z.object({
 });
 export type AssetDownload = z.infer<typeof assetDownloadSchema>;
 
+/**
+ * Чек генерации: какой маршрут её реально обслужил и в каком размере.
+ * `substituted` — поле, ради которого существуют остальные: сервер выставляет
+ * его, когда отработавший маршрут не совпал с тем, что был обещан в цене.
+ * Ширина и высота приходят из выходного ассета, то есть это измеренные
+ * пиксели, а не заявленные.
+ */
+export const generationPassportSchema = z.object({
+  provider: z.string(),
+  provider_model_id: z.string(),
+  requested_provider: z.string(),
+  requested_provider_model_id: z.string(),
+  substituted: z.boolean(),
+  credits_charged: z.number().int(),
+  attempts: z.number().int(),
+  aspect_ratio: z.string().nullable(),
+  resolution: z.string().nullable(),
+  duration_sec: z.number().int().nullable(),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+});
+export type GenerationPassport = z.infer<typeof generationPassportSchema>;
+
 export const generationSchema = z.object({
   id: z.string(),
   status: z.string(),
@@ -197,6 +220,7 @@ export const generationSchema = z.object({
     })
     .nullable()
     .optional(),
+  passport: generationPassportSchema.nullable().optional(),
 });
 export type Generation = z.infer<typeof generationSchema>;
 

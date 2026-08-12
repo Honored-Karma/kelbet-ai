@@ -273,6 +273,15 @@ type MessageKey =
   | "generation.details"
   | "generation.model"
   | "generation.price"
+  | "generation.passportServed"
+  | "generation.passportPromised"
+  | "generation.passportSubstituted"
+  | "generation.passportSubstitutedBody"
+  | "generation.passportDelivered"
+  | "generation.passportDuration"
+  | "generation.passportCharged"
+  | "generation.passportAttempts"
+  | "generation.passportFrame"
   | "generation.videoTitle"
   | "generation.videoActiveTitle"
   | "generation.videoActiveBody"
@@ -674,6 +683,16 @@ const ru: Record<MessageKey, string> = {
   "generation.details": "Детали работы",
   "generation.model": "Маршрут студии",
   "generation.price": "Цена",
+  "generation.passportServed": "Выполнил",
+  "generation.passportPromised": "Обещано в цене",
+  "generation.passportSubstituted": "Маршрут подменён",
+  "generation.passportSubstitutedBody":
+    "Основной маршрут не ответил, работу выполнил резервный. Цена осталась той, что вы видели до запуска.",
+  "generation.passportDelivered": "Доставлено",
+  "generation.passportDuration": "Длительность",
+  "generation.passportCharged": "Списано",
+  "generation.passportAttempts": "Попыток",
+  "generation.passportFrame": "Кадр",
   "generation.videoTitle": "Ваш ролик",
   "generation.videoActiveTitle": "Снимаем сцену",
   "generation.videoActiveBody": "Собираем движение по кадрам. Можно уйти — Telegram сообщит о готовности.",
@@ -1078,6 +1097,16 @@ const kk: Record<MessageKey, string> = {
   "generation.details": "Жұмыс деректері",
   "generation.model": "Студия бағыты",
   "generation.price": "Баға",
+  "generation.passportServed": "Орындаған",
+  "generation.passportPromised": "Бағада уәде етілген",
+  "generation.passportSubstituted": "Бағыт ауыстырылды",
+  "generation.passportSubstitutedBody":
+    "Негізгі бағыт жауап бермеді, жұмысты сақтық бағыт орындады. Баға іске қосу алдында көрген қалпында қалды.",
+  "generation.passportDelivered": "Жеткізілді",
+  "generation.passportDuration": "Ұзақтығы",
+  "generation.passportCharged": "Шегерілді",
+  "generation.passportAttempts": "Әрекет саны",
+  "generation.passportFrame": "Кадр",
   "generation.videoTitle": "Сіздің ролигіңіз",
   "generation.videoActiveTitle": "Көрініс түсірілуде",
   "generation.videoActiveBody": "Қозғалысты кадрлар бойынша жинап жатырмыз. Шыға берсеңіз болады — Telegram дайын болғанда хабарлайды.",

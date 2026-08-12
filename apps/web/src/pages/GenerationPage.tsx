@@ -175,6 +175,7 @@ export function GenerationPage() {
         .replace("{current}", String(generation.workflow.current_step))
         .replace("{total}", String(generation.workflow.total_steps))
     : null;
+  const passport = generation.passport ?? null;
   const routeLabel =
     generation.modality === "video"
       ? tx("generation.routeVideo")
@@ -398,6 +399,13 @@ export function GenerationPage() {
         </Link>
       ) : null}
 
+      {done && passport?.substituted ? (
+        <p className="result-substituted" role="status">
+          <strong>{tx("generation.passportSubstituted")}</strong>
+          {tx("generation.passportSubstitutedBody")}
+        </p>
+      ) : null}
+
       <details className="result-details">
         <summary>{tx("generation.details")}</summary>
         <dl>
@@ -409,6 +417,50 @@ export function GenerationPage() {
             <dt>{tx("generation.price")}</dt>
             <dd>{generation.user_credit_price} cr</dd>
           </div>
+          {passport ? (
+            <>
+              <div>
+                <dt>{tx("generation.passportServed")}</dt>
+                <dd>{`${passport.provider} · ${passport.provider_model_id}`}</dd>
+              </div>
+              {passport.substituted ? (
+                <div>
+                  <dt>{tx("generation.passportPromised")}</dt>
+                  <dd>
+                    {`${passport.requested_provider} · ${passport.requested_provider_model_id}`}
+                  </dd>
+                </div>
+              ) : null}
+              {passport.width && passport.height ? (
+                <div>
+                  <dt>{tx("generation.passportDelivered")}</dt>
+                  <dd>{`${passport.width}×${passport.height}`}</dd>
+                </div>
+              ) : null}
+              {passport.aspect_ratio ? (
+                <div>
+                  <dt>{tx("generation.passportFrame")}</dt>
+                  <dd>{passport.aspect_ratio}</dd>
+                </div>
+              ) : null}
+              {passport.duration_sec ? (
+                <div>
+                  <dt>{tx("generation.passportDuration")}</dt>
+                  <dd>{`${passport.duration_sec} s`}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>{tx("generation.passportCharged")}</dt>
+                <dd>{`${passport.credits_charged} cr`}</dd>
+              </div>
+              {passport.attempts > 1 ? (
+                <div>
+                  <dt>{tx("generation.passportAttempts")}</dt>
+                  <dd>{passport.attempts}</dd>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </dl>
       </details>
     </section>

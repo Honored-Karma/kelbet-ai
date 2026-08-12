@@ -2414,6 +2414,29 @@ a {
   color: var(--tg-theme-text-color);
 }
 
+/* Раскрытие подмены маршрута. Живёт вне <details>, потому что свернуть
+   сообщение о том, что отработала не оплаченная модель, — это почти то же
+   самое, что не сообщать вовсе. Золото, а не danger: это не ошибка. */
+.result-substituted {
+  display: grid;
+  gap: var(--kelbet-space-2);
+  margin: 0;
+  padding: var(--kelbet-space-4);
+  border-left: 2px solid var(--kelbet-gold);
+  border-radius: var(--kelbet-radius-xs) var(--kelbet-radius-sm) var(--kelbet-radius-sm);
+  background: color-mix(in srgb, var(--kelbet-gold) 8%, transparent);
+  color: var(--kelbet-mist);
+  font-size: var(--kelbet-text-sm);
+}
+
+.result-substituted strong {
+  color: var(--kelbet-gold);
+  font-family: var(--kelbet-font-display);
+  font-size: var(--kelbet-text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 @keyframes studio-turn {
   to {
     transform: rotate(405deg);
