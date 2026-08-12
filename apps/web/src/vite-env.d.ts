@@ -42,8 +42,16 @@ interface TelegramWebApp {
     showProgress: (leaveActive?: boolean) => void;
     hideProgress: () => void;
   };
+  BackButton?: {
+    show: () => void;
+    hide: () => void;
+    onClick: (cb: () => void) => void;
+    offClick: (cb: () => void) => void;
+  };
   HapticFeedback?: {
     impactOccurred: (style: "light" | "medium" | "heavy") => void;
+    notificationOccurred?: (type: "error" | "success" | "warning") => void;
+    selectionChanged?: () => void;
   };
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;

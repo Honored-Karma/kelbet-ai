@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api, getToken } from "../../shared/api/client";
 import { useI18n } from "../../shared/i18n/runtime";
+import { useTelegramBackButton } from "../../shared/telegram/useTelegramBackButton";
 import { Icon, type IconName } from "../../shared/ui/Icon";
 import { OfflineBanner } from "../../shared/ui/OfflineBanner";
 import { SkeletonBlock } from "../../shared/ui/Skeleton";
@@ -41,6 +42,7 @@ export function AppShell() {
         : location.pathname === "/profile"
           ? tx("nav.profile")
           : null;
+  useTelegramBackButton();
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: () => api.getMe(),
