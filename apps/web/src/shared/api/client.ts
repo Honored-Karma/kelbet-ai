@@ -41,8 +41,30 @@ import {
   type ReferralSummary,
 } from "./types";
 import { validateApiBaseUrl } from "./config";
-import { mockApi } from "./mock";
 import { z } from "zod";
+
+/**
+ * Включён ли mock-режим — решается на сборке, а не в рантайме.
+ *
+ * Логика намеренно повторяет getApiMode(), но записана через литералы
+ * import.meta.env, чтобы Rollup свернул её в константу. При production-сборке
+ * значение становится false, все ветки ниже удаляются вместе с единственной
+ * ссылкой на loadMock, и мок-API (около 47 КБ) не попадает в бандл вовсе.
+ * Раньше он ехал пользователю: ветвление происходило внутри функций, поэтому
+ * tree-shaking снять его не мог.
+ */
+const MOCK_ENABLED: boolean =
+  import.meta.env.VITE_API_MODE === "mock" ||
+  (import.meta.env.VITE_API_MODE !== "live" && import.meta.env.DEV);
+
+type MockApi = (typeof import("./mock"))["mockApi"];
+let mockApiPromise: Promise<MockApi> | null = null;
+
+/** Загружает мок один раз и переиспользует. Вызывается только под MOCK_ENABLED. */
+function loadMock(): Promise<MockApi> {
+  mockApiPromise ??= import("./mock").then((module) => module.mockApi);
+  return mockApiPromise;
+}
 
 const TOKEN_KEY = "kelbet.access_token";
 
@@ -144,8 +166,8 @@ export { liveRequest as requestApi };
 
 export const api = {
   async authTelegram(initData: string): Promise<AuthResponse> {
-    if (getApiMode() === "mock") {
-      return mockApi.authTelegram(initData);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).authTelegram(initData);
     }
     return liveRequest("/api/v1/auth/telegram", authResponseSchema, {
       method: "POST",
@@ -154,22 +176,22 @@ export const api = {
   },
 
   async getMe(): Promise<Me> {
-    if (getApiMode() === "mock") {
-      return mockApi.getMe();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getMe();
     }
     return liveRequest("/api/v1/me", meSchema);
   },
 
   async getReferralSummary(): Promise<ReferralSummary> {
-    if (getApiMode() === "mock") {
-      return mockApi.getReferralSummary();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getReferralSummary();
     }
     return liveRequest("/api/v1/referrals/me", referralSummarySchema);
   },
 
   async getModerationConfig(): Promise<ModerationConfig> {
-    if (getApiMode() === "mock") {
-      return mockApi.getModerationConfig();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getModerationConfig();
     }
     return liveRequest("/api/v1/moderation/config", moderationConfigSchema);
   },
@@ -178,15 +200,15 @@ export const api = {
     language?: Language;
     notify_generation_ready?: boolean;
   }): Promise<Me> {
-    if (getApiMode() === "mock") {
-      return mockApi.patchMe(payload);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).patchMe(payload);
     }
     return liveRequest("/api/v1/me", meSchema, { method: "PATCH", json: payload });
   },
 
   async listModels(lang?: Language): Promise<CatalogModel[]> {
-    if (getApiMode() === "mock") {
-      return mockApi.listModels();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).listModels();
     }
     const query = lang ? `?lang=${lang}` : "";
     const data = await liveRequest(
@@ -197,8 +219,8 @@ export const api = {
   },
 
   async listTemplates(lang?: Language, kind?: "image" | "video"): Promise<GenerationTemplate[]> {
-    if (getApiMode() === "mock") {
-      return mockApi.listTemplates(lang, kind);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).listTemplates(lang, kind);
     }
     const params = new URLSearchParams();
     if (lang) params.set("lang", lang);
@@ -216,8 +238,8 @@ export const api = {
     params: Record<string, unknown>,
     template?: { templateId: string | null; templateInputs: Record<string, unknown> },
   ): Promise<Quote> {
-    if (getApiMode() === "mock") {
-      return mockApi.quote(modelSlug, params, template);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).quote(modelSlug, params, template);
     }
     return liveRequest("/api/v1/wallet/quote", quoteSchema, {
       method: "POST",
@@ -231,8 +253,8 @@ export const api = {
   },
 
   async listPaymentProducts(): Promise<PaymentProducts> {
-    if (getApiMode() === "mock") {
-      return mockApi.listPaymentProducts();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).listPaymentProducts();
     }
     return liveRequest("/api/v1/payments/products", paymentProductsSchema);
   },
@@ -243,8 +265,8 @@ export const api = {
     termsVersion: string;
     idempotencyKey: string;
   }): Promise<PaymentOrder> {
-    if (getApiMode() === "mock") {
-      return mockApi.createPaymentOrder(input);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).createPaymentOrder(input);
     }
     // The server treats a present-but-mismatched terms version as a hard
     // validation error, so an unloaded catalogue must not be reported as the
@@ -266,8 +288,8 @@ export const api = {
   },
 
   async reopenPaymentOrder(orderId: string): Promise<PaymentOrder> {
-    if (getApiMode() === "mock") {
-      return mockApi.reopenPaymentOrder(orderId);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).reopenPaymentOrder(orderId);
     }
     return liveRequest(
       `/api/v1/payments/orders/${encodeURIComponent(orderId)}/invoice`,
@@ -277,8 +299,8 @@ export const api = {
   },
 
   async walletTransactions(limit = 50): Promise<CreditTransaction[]> {
-    if (getApiMode() === "mock") {
-      return mockApi.walletTransactions(limit);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).walletTransactions(limit);
     }
     const data = await liveRequest(
       `/api/v1/wallet/transactions?limit=${limit}`,
@@ -288,8 +310,8 @@ export const api = {
   },
 
   async paymentHistory(): Promise<PaymentOrder[]> {
-    if (getApiMode() === "mock") {
-      return mockApi.paymentHistory();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).paymentHistory();
     }
     const data = await liveRequest(
       "/api/v1/payments/history",
@@ -299,8 +321,8 @@ export const api = {
   },
 
   async presignUpload(file: File): Promise<PresignedUpload> {
-    if (getApiMode() === "mock") {
-      return mockApi.presignUpload(file);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).presignUpload(file);
     }
     return liveRequest("/api/v1/uploads/presign", presignedUploadSchema, {
       method: "POST",
@@ -313,8 +335,8 @@ export const api = {
   },
 
   async completeUpload(assetId: string): Promise<CompletedUpload> {
-    if (getApiMode() === "mock") {
-      return mockApi.completeUpload(assetId);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).completeUpload(assetId);
     }
     return liveRequest(`/api/v1/uploads/${assetId}/complete`, completedUploadSchema, {
       method: "POST",
@@ -322,7 +344,7 @@ export const api = {
   },
 
   async uploadPresigned(presigned: PresignedUpload, file: File): Promise<void> {
-    if (getApiMode() === "mock") {
+    if (MOCK_ENABLED) {
       return;
     }
     const headers = new Headers(presigned.headers);
@@ -340,8 +362,8 @@ export const api = {
   },
 
   async uploadAsset(file: File): Promise<CompletedUpload> {
-    if (getApiMode() === "mock") {
-      return mockApi.uploadAsset(file);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).uploadAsset(file);
     }
     const presigned = await this.presignUpload(file);
     await this.uploadPresigned(presigned, file);
@@ -349,16 +371,16 @@ export const api = {
   },
 
   async getAsset(assetId: string): Promise<AssetDownload> {
-    if (getApiMode() === "mock") {
-      return mockApi.getAsset(assetId);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getAsset(assetId);
     }
     return liveRequest(`/api/v1/assets/${assetId}`, assetDownloadSchema);
   },
 
   async getAssets(assetIds: string[]): Promise<AssetDownload[]> {
     if (!assetIds.length) return [];
-    if (getApiMode() === "mock") {
-      return mockApi.getAssets(assetIds);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getAssets(assetIds);
     }
     const data = await liveRequest(
       "/api/v1/assets/downloads",
@@ -369,8 +391,8 @@ export const api = {
   },
 
   async getPromptAssistantConfig(): Promise<PromptAssistantConfig> {
-    if (getApiMode() === "mock") {
-      return mockApi.getPromptAssistantConfig();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getPromptAssistantConfig();
     }
     return liveRequest("/api/v1/prompt-assistant/config", promptAssistantConfigSchema);
   },
@@ -381,8 +403,8 @@ export const api = {
     intent: PromptAssistantIntent;
     idempotencyKey: string;
   }): Promise<PromptAssistantResult> {
-    if (getApiMode() === "mock") {
-      return mockApi.improvePrompt(input);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).improvePrompt(input);
     }
     return liveRequest("/api/v1/prompt-assistant/improve", promptAssistantResultSchema, {
       method: "POST",
@@ -405,8 +427,8 @@ export const api = {
     templateId?: string | null;
     templateInputs?: Record<string, unknown>;
   }): Promise<Generation> {
-    if (getApiMode() === "mock") {
-      return mockApi.createGeneration(input);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).createGeneration(input);
     }
     return liveRequest("/api/v1/generations", generationSchema, {
       method: "POST",
@@ -424,8 +446,8 @@ export const api = {
   },
 
   async getGeneration(id: string): Promise<Generation> {
-    if (getApiMode() === "mock") {
-      return mockApi.getGeneration(id);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getGeneration(id);
     }
     return liveRequest(`/api/v1/generations/${encodeURIComponent(id)}`, generationSchema);
   },
@@ -434,8 +456,8 @@ export const api = {
     id: string,
     mode: GenerationDraftMode,
   ): Promise<GenerationDraft> {
-    if (getApiMode() === "mock") {
-      return mockApi.getGenerationDraft(id, mode);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).getGenerationDraft(id, mode);
     }
     return liveRequest(
       `/api/v1/generations/${encodeURIComponent(id)}/draft?mode=${mode}`,
@@ -444,8 +466,8 @@ export const api = {
   },
 
   async cancelGeneration(id: string): Promise<Generation> {
-    if (getApiMode() === "mock") {
-      return mockApi.cancelGeneration(id);
+    if (MOCK_ENABLED) {
+      return (await loadMock()).cancelGeneration(id);
     }
     return liveRequest(`/api/v1/generations/${encodeURIComponent(id)}/cancel`, generationSchema, {
       method: "POST",
@@ -453,8 +475,8 @@ export const api = {
   },
 
   async history(): Promise<HistoryItem[]> {
-    if (getApiMode() === "mock") {
-      return mockApi.history();
+    if (MOCK_ENABLED) {
+      return (await loadMock()).history();
     }
     const data = await liveRequest(
       "/api/v1/history",
