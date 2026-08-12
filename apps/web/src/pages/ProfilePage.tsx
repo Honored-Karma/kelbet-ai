@@ -263,6 +263,9 @@ export function ProfilePage() {
           <Link to="/history" className="pf-btn">
             {profileText(language, "walletHistory")}
           </Link>
+          <Link to="/wallet" className="pf-btn">
+            {tx("wallet.title")}
+          </Link>
         </div>
       </section>
 

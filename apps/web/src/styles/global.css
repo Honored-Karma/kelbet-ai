@@ -8131,3 +8131,145 @@ button,
   }
 }
 
+
+/* ==========================================================================
+   Леджер кредитов (/wallet)
+   Сервер отдаёт balance_after в каждой строке, поэтому экран показывает не
+   «историю платежей», а проверяемую выписку: остаток после каждой операции.
+   ========================================================================== */
+
+.ledger-page {
+  display: grid;
+  gap: var(--kelbet-space-5);
+}
+
+.ledger-header h1 {
+  margin: var(--kelbet-space-2) 0 var(--kelbet-space-3);
+}
+
+.ledger-lede {
+  margin: 0;
+  color: var(--kelbet-mist);
+  font-size: var(--kelbet-text-sm);
+}
+
+.ledger-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--kelbet-space-4);
+  margin: 0;
+  padding: var(--kelbet-space-4);
+  border: 1px solid var(--kelbet-line);
+  border-radius: var(--kelbet-radius-xs) var(--kelbet-radius-md) var(--kelbet-radius-md);
+}
+
+.ledger-summary dt {
+  color: var(--kelbet-mist);
+  font-size: var(--kelbet-text-xs);
+}
+
+.ledger-summary dd {
+  margin: var(--kelbet-space-2) 0 0;
+  font-family: var(--kelbet-font-display);
+  font-size: var(--kelbet-text-lg);
+  font-weight: 700;
+}
+
+.ledger-list {
+  display: grid;
+  gap: var(--kelbet-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ledger-row {
+  display: grid;
+  gap: var(--kelbet-space-2);
+  padding: var(--kelbet-space-4);
+  border: 1px solid var(--kelbet-line);
+  border-radius: var(--kelbet-radius-xs) var(--kelbet-radius-sm) var(--kelbet-radius-sm);
+}
+
+.ledger-row-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--kelbet-space-4);
+}
+
+.ledger-reason {
+  font-size: var(--kelbet-text-md);
+  font-weight: 600;
+}
+
+/* Списание — нейтральным цветом текста, начисление — акцентом. Красный здесь
+   был бы неуместен: трата кредитов это не ошибка. */
+.ledger-amount {
+  font-family: var(--kelbet-font-display);
+  font-size: var(--kelbet-text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ledger-amount.is-credit {
+  color: var(--kelbet-accent);
+}
+
+.ledger-row-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--kelbet-space-4);
+  color: var(--kelbet-mist);
+  font-size: var(--kelbet-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-link {
+  justify-self: start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--kelbet-accent);
+  font-size: var(--kelbet-text-xs);
+}
+
+/* ==========================================================================
+   Граница ошибок: то, что видно вместо белого экрана
+   ========================================================================== */
+
+.app-crash {
+  min-height: 70vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--kelbet-space-4);
+  padding: var(--kelbet-space-6) var(--kelbet-space-5);
+  text-align: center;
+}
+
+.app-crash-mark {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--kelbet-line);
+  border-radius: var(--kelbet-radius-xs) var(--kelbet-radius-md) var(--kelbet-radius-md);
+  color: var(--kelbet-mist);
+  font-family: var(--kelbet-font-display);
+  font-size: var(--kelbet-text-xl);
+  font-weight: 800;
+}
+
+.app-crash h1 {
+  margin: 0;
+  font-size: var(--kelbet-text-xl);
+}
+
+.app-crash p {
+  margin: 0;
+  max-width: 38ch;
+  color: var(--kelbet-mist);
+  font-size: var(--kelbet-text-sm);
+}

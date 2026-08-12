@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   CatalogModel,
   CompletedUpload,
+  CreditTransaction,
   Generation,
   GenerationDraft,
   GenerationDraftMode,
@@ -967,6 +968,68 @@ export const mockApi = {
 
   async paymentHistory(): Promise<PaymentOrder[]> {
     return [...paymentOrders];
+  },
+
+  /**
+   * Леджер для mock-режима. Мок не ведёт журнал движений, поэтому он собирается
+   * из того, что моку уже известно: приветственный бонус, списания за
+   * завершённые работы и оплаченные пакеты. `balance_after` считается обратным
+   * проходом от текущего баланса, чтобы арифметика на экране сходилась так же,
+   * как она сходится на сервере.
+   */
+  async walletTransactions(limit = 50): Promise<CreditTransaction[]> {
+    await delay(120);
+    type Movement = {
+      at: string;
+      reason: string;
+      amount: number;
+      generationId: string | null;
+    };
+    const movements: Movement[] = [];
+
+    for (const generation of generations.values()) {
+      if (generation.status !== "succeeded") continue;
+      movements.push({
+        at: generation.created_at,
+        reason: "generation_capture",
+        amount: -generation.user_credit_price,
+        generationId: generation.id,
+      });
+    }
+    for (const order of paymentOrders) {
+      if (order.status !== "paid" || !order.paid_at) continue;
+      movements.push({
+        at: order.paid_at,
+        reason: "payment_purchase",
+        amount: order.credits,
+        generationId: null,
+      });
+    }
+    movements.push({
+      at: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+      reason: "welcome_bonus",
+      amount: 60,
+      generationId: null,
+    });
+
+    movements.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+
+    let running = balance;
+    const rows: CreditTransaction[] = movements.map((movement) => {
+      const row: CreditTransaction = {
+        id: `mock-tx-${Date.parse(movement.at)}-${movement.reason}`,
+        type: movement.amount > 0 ? "credit" : "debit",
+        reason: movement.reason,
+        amount: movement.amount,
+        balance_after: running,
+        created_at: movement.at,
+        generation_id: movement.generationId,
+      };
+      running -= movement.amount;
+      return row;
+    });
+
+    return rows.slice(0, limit);
   },
 
   async listModels(): Promise<CatalogModel[]> {
