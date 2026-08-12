@@ -270,6 +270,24 @@ type MessageKey =
   | "generation.routeImage"
   | "generation.routeVideo"
   | "generation.routeUpscale"
+  | "wallet.eyebrow"
+  | "wallet.title"
+  | "wallet.subtitle"
+  | "wallet.empty"
+  | "wallet.emptyHint"
+  | "wallet.balanceAfter"
+  | "wallet.showMore"
+  | "wallet.openGeneration"
+  | "wallet.reasonWelcomeBonus"
+  | "wallet.reasonAiChat"
+  | "wallet.reasonPromptAssistant"
+  | "wallet.reasonGenerationCapture"
+  | "wallet.reasonGenerationRefund"
+  | "wallet.reasonAdminAdjust"
+  | "wallet.reasonPlanGrant"
+  | "wallet.reasonPaymentPurchase"
+  | "wallet.reasonPaymentRefund"
+  | "wallet.reasonReferralReward"
   | "generation.details"
   | "generation.model"
   | "generation.price"
@@ -680,6 +698,24 @@ const ru: Record<MessageKey, string> = {
   "generation.routeImage": "KELBET Image",
   "generation.routeVideo": "KELBET Motion",
   "generation.routeUpscale": "KELBET Upscale",
+  "wallet.eyebrow": "KELBET / КОШЕЛЁК",
+  "wallet.title": "Каждый кредит",
+  "wallet.subtitle": "Полная выписка по кошельку. В каждой строке — остаток после операции, поэтому арифметику можно проверить, а не принимать на слово.",
+  "wallet.empty": "Движений пока нет",
+  "wallet.emptyHint": "Здесь появится каждое начисление и каждое списание.",
+  "wallet.balanceAfter": "остаток",
+  "wallet.showMore": "Показать ещё",
+  "wallet.openGeneration": "Открыть работу",
+  "wallet.reasonWelcomeBonus": "Приветственный бонус",
+  "wallet.reasonAiChat": "AI-чат",
+  "wallet.reasonPromptAssistant": "Помощник по промпту",
+  "wallet.reasonGenerationCapture": "Генерация",
+  "wallet.reasonGenerationRefund": "Возврат за генерацию",
+  "wallet.reasonAdminAdjust": "Корректировка поддержки",
+  "wallet.reasonPlanGrant": "Начисление по подписке",
+  "wallet.reasonPaymentPurchase": "Покупка кредитов",
+  "wallet.reasonPaymentRefund": "Возврат платежа",
+  "wallet.reasonReferralReward": "Награда за приглашение",
   "generation.details": "Детали работы",
   "generation.model": "Маршрут студии",
   "generation.price": "Цена",
@@ -1094,6 +1130,24 @@ const kk: Record<MessageKey, string> = {
   "generation.routeImage": "KELBET Image",
   "generation.routeVideo": "KELBET Motion",
   "generation.routeUpscale": "KELBET Upscale",
+  "wallet.eyebrow": "KELBET / ӘМИЯН",
+  "wallet.title": "Әрбір кредит",
+  "wallet.subtitle": "Әмиян бойынша толық көшірме. Әр жолда операциядан кейінгі қалдық берілген, сондықтан есепті сеніп қалмай тексеруге болады.",
+  "wallet.empty": "Әзірге қозғалыс жоқ",
+  "wallet.emptyHint": "Мұнда әрбір есептеу мен шегерім көрінеді.",
+  "wallet.balanceAfter": "қалдық",
+  "wallet.showMore": "Тағы көрсету",
+  "wallet.openGeneration": "Жұмысты ашу",
+  "wallet.reasonWelcomeBonus": "Қош келдіңіз бонусы",
+  "wallet.reasonAiChat": "AI-чат",
+  "wallet.reasonPromptAssistant": "Промпт көмекшісі",
+  "wallet.reasonGenerationCapture": "Генерация",
+  "wallet.reasonGenerationRefund": "Генерация үшін қайтарым",
+  "wallet.reasonAdminAdjust": "Қолдау түзетуі",
+  "wallet.reasonPlanGrant": "Жазылым бойынша есептеу",
+  "wallet.reasonPaymentPurchase": "Кредит сатып алу",
+  "wallet.reasonPaymentRefund": "Төлемді қайтару",
+  "wallet.reasonReferralReward": "Шақыру үшін сыйақы",
   "generation.details": "Жұмыс деректері",
   "generation.model": "Студия бағыты",
   "generation.price": "Баға",

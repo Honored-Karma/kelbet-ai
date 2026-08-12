@@ -9,6 +9,7 @@ import {
   generationTemplateSchema,
   historyItemSchema,
   meSchema,
+  creditTransactionSchema,
   moderationConfigSchema,
   paymentOrderSchema,
   paymentProductsSchema,
@@ -21,6 +22,7 @@ import {
   type AuthResponse,
   type CatalogModel,
   type CompletedUpload,
+  type CreditTransaction,
   type Generation,
   type GenerationDraft,
   type GenerationDraftMode,
@@ -252,6 +254,17 @@ export const api = {
       paymentOrderSchema,
       { method: "POST" },
     );
+  },
+
+  async walletTransactions(limit = 50): Promise<CreditTransaction[]> {
+    if (getApiMode() === "mock") {
+      return mockApi.walletTransactions(limit);
+    }
+    const data = await liveRequest(
+      `/api/v1/wallet/transactions?limit=${limit}`,
+      z.object({ items: z.array(creditTransactionSchema) }),
+    );
+    return data.items;
   },
 
   async paymentHistory(): Promise<PaymentOrder[]> {

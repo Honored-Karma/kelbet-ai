@@ -123,6 +123,21 @@ export const generationTemplateSchema = z
   .strict();
 export type GenerationTemplate = z.infer<typeof generationTemplateSchema>;
 
+/**
+ * Строка неизменяемого леджера кредитов. `balance_after` есть в каждой строке,
+ * поэтому пользователь может проверить арифметику, а не поверить ей на слово.
+ */
+export const creditTransactionSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  reason: z.string(),
+  amount: z.number().int(),
+  balance_after: z.number().int(),
+  created_at: z.string(),
+  generation_id: z.string().nullable(),
+});
+export type CreditTransaction = z.infer<typeof creditTransactionSchema>;
+
 export const quoteSchema = z.object({
   quote_id: z.string(),
   model_slug: z.string(),
