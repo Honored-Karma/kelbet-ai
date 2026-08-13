@@ -162,10 +162,12 @@ async def test_paging_covers_the_catalog_without_repeating_a_model(
         for page in range(page_count(len(models))):
             keyboard = models_keyboard(models, language=Language.RU, page=page)
             picks = [
-                button.callback_data.removeprefix("vmodel:pick:")
+                data.removeprefix("vmodel:pick:")
                 for row in keyboard.inline_keyboard
                 for button in row
-                if button.callback_data.startswith("vmodel:pick:")
+                # callback_data is optional on the Telegram type, so it has to be bound
+                # before it can be read.
+                if (data := button.callback_data) and data.startswith("vmodel:pick:")
             ]
             assert picks, f"page {page} offers no model"
             seen.extend(picks)
