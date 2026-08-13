@@ -152,9 +152,20 @@ def credit_price_range(
     out at the confirmation step. Aspect ratio is ignored because it never moves the
     price — only resolution, duration and scale factor do.
     """
-    resolutions = [str(value) for value in (capabilities.get("resolutions") or [])] or [None]
-    durations = [int(value) for value in (capabilities.get("durations_sec") or [])] or [None]
-    scale_factors = [int(value) for value in (capabilities.get("scale_factors") or [])] or [None]
+    # A single `None` stands for "this model has no such knob", which keeps the loop
+    # below one shape instead of three nested special cases.
+    resolutions: list[str | None] = [
+        str(value) for value in (capabilities.get("resolutions") or [])
+    ]
+    durations: list[int | None] = [
+        int(value) for value in (capabilities.get("durations_sec") or [])
+    ]
+    scale_factors: list[int | None] = [
+        int(value) for value in (capabilities.get("scale_factors") or [])
+    ]
+    resolutions = resolutions or [None]
+    durations = durations or [None]
+    scale_factors = scale_factors or [None]
 
     prices: list[int] = []
     for resolution in resolutions:
