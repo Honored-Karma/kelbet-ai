@@ -139,6 +139,44 @@ def validate_params_against_capabilities(
     return cleaned
 
 
+def credit_price_range(
+    base_price: int,
+    *,
+    capabilities: dict[str, Any],
+    pricing_rules: dict[str, Any] | None,
+) -> tuple[int, int]:
+    """Cheapest and dearest quote a model can produce, over every reachable option.
+
+    A single "from" price misleads once a model spans a 10x range: Kling O3 4K starts
+    at 525 credits and reaches 1050, and a user who sees only the lower number finds
+    out at the confirmation step. Aspect ratio is ignored because it never moves the
+    price — only resolution, duration and scale factor do.
+    """
+    resolutions = [str(value) for value in (capabilities.get("resolutions") or [])] or [None]
+    durations = [int(value) for value in (capabilities.get("durations_sec") or [])] or [None]
+    scale_factors = [int(value) for value in (capabilities.get("scale_factors") or [])] or [None]
+
+    prices: list[int] = []
+    for resolution in resolutions:
+        for duration in durations:
+            for scale_factor in scale_factors:
+                params: dict[str, Any] = {}
+                if resolution is not None:
+                    params["resolution"] = resolution
+                if duration is not None:
+                    params["duration_sec"] = duration
+                if scale_factor is not None:
+                    params["scale_factor"] = scale_factor
+                prices.append(
+                    compute_user_credit_price(
+                        base_price,
+                        params=params,
+                        pricing_rules=pricing_rules,
+                    )
+                )
+    return min(prices), max(prices)
+
+
 def compute_user_credit_price(
     base_price: int,
     *,
