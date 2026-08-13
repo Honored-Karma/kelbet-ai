@@ -35,10 +35,8 @@ def target_database(url: str) -> str:
         raise SystemExit("В TEST_DATABASE_URL не указано имя базы")
     if "test" not in name:
         # Та же защита, что в conftest: не даём создать и затем вычистить базу,
-        # которая может оказаться production.
-        raise SystemExit(
-            f"Имя базы {name!r} не содержит 'test' — отказываюсь продолжать"
-        )
+        # которая может оказаться production. Отказываемся до подключения.
+        raise SystemExit(f"Имя базы {name!r} не содержит 'test'")
     return name
 
 
