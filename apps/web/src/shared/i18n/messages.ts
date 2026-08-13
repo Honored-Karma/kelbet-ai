@@ -226,6 +226,7 @@ type MessageKey =
   | "video.providerRunway"
   | "video.providerGoogle"
   | "video.providerStudio"
+  | "video.providerPartner"
   | "video.modelEta"
   | "video.durationAdjusted"
   | "video.extendedContinuity"
@@ -658,6 +659,7 @@ const ru: Record<MessageKey, string> = {
   "video.providerRunway": "Runway",
   "video.providerGoogle": "Google",
   "video.providerStudio": "KELBET",
+  "video.providerPartner": "Партнёр",
   "video.modelEta": "Обычно",
   "video.durationAdjusted": "Длительность приведена к возможностям выбранной модели.",
   "video.extendedContinuity": "Одна непрерывная сцена. Каждый следующий отрезок бережно продолжает предыдущий.",
@@ -1094,6 +1096,7 @@ const kk: Record<MessageKey, string> = {
   "video.providerRunway": "Runway",
   "video.providerGoogle": "Google",
   "video.providerStudio": "KELBET",
+  "video.providerPartner": "Серіктес",
   "video.modelEta": "Әдетте",
   "video.durationAdjusted": "Ұзақтық таңдалған модельдің мүмкіндіктеріне сай өзгертілді.",
   "video.extendedContinuity": "Біртұтас көрініс. Әр келесі бөлік алдыңғысын ұқыпты жалғастырады.",

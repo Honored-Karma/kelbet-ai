@@ -41,6 +41,21 @@ TEXTS: dict[str, str] = {
     Msg.MINI_APP_TRENDS: "🔥 Открыть тренды",
     Msg.MINI_APP_HISTORY: "📁 Открыть мои работы",
     Msg.MINI_APP_PLANS: "💳 Пополнить баланс",
+    Msg.VIDEO_MODEL_CHOOSE: (
+        "🎬 <b>Выберите модель</b>\n\nЦена зависит от длительности и качества 👇"
+    ),
+    Msg.VIDEO_MODEL_BUTTON: "{name} · {credits} кр.",
+    Msg.VIDEO_MODEL_PAGE: "{page} из {total}",
+    Msg.VIDEO_MODEL_PREV: "‹ Назад",
+    Msg.VIDEO_MODEL_NEXT: "Далее ›",
+    Msg.VIDEO_MODEL_PICKED: (
+        "🎬 <b>{name}</b>\n{description}\n\n"
+        "Цена: <b>{credits}</b> кредитов — точная сумма зависит от длительности "
+        "и качества, вы увидите её перед запуском."
+    ),
+    Msg.VIDEO_MODEL_OPEN: "Открыть студию",
+    Msg.VIDEO_MODEL_EMPTY: "Пока нет доступных моделей для видео. Попробуйте позже.",
+    Msg.VIDEO_MODEL_GONE: "Эта модель больше недоступна. Откройте список заново.",
     Msg.BALANCE_TITLE: "💰 <b>Ваш баланс</b>",
     Msg.BALANCE_TOTAL: "💎 Всего: <b>{balance}</b> кредитов",
     Msg.BALANCE_RESERVED: "⏳ В работе: {reserved}",

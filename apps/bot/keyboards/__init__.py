@@ -29,7 +29,12 @@ def language_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _mini_app_page_url(base_url: str, path: str) -> str:
+def mini_app_page_url(base_url: str, path: str) -> str:
+    """Join the Mini App origin with a page path.
+
+    `path` may carry a query string ("video?model=..."), which is how the video model
+    picker preselects a route.
+    """
     return f"{base_url.strip().rstrip('/')}/{path.strip().lstrip('/')}"
 
 
@@ -43,7 +48,7 @@ def _mini_app_button(
         return KeyboardButton(text=text)
     return KeyboardButton(
         text=text,
-        web_app=WebAppInfo(url=_mini_app_page_url(base_url, path)),
+        web_app=WebAppInfo(url=mini_app_page_url(base_url, path)),
     )
 
 
@@ -99,7 +104,7 @@ def mini_app_launch_keyboard(
             [
                 InlineKeyboardButton(
                     text=t(label_key, lang),
-                    web_app=WebAppInfo(url=_mini_app_page_url(mini_app_url, path)),
+                    web_app=WebAppInfo(url=mini_app_page_url(mini_app_url, path)),
                 )
             ]
         ]
@@ -139,7 +144,7 @@ def referral_keyboard(
             [
                 InlineKeyboardButton(
                     text=t(Msg.INVITE_OPEN, lang),
-                    web_app=WebAppInfo(url=_mini_app_page_url(mini_app_url, "invite")),
+                    web_app=WebAppInfo(url=mini_app_page_url(mini_app_url, "invite")),
                 )
             ]
         )

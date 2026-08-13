@@ -259,13 +259,16 @@ export function VideoPage() {
   const sourceGenerationId = searchParams.get("from")?.trim() ?? "";
   const sourceAssetId = searchParams.get("asset")?.trim() ?? "";
   const requestedMode = searchParams.get("mode");
+  // Set by the bot's model picker: /video?model=<slug>. The studio opens straight on
+  // that route instead of its own default, so the choice made in chat survives.
+  const requestedModel = searchParams.get("model")?.trim() ?? "";
 
   const [mode, setMode] = useState<VideoMode>(
     sourceAssetId || requestedMode === "photo" ? "photo" : "text",
   );
   const [promiseTier, setPromiseTier] = useState<PromiseTier>("smart");
-  const [advanced, setAdvanced] = useState(false);
-  const [explicitSlug, setExplicitSlug] = useState<string | null>(null);
+  const [advanced, setAdvanced] = useState(Boolean(requestedModel));
+  const [explicitSlug, setExplicitSlug] = useState<string | null>(requestedModel || null);
   const [prompt, setPrompt] = useState("");
   const [params, setParams] = useState<Record<string, unknown>>({
     aspect_ratio: "9:16",
@@ -488,7 +491,9 @@ export function VideoPage() {
       ? tx("video.providerGoogle")
       : selected?.provider === "runway"
         ? tx("video.providerRunway")
-        : tx("video.providerStudio");
+        : selected?.provider === "fal"
+          ? tx("video.providerPartner")
+          : tx("video.providerStudio");
 
   const quoteEnabled = Boolean(selected) && templateValid && !templatesQuery.isLoading;
   const quoteQuery = useQuery({
