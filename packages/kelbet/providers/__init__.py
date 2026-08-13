@@ -5,6 +5,7 @@ from kelbet.providers.base import (
     GenerationRequest,
 )
 from kelbet.providers.factory import resolve_provider
+from kelbet.providers.fal import FalProvider
 from kelbet.providers.google_image import GoogleGeminiImageProvider
 from kelbet.providers.google_veo import GoogleVeoProvider
 from kelbet.providers.mock import MockImageProvider, MockTextProvider
@@ -17,6 +18,7 @@ __all__ = [
     "GenerationProvider",
     "GenerationProviderResult",
     "GenerationRequest",
+    "FalProvider",
     "GoogleVeoProvider",
     "GoogleGeminiImageProvider",
     "MockImageProvider",

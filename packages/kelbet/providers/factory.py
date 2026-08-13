@@ -8,6 +8,7 @@ from kelbet.providers.base import (
     GenerationProviderResult,
     GenerationRequest,
 )
+from kelbet.providers.fal import FalProvider
 from kelbet.providers.google_image import GoogleGeminiImageProvider
 from kelbet.providers.google_veo import GoogleVeoProvider
 from kelbet.providers.mock import MockImageProvider, MockTextProvider
@@ -58,6 +59,9 @@ def resolve_provider(
 
     if name == "runway":
         return RunwayProvider.from_settings(cfg)
+
+    if name == "fal":
+        return FalProvider.from_settings(cfg)
 
     if name == "google":
         if mod in {"image", "image_edit", "upscale"}:

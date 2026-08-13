@@ -31,6 +31,21 @@ OPENAI_IMAGE_FAST_ID = UUID("11111111-1111-1111-1111-111111111114")
 OPENAI_IMAGE_QUALITY_ID = UUID("11111111-1111-1111-1111-111111111115")
 LEGACY_DISABLED_ID = UUID("11111111-1111-1111-1111-111111111199")
 
+# fal.ai video catalog (Stage 5)
+FAL_PIXVERSE_V45_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111118")
+FAL_LUMA_RAY2_FLASH_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111119")
+FAL_GROK_IMAGINE_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111120")
+FAL_WAN25_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111121")
+FAL_HAILUO_23_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111122")
+FAL_KLING_25_TURBO_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111123")
+FAL_KLING_26_PRO_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111124")
+FAL_WAN27_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111125")
+FAL_KLING_30_PRO_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111126")
+FAL_SEEDANCE_20_FAST_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111127")
+FAL_SEEDANCE_20_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111128")
+FAL_KLING_21_MASTER_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111129")
+FAL_KLING_O3_4K_VIDEO_ID = UUID("11111111-1111-1111-1111-111111111130")
+
 # SKUs whose provider cost is strictly linear in output seconds. For these, the
 # duration multiplier must be duration/base_duration, never a rounded-up integer
 # step: Veo bills each extension for its own new seconds only, so a 29s clip costs
@@ -87,6 +102,781 @@ def feature_flag_rows() -> list[dict[str, Any]]:
         {"key": "openai_image", "enabled": False, "payload": {}},
         {"key": "referrals", "enabled": False, "payload": {}},
         {"key": "experimental_upscale", "enabled": False, "payload": {}},
+        # Both ship off: fal is a paid third-party account, and no clip has been
+        # reconciled against a live invoice yet. The premium flag is separate so the
+        # cheap half of the catalog can open without exposing 242-525 credit SKUs.
+        {"key": "fal_video", "enabled": False, "payload": {}},
+        {"key": "fal_video_premium", "enabled": False, "payload": {}},
+    ]
+
+
+def fal_video_rows() -> list[dict[str, Any]]:
+    """Third-party video SKUs reached through the single fal.ai key.
+
+    Kept out of `catalog_model_rows`'s literal list only for readability: thirteen
+    rows inline would bury the five first-party routes above them.
+
+    Three conventions hold across every row here.
+
+    `provider_model_id` is the fal endpoint id verbatim, because the adapter both
+    calls and polls that path. `providers/fal.py` allowlists the same ids, so a typo
+    fails closed at submit instead of billing an unknown model at zero recorded cost.
+
+    `resolutions: ["auto"]` marks a model with no resolution parameter — the whole
+    Kling line and Luma. The value is required, not cosmetic: the Mini App always
+    sends a resolution, and the quote rejects any value the catalog does not declare.
+    The adapter drops "auto" before building the request body. Declaring a literal
+    "720p" there would promise an output size fal never agreed to.
+
+    `smart_candidate` is False on all thirteen. Smart auto-picks a route on the
+    user's behalf, and none of these has been reconciled against a live invoice yet;
+    a wrong auto-pick spends someone else's credits.
+
+    Prices are fal's published rates converted at 1 unit == $0.0001, and every SKU
+    sits exactly on its cost floor. `enforce_economics` and the duration-linearity
+    test in `tests/test_catalog_economics.py` hold that floor for every reachable
+    resolution and duration combination.
+    """
+    return [
+        {
+            "id": FAL_PIXVERSE_V45_VIDEO_ID,
+            "slug": "fal-pixverse-v45-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/pixverse/v4.5/text-to-video",
+            "display_order": 56,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 38,
+            "provider_cost_units": 1500,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1"],
+                "resolutions": ["540p", "720p"],
+                "durations_sec": [5, 8],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "alternative",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 180,
+                    "provider_cost_ceiling_units_per_second": 400,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "forbidden",
+                "accepted_mime": [],
+                "max_input_bytes": 0,
+                "max_input_assets": 0,
+            },
+            "localization": {
+                "ru": {
+                    "name": "PixVerse 4.5",
+                    "description": "Самый доступный ролик: быстрый и опрятный",
+                },
+                "kk": {
+                    "name": "PixVerse 4.5",
+                    "description": "Ең қолжетімді бейне: жылдам және ұқыпты",
+                },
+            },
+            "pricing_rules": {
+                "resolution_multipliers": {
+                    "540p": {"num": 1, "den": 1},
+                    "720p": {"num": 4, "den": 3},
+                },
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "8": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_LUMA_RAY2_FLASH_VIDEO_ID,
+            "slug": "fal-luma-ray2-flash-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/luma-dream-machine/ray-2-flash",
+            "display_order": 57,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 50,
+            "provider_cost_units": 2000,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9"],
+                "resolutions": ["auto"],
+                "durations_sec": [5, 9],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "alternative",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 210,
+                    "provider_cost_ceiling_units_per_second": 445,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "forbidden",
+                "accepted_mime": [],
+                "max_input_bytes": 0,
+                "max_input_assets": 0,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Luma Ray 2 Flash",
+                    "description": "Плавное движение камеры, до девяти секунд",
+                },
+                "kk": {
+                    "name": "Luma Ray 2 Flash",
+                    "description": "Камераның біркелкі қозғалысы, тоғыз секундқа дейін",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "9": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_GROK_IMAGINE_VIDEO_ID,
+            "slug": "fal-grok-imagine-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "xai/grok-imagine-video/text-to-video",
+            "display_order": 58,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 50,
+            "provider_cost_units": 2000,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+                "resolutions": ["480p", "720p"],
+                "durations_sec": [4, 6, 8, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "alternative",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 150,
+                    "provider_cost_ceiling_units_per_second": 700,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png", "image/webp"],
+                "max_input_bytes": 10485760,
+                "max_input_assets": 1,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Grok Imagine",
+                    "description": "Быстрые ролики xAI, много форматов кадра",
+                },
+                "kk": {
+                    "name": "Grok Imagine",
+                    "description": "xAI жылдам бейнелері, кадр пішімі көп",
+                },
+            },
+            "pricing_rules": {
+                "resolution_multipliers": {
+                    "480p": {"num": 1, "den": 1},
+                    "720p": {"num": 7, "den": 5},
+                },
+                "duration_multipliers": {
+                    "4": {"num": 1, "den": 1},
+                    "6": {"num": 3, "den": 2},
+                    "8": {"num": 2, "den": 1},
+                    "10": {"num": 5, "den": 2},
+                },
+            },
+        },
+        {
+            "id": FAL_WAN25_VIDEO_ID,
+            "slug": "fal-wan25-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/wan-25-preview/text-to-video",
+            "display_order": 59,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 63,
+            "provider_cost_units": 2500,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1"],
+                "resolutions": ["480p", "720p", "1080p"],
+                "durations_sec": [5, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "alternative",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 210,
+                    "provider_cost_ceiling_units_per_second": 1500,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "forbidden",
+                "accepted_mime": [],
+                "max_input_bytes": 0,
+                "max_input_assets": 0,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Wan 2.5",
+                    "description": "Ролик до 1080p и до десяти секунд",
+                },
+                "kk": {
+                    "name": "Wan 2.5",
+                    "description": "1080p-ға және он секундқа дейінгі бейне",
+                },
+            },
+            "pricing_rules": {
+                "resolution_multipliers": {
+                    "480p": {"num": 1, "den": 1},
+                    "720p": {"num": 2, "den": 1},
+                    "1080p": {"num": 3, "den": 1},
+                },
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_HAILUO_23_VIDEO_ID,
+            "slug": "fal-hailuo-23-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/minimax/hailuo-2.3/standard/text-to-video",
+            "display_order": 60,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 70,
+            "provider_cost_units": 2800,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9"],
+                "resolutions": ["768p"],
+                "durations_sec": [6, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "alternative",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 180,
+                    "provider_cost_ceiling_units_per_second": 560,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "forbidden",
+                "accepted_mime": [],
+                "max_input_bytes": 0,
+                "max_input_assets": 0,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Hailuo 2.3",
+                    "description": "Живая мимика и естественная пластика",
+                },
+                "kk": {
+                    "name": "Hailuo 2.3",
+                    "description": "Тірі мимика және табиғи қозғалыс",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "6": {"num": 1, "den": 1},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_KLING_25_TURBO_VIDEO_ID,
+            "slug": "fal-kling-25-turbo-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video",
+            "display_order": 61,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 88,
+            "provider_cost_units": 3500,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1"],
+                "resolutions": ["auto"],
+                "durations_sec": [5, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "alternative",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 240,
+                    "provider_cost_ceiling_units_per_second": 700,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png", "image/webp"],
+                "max_input_bytes": 10485760,
+                "max_input_assets": 1,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Kling 2.5 Turbo",
+                    "description": "Надёжная рабочая лошадка Kling",
+                },
+                "kk": {
+                    "name": "Kling 2.5 Turbo",
+                    "description": "Kling-тің сенімді жұмыс көлігі",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_KLING_26_PRO_VIDEO_ID,
+            "slug": "fal-kling-26-pro-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/kling-video/v2.6/pro/text-to-video",
+            "display_order": 62,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 88,
+            "provider_cost_units": 3500,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1"],
+                "resolutions": ["auto"],
+                "durations_sec": [5, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "alternative",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 270,
+                    "provider_cost_ceiling_units_per_second": 700,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png", "image/webp"],
+                "max_input_bytes": 10485760,
+                "max_input_assets": 1,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Kling 2.6 Pro",
+                    "description": "Точнее держит замысел кадра",
+                },
+                "kk": {
+                    "name": "Kling 2.6 Pro",
+                    "description": "Кадр ниетін дәлірек ұстайды",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_WAN27_VIDEO_ID,
+            "slug": "fal-wan27-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/wan/v2.7/text-to-video",
+            "display_order": 63,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 125,
+            "provider_cost_units": 5000,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+                "resolutions": ["720p", "1080p"],
+                "durations_sec": [5, 8, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "quality",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 240,
+                    "provider_cost_ceiling_units_per_second": 1500,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "forbidden",
+                "accepted_mime": [],
+                "max_input_bytes": 0,
+                "max_input_assets": 0,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Wan 2.7",
+                    "description": "Свежая версия Wan, чище детали",
+                },
+                "kk": {
+                    "name": "Wan 2.7",
+                    "description": "Wan-нің жаңа нұсқасы, детальдары анық",
+                },
+            },
+            "pricing_rules": {
+                "resolution_multipliers": {
+                    "720p": {"num": 1, "den": 1},
+                    "1080p": {"num": 3, "den": 2},
+                },
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "8": {"num": 8, "den": 5},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_KLING_30_PRO_VIDEO_ID,
+            "slug": "fal-kling-30-pro-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/kling-video/v3/pro/text-to-video",
+            "display_order": 64,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video",
+            "user_credit_price": 140,
+            "provider_cost_units": 5600,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1"],
+                "resolutions": ["auto"],
+                "durations_sec": [5, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "premium",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 300,
+                    "provider_cost_ceiling_units_per_second": 1120,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png", "image/webp"],
+                "max_input_bytes": 10485760,
+                "max_input_assets": 1,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Kling 3.0 Pro",
+                    "description": "Флагман Kling: сложные сцены и движение",
+                },
+                "kk": {
+                    "name": "Kling 3.0 Pro",
+                    "description": "Kling флагманы: күрделі көрініс пен қозғалыс",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_SEEDANCE_20_FAST_VIDEO_ID,
+            "slug": "fal-seedance-20-fast-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "bytedance/seedance-2.0/fast/text-to-video",
+            "display_order": 65,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video_premium",
+            "user_credit_price": 242,
+            "provider_cost_units": 9676,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"],
+                "resolutions": ["720p"],
+                "durations_sec": [4, 5, 6, 8],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "premium",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 360,
+                    "provider_cost_ceiling_units_per_second": 2419,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "forbidden",
+                "accepted_mime": [],
+                "max_input_bytes": 0,
+                "max_input_assets": 0,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Seedance 2.0 Fast",
+                    "description": "Кинематографичная картинка ByteDance",
+                },
+                "kk": {
+                    "name": "Seedance 2.0 Fast",
+                    "description": "ByteDance-тің кинематографиялық суреті",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "4": {"num": 1, "den": 1},
+                    "5": {"num": 5, "den": 4},
+                    "6": {"num": 3, "den": 2},
+                    "8": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_SEEDANCE_20_VIDEO_ID,
+            "slug": "fal-seedance-20-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "bytedance/seedance-2.0/text-to-video",
+            "display_order": 66,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video_premium",
+            "user_credit_price": 304,
+            "provider_cost_units": 12136,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"],
+                "resolutions": ["720p"],
+                "durations_sec": [4, 5, 6, 8],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "premium",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 420,
+                    "provider_cost_ceiling_units_per_second": 3034,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "forbidden",
+                "accepted_mime": [],
+                "max_input_bytes": 0,
+                "max_input_assets": 0,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Seedance 2.0",
+                    "description": "Максимум качества Seedance",
+                },
+                "kk": {
+                    "name": "Seedance 2.0",
+                    "description": "Seedance сапасының шыңы",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "4": {"num": 1, "den": 1},
+                    "5": {"num": 5, "den": 4},
+                    "6": {"num": 3, "den": 2},
+                    "8": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_KLING_21_MASTER_VIDEO_ID,
+            "slug": "fal-kling-21-master-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/kling-video/v2.1/master/text-to-video",
+            "display_order": 67,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video_premium",
+            "user_credit_price": 350,
+            "provider_cost_units": 14000,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1"],
+                "resolutions": ["auto"],
+                "durations_sec": [5, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "premium",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 330,
+                    "provider_cost_ceiling_units_per_second": 2800,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png", "image/webp"],
+                "max_input_bytes": 10485760,
+                "max_input_assets": 1,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Kling 2.1 Master",
+                    "description": "Мастер-тир Kling для чистовой съёмки",
+                },
+                "kk": {
+                    "name": "Kling 2.1 Master",
+                    "description": "Таза түсірілім үшін Kling мастер-тирі",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
+        {
+            "id": FAL_KLING_O3_4K_VIDEO_ID,
+            "slug": "fal-kling-o3-4k-video",
+            "modality": "video",
+            "provider": "fal",
+            "provider_model_id": "fal-ai/kling-video/o3/4k/text-to-video",
+            "display_order": 68,
+            "enabled": True,
+            "deprecated_at": None,
+            "replacement_slug": None,
+            "feature_flag": "fal_video_premium",
+            "user_credit_price": 525,
+            "provider_cost_units": 21000,
+            "currency_hint": "USD",
+            "capabilities": {
+                "aspect_ratios": ["16:9", "9:16", "1:1"],
+                "resolutions": ["4k"],
+                "durations_sec": [5, 10],
+                "max_prompt_chars": 1000,
+                "supports_seed": False,
+                "max_outputs": 1,
+                "ui": {
+                    "operation": "video",
+                    "studio_tier": "premium",
+                    "smart_candidate": False,
+                    "simple_default": False,
+                    "hidden_in_production": False,
+                    "eta_seconds": 480,
+                    "provider_cost_ceiling_units_per_second": 4200,
+                },
+            },
+            "input_requirements": {
+                "prompt": "required",
+                "source_image": "optional",
+                "accepted_mime": ["image/jpeg", "image/png", "image/webp"],
+                "max_input_bytes": 10485760,
+                "max_input_assets": 1,
+            },
+            "localization": {
+                "ru": {
+                    "name": "Kling O3 4K",
+                    "description": "4K со встроенным звуком",
+                },
+                "kk": {
+                    "name": "Kling O3 4K",
+                    "description": "Кіріктірілген дыбысы бар 4K",
+                },
+            },
+            "pricing_rules": {
+                "duration_multipliers": {
+                    "5": {"num": 1, "den": 1},
+                    "10": {"num": 2, "den": 1},
+                },
+            },
+        },
     ]
 
 
@@ -1086,4 +1876,5 @@ def catalog_model_rows() -> list[dict[str, Any]]:
         ui = capabilities.get("ui")
         assert isinstance(ui, dict)
         ui["provider_cost_ceiling_units"] = 1100
+    rows.extend(fal_video_rows())
     return enforce_economics(rows)
