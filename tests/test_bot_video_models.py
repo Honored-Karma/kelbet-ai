@@ -33,7 +33,7 @@ from kelbet.config import Settings
 from kelbet.db.models.catalog import FeatureFlag
 from kelbet.domain.enums import Language
 from kelbet.i18n import Msg, t
-from kelbet.services.catalog import CatalogService
+from kelbet.services.catalog import CatalogModelDTO, CatalogService
 from kelbet.services.registration import RegistrationService
 
 MINI_APP = "https://app.kelbet.ai"
@@ -84,6 +84,22 @@ async def _visible_slugs(session: AsyncSession, *, telegram_id: int) -> list[str
     return [model.slug for model in models if model.modality.value == "video"]
 
 
+async def _picker_models(session: AsyncSession, *, telegram_id: int) -> list[CatalogModelDTO]:
+    """The same set, in the same order, that the picker's keyboard is built from."""
+    models = await CatalogService(session).list_models_for_user(
+        language=Language.RU,
+        telegram_id=telegram_id,
+    )
+    visible = [
+        model
+        for model in models
+        if model.modality.value == "video"
+        and (model.capabilities.get("ui") or {}).get("operation") == "video"
+        and not (model.capabilities.get("ui") or {}).get("hidden_in_production")
+    ]
+    return sorted(visible, key=lambda model: model.display_order)
+
+
 @pytest.mark.asyncio
 async def test_create_video_offers_the_model_list_instead_of_opening_the_studio(
     session_factory: async_sessionmaker[AsyncSession],
@@ -130,11 +146,22 @@ async def test_the_fal_catalog_stays_hidden_until_its_flag_is_turned_on(
         assert "fal-kling-o3-4k-video" not in revealed
         assert "fal-kling-30-pro-video" in revealed
 
+        # The picker is paged by display_order, and Kling 3.0 Pro sits at 64, so it is
+        # not on the first page. Asserting only on page one would pass or fail with the
+        # size of the catalog rather than with the flag under test.
+        models = await _picker_models(session, telegram_id=7202)
+        labels = [
+            button.text
+            for page in range(page_count(len(models)))
+            for row in models_keyboard(models, language=Language.RU, page=page).inline_keyboard
+            for button in row
+        ]
+        assert any("Kling 3.0 Pro" in label for label in labels)
+
         message = _message(telegram_id=7202)
         await on_video(message, session, AsyncMock(), settings)
         _args, kwargs = message.answer.await_args
-        labels = [button.text for row in kwargs["reply_markup"].inline_keyboard for button in row]
-        assert any("Kling 3.0 Pro" in label for label in labels)
+        assert kwargs["reply_markup"].inline_keyboard
 
 
 @pytest.mark.asyncio
@@ -147,15 +174,7 @@ async def test_paging_covers_the_catalog_without_repeating_a_model(
         await _enable_flag(session, "fal_video")
         await _enable_flag(session, "fal_video_premium")
 
-        models = [
-            model
-            for model in await CatalogService(session).list_models_for_user(
-                language=Language.RU, telegram_id=7203
-            )
-            if model.modality.value == "video"
-            and (model.capabilities.get("ui") or {}).get("operation") == "video"
-            and not (model.capabilities.get("ui") or {}).get("hidden_in_production")
-        ]
+        models = await _picker_models(session, telegram_id=7203)
         assert len(models) > PAGE_SIZE, "catalog too small to exercise the pager"
 
         seen: list[str] = []
