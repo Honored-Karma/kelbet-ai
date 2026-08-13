@@ -29,9 +29,7 @@ def test_backoff_grows_but_is_capped() -> None:
     # Мгновенно падающая очередь не должна превращаться в горячий цикл, но и
     # пауза не должна расти до бесконечности: сервис обязан подняться сам,
     # когда провайдер оживёт.
-    policy = RestartPolicy(
-        base_backoff_seconds=1.0, max_backoff_seconds=8.0, max_restarts=10
-    )
+    policy = RestartPolicy(base_backoff_seconds=1.0, max_backoff_seconds=8.0, max_restarts=10)
     tracker = RestartTracker(policy)
     tracker.record_start(TARGET, now=0.0)
 
@@ -55,9 +53,7 @@ def test_gives_up_after_max_restarts_inside_window() -> None:
 def test_failures_outside_window_do_not_count() -> None:
     # Падение раз в час не должно однажды исчерпать лимит и остановить очередь
     # навсегда.
-    policy = RestartPolicy(
-        max_restarts=2, window_seconds=100.0, healthy_after_seconds=1e9
-    )
+    policy = RestartPolicy(max_restarts=2, window_seconds=100.0, healthy_after_seconds=1e9)
     tracker = RestartTracker(policy)
     tracker.record_start(TARGET, now=0.0)
 
@@ -100,9 +96,7 @@ def test_exit_without_recorded_start_is_handled() -> None:
     # супервизор исключением.
     tracker = RestartTracker()
 
-    assert (
-        tracker.record_exit("apps.worker.main.TextWorkerSettings", now=5.0) is not None
-    )
+    assert tracker.record_exit("apps.worker.main.TextWorkerSettings", now=5.0) is not None
 
 
 def test_all_four_queues_are_supervised() -> None:
