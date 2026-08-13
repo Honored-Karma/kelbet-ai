@@ -103,8 +103,10 @@ class RestartTracker:
             return None
 
         # Пауза растёт с числом падений подряд, но не бесконечно.
+        # Основание float, а не int: mypy выводит int ** int как Any, и Any
+        # затем протекает через min() в объявленный тип возврата.
         exponent = len(state.failures) - 1
-        delay = self._policy.base_backoff_seconds * (2**exponent)
+        delay: float = self._policy.base_backoff_seconds * (2.0**exponent)
         return min(delay, self._policy.max_backoff_seconds)
 
 
