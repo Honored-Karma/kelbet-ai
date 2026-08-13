@@ -108,24 +108,6 @@ async def on_create(
     )
 
 
-@router.message(Command("video"))
-@router.message(MenuText(Msg.MENU_VIDEO))
-async def on_video(
-    message: Message,
-    session: AsyncSession,
-    state: FSMContext,
-    settings: Settings,
-) -> None:
-    await _open_mini_app(
-        message,
-        session,
-        state,
-        settings,
-        path="video",
-        label_key=Msg.MINI_APP_VIDEO,
-    )
-
-
 @router.message(Command("trends"))
 @router.message(MenuText(Msg.MENU_TRENDS))
 async def on_trends(
