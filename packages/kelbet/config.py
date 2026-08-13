@@ -184,6 +184,17 @@ class Settings(BaseSettings):
     google_webhook_max_age_seconds: int = 300
     video_output_max_bytes: int = 104_857_600  # 100 MiB
 
+    # fal.ai — one key for the third-party video catalog (Kling, Seedance, Wan,
+    # PixVerse, Grok Imagine, Hailuo, Luma). Runtime enablement is the fal_video and
+    # fal_video_premium DB feature flags; both ship off, and the adapter fails closed
+    # while the key is empty, so an unfunded account cannot accept a paid job.
+    fal_api_key: str = ""
+    fal_queue_base_url: str = "https://queue.fal.run"
+    fal_http_timeout_seconds: float = 60.0
+    fal_poll_interval_seconds: int = 5
+    fal_video_timeout_seconds: int = 1800
+    fal_output_host_allowlist: str = "fal.media,fal.run,cdn.fal.test"
+
     # Hardening (Stage J)
     text_timeout_seconds: int = 120
     stuck_submitting_seconds: int = 180
