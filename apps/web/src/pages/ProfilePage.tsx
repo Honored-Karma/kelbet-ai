@@ -503,6 +503,14 @@ export function ProfilePage() {
           ) : null}
         </div>
       </section>
+
+      <p className="pf-build">
+        {tx("profile.build")}
+        <code>{__KELBET_BUILD__.commit}</code>
+        <time dateTime={__KELBET_BUILD__.builtAt}>
+          {__KELBET_BUILD__.builtAt.slice(0, 10)}
+        </time>
+      </p>
     </section>
   );
 }

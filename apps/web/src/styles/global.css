@@ -8273,3 +8273,22 @@ button,
   color: var(--kelbet-mist);
   font-size: var(--kelbet-text-sm);
 }
+
+/* Штамп сборки в профиле. Нужен для одного вопроса — «какая версия передо
+   мной» — который дважды стоил нам часов отладки. */
+.pf-build {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--kelbet-space-3);
+  margin: 0;
+  padding: var(--kelbet-space-4) 0 0;
+  color: var(--kelbet-mist);
+  font-size: var(--kelbet-text-xs);
+}
+
+.pf-build code,
+.pf-build time {
+  font-family: var(--kelbet-font-mono);
+  color: var(--kelbet-haze);
+}

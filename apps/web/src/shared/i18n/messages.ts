@@ -270,6 +270,7 @@ type MessageKey =
   | "generation.routeImage"
   | "generation.routeVideo"
   | "generation.routeUpscale"
+  | "profile.build"
   | "crash.title"
   | "crash.body"
   | "crash.action"
@@ -701,6 +702,7 @@ const ru: Record<MessageKey, string> = {
   "generation.routeImage": "KELBET Image",
   "generation.routeVideo": "KELBET Motion",
   "generation.routeUpscale": "KELBET Upscale",
+  "profile.build": "Версия сборки",
   "crash.title": "Экран не открылся",
   "crash.body": "Сбой произошёл в самом приложении, а не в вашей работе. Все генерации и кредиты на месте — перезагрузка обычно возвращает всё на место.",
   "crash.action": "Перезагрузить",
@@ -1136,6 +1138,7 @@ const kk: Record<MessageKey, string> = {
   "generation.routeImage": "KELBET Image",
   "generation.routeVideo": "KELBET Motion",
   "generation.routeUpscale": "KELBET Upscale",
+  "profile.build": "Құрылым нұсқасы",
   "crash.title": "Экран ашылмады",
   "crash.body": "Ақаулық қосымшаның өзінде болды, сіздің жұмысыңызда емес. Барлық генерация мен кредит орнында — қайта жүктеу әдетте бәрін қалпына келтіреді.",
   "crash.action": "Қайта жүктеу",
