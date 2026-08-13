@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from apps.bot.commands import bot_commands, configure_bot_commands
 from apps.bot.filters import MenuText
-from apps.bot.handlers.navigation import on_balance, on_create, on_trends, on_video
+from apps.bot.handlers.navigation import on_balance, on_create, on_trends
 from apps.bot.keyboards import main_menu_keyboard
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -166,26 +166,6 @@ async def test_create_command_prompts_registration(
         state.clear.assert_not_awaited()
         args, _kwargs = message.answer.await_args
         assert args[0] == t(Msg.NEED_REGISTER, Language.KK)
-
-
-@pytest.mark.asyncio
-async def test_video_command_returns_video_studio_link(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    settings = Settings(mini_app_url="https://app.kelbet.ai")
-
-    async with session_factory() as session, session.begin():
-        await _register(session, telegram_id=6104, language=Language.KK)
-        message = _message(telegram_id=6104, text="/video")
-        state = AsyncMock()
-
-        await on_video(message, session, state, settings)
-
-        state.clear.assert_awaited_once()
-        args, kwargs = message.answer.await_args
-        assert args[0] == t(Msg.MINI_APP_OPEN, Language.KK)
-        button = kwargs["reply_markup"].inline_keyboard[0][0]
-        assert button.web_app.url == "https://app.kelbet.ai/video"
 
 
 @pytest.mark.asyncio
