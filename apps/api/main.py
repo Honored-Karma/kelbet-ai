@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -14,7 +15,12 @@ from apps.api.routes.v1 import api_v1_router
 from kelbet.auth import MemoryReplayStore, RedisReplayStore
 from kelbet.chat.factory import build_chat_provider
 from kelbet.chat.mock import MockChatProvider
-from kelbet.config import cors_origin_list, get_settings
+from kelbet.config import (
+    assert_production_ready,
+    cors_origin_list,
+    get_settings,
+    runtime_config_summary,
+)
 from kelbet.db.session import build_session_factory
 from kelbet.observability import initialize_observability
 from kelbet.payments.gateway import AiogramStarsGateway, DisabledPaymentGateway, MockPaymentGateway
@@ -22,11 +28,17 @@ from kelbet.queue import ArqGenerationQueue, InlineGenerationQueue
 from kelbet.rate_limit import MemoryRateLimiter, RedisRateLimiter
 from kelbet.storage import MemoryObjectStorage, build_object_storage
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     initialize_observability(settings, component="api")
+    # Before any connection is opened: a production process on a data-losing
+    # configuration must not reach the point where it can accept a paid request.
+    assert_production_ready(settings)
+    logger.info("runtime_config component=api %s", runtime_config_summary(settings))
     if not getattr(app.state, "session_factory", None):
         app.state.session_factory = build_session_factory(settings)
     if getattr(app.state, "object_storage", None) is None:

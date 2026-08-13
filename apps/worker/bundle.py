@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass, field
 from types import FrameType
 
-from kelbet.config import get_settings
+from kelbet.config import assert_production_ready, get_settings, runtime_config_summary
 from kelbet.observability import initialize_observability
 
 logger = logging.getLogger(__name__)
@@ -130,6 +130,11 @@ def _stop_processes(processes: dict[str, subprocess.Popen[bytes]]) -> None:
 def run_bundle(policy: RestartPolicy | None = None) -> int:
     settings = get_settings()
     initialize_observability(settings, component="worker")
+    # Воркер — единственный процесс, который записывает результат генерации в
+    # хранилище, поэтому запускать его на memory-хранилище в проде бессмысленно:
+    # он сложит файл туда, откуда его никто уже не прочитает.
+    assert_production_ready(settings)
+    logger.info("runtime_config component=worker %s", runtime_config_summary(settings))
     arq_executable = shutil.which("arq")
     if not arq_executable:
         logger.error("worker_bundle_arq_executable_missing")

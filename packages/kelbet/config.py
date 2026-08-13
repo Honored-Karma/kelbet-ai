@@ -241,6 +241,102 @@ def cors_origin_list(settings: Settings | None = None) -> list[str]:
     ]
 
 
+#: Values of `APP_ENV` that mean "real users and real money".
+PRODUCTION_ENVS = frozenset({"production", "prod"})
+
+#: The shipped default. Left untouched it means nobody configured the Mini App origin.
+_DEFAULT_CORS_ORIGINS = ["https://web.telegram.org"]
+
+
+def production_config_problems(settings: Settings | None = None) -> list[str]:
+    """Configuration that must never reach production, with why it matters.
+
+    Every default in this project is chosen so a laptop can run the stack with no
+    setup. Two of those defaults destroy data when they reach production, and both
+    fail silently — that is what makes them worth a startup check rather than a note
+    in the runbook:
+
+    * `STORAGE_BACKEND=memory` holds generated media in the process. A restart, a
+      deploy or an OOM erases work a user has already paid credits for, and nothing
+      logs an error while it happens.
+    * `GENERATION_QUEUE_BACKEND=inline` runs generation inside the HTTP request. A
+      video route can legitimately take half an hour, so the request dies long before
+      the job does and the user is billed for a result they never receive.
+
+    Returns an empty list outside production: development and tests are exactly where
+    those cheap defaults belong.
+    """
+    cfg = settings or get_settings()
+    if cfg.app_env.strip().lower() not in PRODUCTION_ENVS:
+        return []
+
+    problems: list[str] = []
+    if cfg.storage_backend.strip().lower() != "s3":
+        problems.append(
+            f"STORAGE_BACKEND={cfg.storage_backend!r} keeps generated media in process "
+            "memory, so any restart deletes work users already paid for. "
+            "Set STORAGE_BACKEND=s3."
+        )
+    if cfg.generation_queue_backend.strip().lower() != "arq":
+        problems.append(
+            f"GENERATION_QUEUE_BACKEND={cfg.generation_queue_backend!r} runs generation "
+            "inside the HTTP request, which cannot outlive the connection a video needs. "
+            "Set GENERATION_QUEUE_BACKEND=arq."
+        )
+    if not cfg.webhook_secret.strip():
+        problems.append(
+            "WEBHOOK_SECRET is empty, so provider callbacks are unauthenticated and "
+            "anyone who learns a job id can mark it finished. Set WEBHOOK_SECRET."
+        )
+    if cors_origin_list(cfg) == _DEFAULT_CORS_ORIGINS:
+        problems.append(
+            "CORS_ORIGINS is still the shipped default, so the Mini App origin was "
+            "never configured and the browser will refuse every API call. "
+            "Set CORS_ORIGINS to include the Mini App origin."
+        )
+    return problems
+
+
+def assert_production_ready(settings: Settings | None = None) -> None:
+    """Refuse to start a production process on a configuration that loses data.
+
+    Raising here is the safe outcome, not the disruptive one: a process that will not
+    boot is visible in seconds, while `STORAGE_BACKEND=memory` in production is only
+    discovered by a user whose paid generation has vanished.
+    """
+    problems = production_config_problems(settings)
+    if not problems:
+        return
+    listed = "\n".join(f"  - {problem}" for problem in problems)
+    msg = f"Refusing to start in APP_ENV=production with unsafe configuration:\n{listed}"
+    raise RuntimeError(msg)
+
+
+def runtime_config_summary(settings: Settings | None = None) -> str:
+    """One log line naming the choices that decide whether data survives a restart.
+
+    Railway does not show variable values to the running app's operators through the
+    API, so without this the effective configuration is unknowable from outside. Only
+    switch-like settings appear here; no secret is ever formatted, just whether it is
+    present.
+    """
+    cfg = settings or get_settings()
+    parts = [
+        f"app_env={cfg.app_env}",
+        f"storage={cfg.storage_backend}",
+        f"queue={cfg.generation_queue_backend}",
+        f"moderation={cfg.moderation_mode}",
+        f"payments={cfg.payments_enabled}",
+        f"subscriptions={cfg.subscriptions_enabled}",
+        f"metrics={cfg.metrics_enabled}",
+        f"sentry={cfg.sentry_enabled}",
+        f"webhook_secret={'set' if cfg.webhook_secret.strip() else 'empty'}",
+        f"cors_origins={len(cors_origin_list(cfg))}",
+        f"stars_canary={len(stars_canary_id_set(cfg))}",
+    ]
+    return " ".join(parts)
+
+
 def admin_bootstrap_id_set(settings: Settings | None = None) -> frozenset[int]:
     cfg = settings or get_settings()
     values: set[int] = set()
