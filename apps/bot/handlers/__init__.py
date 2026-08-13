@@ -8,12 +8,16 @@ from apps.bot.handlers import (
     profile,
     start,
     subscriptions,
+    video,
 )
 
 
 def build_root_router() -> Router:
     root = Router(name="root")
     root.include_router(start.router)
+    # Registered before navigation so the video entry point is easy to find; the
+    # MenuText(MENU_VIDEO) filter exists in this router only.
+    root.include_router(video.router)
     root.include_router(navigation.router)
     root.include_router(profile.router)
     # Subscriptions and packs share Telegram's payment updates. Both routers filter on the
