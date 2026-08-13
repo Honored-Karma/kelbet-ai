@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -14,14 +15,18 @@ from apps.bot.middlewares import (
     TelegramUpdateInboxMiddleware,
 )
 from kelbet.chat.factory import build_chat_provider
-from kelbet.config import get_settings
+from kelbet.config import assert_production_ready, get_settings, runtime_config_summary
 from kelbet.db.session import build_session_factory
 from kelbet.observability import initialize_observability
+
+logger = logging.getLogger(__name__)
 
 
 async def run_bot() -> None:
     settings = get_settings()
     initialize_observability(settings, component="bot")
+    assert_production_ready(settings)
+    logger.info("runtime_config component=bot %s", runtime_config_summary(settings))
 
     if not settings.bot_token:
         msg = "BOT_TOKEN is not set"
