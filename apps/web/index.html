@@ -15,6 +15,21 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap"
     />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!--
+      Vercel Web Analytics, подключённая документированным способом без пакета.
+      Вариант через @vercel/analytics требует зависимость в package.json и
+      согласованный package-lock.json; несогласованность как раз и роняла сборку
+      с TS2307, из-за чего Mini App не деплоилось с 12 августа. Скрипт отдаёт сам
+      Vercel с /_vercel/, поэтому здесь нечему разъезжаться с лок-файлом.
+    -->
+    <script>
+      window.va =
+        window.va ||
+        function () {
+          (window.vaq = window.vaq || []).push(arguments);
+        };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
   </head>
   <body>
     <div id="root"></div>
