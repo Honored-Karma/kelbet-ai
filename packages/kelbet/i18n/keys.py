@@ -30,6 +30,17 @@ class Msg:
     MINI_APP_HISTORY = "mini_app.history"
     MINI_APP_PLANS = "mini_app.plans"
 
+    # Video model picker (inline keyboard in the bot)
+    VIDEO_MODEL_CHOOSE = "video.model.choose"
+    VIDEO_MODEL_BUTTON = "video.model.button"
+    VIDEO_MODEL_PAGE = "video.model.page"
+    VIDEO_MODEL_PREV = "video.model.prev"
+    VIDEO_MODEL_NEXT = "video.model.next"
+    VIDEO_MODEL_PICKED = "video.model.picked"
+    VIDEO_MODEL_OPEN = "video.model.open"
+    VIDEO_MODEL_EMPTY = "video.model.empty"
+    VIDEO_MODEL_GONE = "video.model.gone"
+
     BALANCE_TITLE = "balance.title"
     BALANCE_TOTAL = "balance.total"
     BALANCE_RESERVED = "balance.reserved"

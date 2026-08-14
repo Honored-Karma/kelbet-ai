@@ -42,6 +42,21 @@ TEXTS: dict[str, str] = {
     Msg.MINI_APP_TRENDS: "🔥 Трендтерді ашу",
     Msg.MINI_APP_HISTORY: "📁 Жұмыстарымды ашу",
     Msg.MINI_APP_PLANS: "💳 Балансты толтыру",
+    Msg.VIDEO_MODEL_CHOOSE: (
+        "🎬 <b>Модельді таңдаңыз</b>\n\nБағасы ұзақтығы мен сапасына байланысты 👇"
+    ),
+    Msg.VIDEO_MODEL_BUTTON: "{name} · {credits} кр.",
+    Msg.VIDEO_MODEL_PAGE: "{page} / {total}",
+    Msg.VIDEO_MODEL_PREV: "‹ Артқа",
+    Msg.VIDEO_MODEL_NEXT: "Әрі ›",
+    Msg.VIDEO_MODEL_PICKED: (
+        "🎬 <b>{name}</b>\n{description}\n\n"
+        "Бағасы: <b>{credits}</b> кредит — нақты сомасы ұзақтығы мен сапасына "
+        "байланысты, оны іске қосу алдында көресіз."
+    ),
+    Msg.VIDEO_MODEL_OPEN: "Студияны ашу",
+    Msg.VIDEO_MODEL_EMPTY: "Әзірге бейне модельдері қолжетімсіз. Кейінірек көріңіз.",
+    Msg.VIDEO_MODEL_GONE: "Бұл модель енді қолжетімсіз. Тізімді қайта ашыңыз.",
     Msg.BALANCE_TITLE: "💰 <b>Сіздің балансыңыз</b>",
     Msg.BALANCE_TOTAL: "💎 Барлығы: <b>{balance}</b> кредит",
     Msg.BALANCE_RESERVED: "⏳ Жұмыста: {reserved}",
