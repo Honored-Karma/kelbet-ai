@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from apps.api.routes.v1.admin import router as admin_router
+from apps.api.routes.v1.analytics import router as analytics_router
 from apps.api.routes.v1.assets import router as assets_router
 from apps.api.routes.v1.auth import router as auth_router
 from apps.api.routes.v1.catalog import router as catalog_router
@@ -19,6 +20,7 @@ from apps.api.routes.v1.webhooks import router as webhooks_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(admin_router)
+api_v1_router.include_router(analytics_router)
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(me_router)
 api_v1_router.include_router(moderation_router)
