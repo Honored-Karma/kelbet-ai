@@ -12,12 +12,15 @@ against the two ways a metric lies rather than against the happy path alone:
 
 from __future__ import annotations
 
+import inspect
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from apps.api.deps import get_operator
 from apps.api.main import create_app
 from apps.api.routes.v1.analytics import read_analytics
+from fastapi.params import Depends as DependsParam
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -519,19 +522,23 @@ async def test_credits_spent_reads_delivered_work_not_the_whole_ledger(
         assert usage.credits_spent == 88
 
 
-def test_the_analytics_endpoint_is_not_readable_without_an_operator() -> None:
-    """Revenue and margin are the last thing that should be world-readable, and the
-    route sits under /admin only by convention — the dependency is what enforces it."""
+def test_the_analytics_endpoint_is_published_where_the_operator_console_expects_it() -> None:
     app = create_app(testing=True)
-    routes = [
-        route for route in app.routes if getattr(route, "path", "") == "/api/v1/admin/analytics"
+
+    # The generated schema rather than `app.routes`: since FastAPI 0.141 an included
+    # router is kept as a nested object instead of being flattened into a list of
+    # paths, so walking `app.routes` silently finds nothing.
+    assert "/api/v1/admin/analytics" in app.openapi()["paths"]
+
+
+def test_analytics_is_not_readable_without_an_operator() -> None:
+    """Revenue, margin and cost per provider are the last figures that should be
+    world-readable. Sitting under /admin is a naming convention; the dependency is
+    the only thing that actually enforces it."""
+    dependencies = [
+        parameter.default.dependency
+        for parameter in inspect.signature(read_analytics).parameters.values()
+        if isinstance(parameter.default, DependsParam)
     ]
 
-    assert routes, "the analytics route is not mounted"
-    dependencies = getattr(routes[0], "dependant", None)
-    assert dependencies is not None
-    calls = {dep.call for dep in dependencies.dependencies}
-    from apps.api.deps import get_operator
-
-    assert get_operator in calls, "analytics is reachable without operator authorisation"
-    assert read_analytics.__name__ == "read_analytics"
+    assert get_operator in dependencies, "analytics is reachable without authorisation"
